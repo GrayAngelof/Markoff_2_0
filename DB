@@ -2,7 +2,7 @@
 
 ## Общая информация
 - Всего таблиц: 15
-- Схемы: physical, business, fire**, audit
+- Схемы: physical, business, fire, audit
 
 ## Схема `physical` (Физическая структура: здания, этажи, помещения, зоны)
 

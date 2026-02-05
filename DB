@@ -17,6 +17,7 @@
 | base_rate_weight      | numeric(5,2) | DEFAULT 1.0      | Базовый коэффициент для расчёта ставки       |
 | created_at            | timestamp    |                  | Дата создания записи                         |
 | updated_at            | timestamp    |                  | Дата обновления                              |
+| display_order         | integer      |                  | Порядок отображения в интерфейсе             |
 | is_active             | boolean      | DEFAULT true     | Активен ли тип для выбора                    |
 Индексы:
 - PK: `physical_room_types_pkey`
@@ -34,6 +35,7 @@
 | compatible_physical_types  | jsonb        | DEFAULT 1.0      | Массив кодов physical_room_types, с которыми совместим |
 | created_at                 | timestamp    |                  | Дата создания записи                                   |
 | updated_at                 | timestamp    |                  | Дата обновления                                        |
+| display_order              | integer      |                  | Порядок отображения в интерфейсе                       |
 | is_active                  | boolean      | DEFAULT true     | Активен ли тип для выбора                              |
 Индексы:
 - PK: `placement_usage_types_pkey`
@@ -49,6 +51,7 @@
 | description                | text         |                  | Описание датчика                                       |
 | check_interval_days        | integer      |                  | Рекомендуемый интервал проверки в днях                 |
 | default_status             | varchar(20)  | DEFAULT active   | Статус по умолчанию при установке (active, inactive)   |
+| display_order              | integer      |                  | Порядок отображения в интерфейсе                       |
 | created_at                 | timestamp    |                  | Дата создания записи                                   |
 Индексы:
 - PK: `sensor_types_pkey`
@@ -62,8 +65,8 @@
 | code                       | varchar(30)  | NOT NULL         | Код статуса (active, expired, renovation)              |
 | name                       | varchar(100) | NOT NULL         | Название (Активен, Завершён, На реконструкции)         |
 | description                | text         |                  | Описание статуса                                       |
-| display_order              | integer      |                  | Порядок отображения в интерфейсе                       |
 | is_initial                 | boolean      | DEFAULT false    | Можно ли установить этот статус при создании?          |
+| display_order              | integer      |                  | Порядок отображения в интерфейсе                       |
 | created_at                 | timestamp    |                  | Дата создания записи                                   |
 Индексы:
 - PK: `status_catalog_pkey`
@@ -85,37 +88,39 @@
 - Уникальный: `complexes_name_key`
 
 ### 6. `buildings` – Хранит информацию о каждом здании в комплексе
-| Колонка      | Тип          | Ограничения           | Комментарий                               |
-|--------------|--------------|-----------------------|-------------------------------------------|
-| id           | integer      | PK, NOT NULL          | Первичный ключ, автоинкремент             |
-| complex_id   | integer      | FK                    | Ссылка на комплекс                        |
-| name         | varchar(100) | NOT NULL, UNIQUE      | Уникальное название здания                |
-| description  | text         |                       | Описание здания                           |
-| address      | text         |                       | Физический адрес                          |
-| floors_count | integer      | NOT NULL, CHECK       | Общее количество этажей (должно быть > 0) |
-| status       | varchar(20)  | FK, NOT NULL          | Ссылка на статус помещений                |
-| created_at   | timestamp    |                       | Дата создания записи                      |
+| Колонка          | Тип          | Ограничения           | Комментарий                               |
+|------------------|--------------|-----------------------|-------------------------------------------|
+| id               | integer      | PK, NOT NULL          | Первичный ключ, автоинкремент             |
+| complex_id       | integer      | FK                    | Ссылка на комплекс                        |
+| name             | varchar(100) | NOT NULL, UNIQUE      | Уникальное название здания                |
+| description      | text         |                       | Описание здания                           |
+| address          | text         |                       | Физический адрес                          |
+| floors_count     | integer      | NOT NULL, CHECK       | Общее количество этажей (должно быть > 0) |
+| physical_type_id | integer      | FK, NOT NULL          | Ссылка на физические типы помещений       |
+| status_code      | varchar(20)  | FK, NOT NULL          | Ссылка на справочник статуса              |
+| created_at       | timestamp    |                       | Дата создания записи                      |
 Индексы:
 - PK: `buildings_pkey`
-- FK: `buildings_complex_id_fkey`, `dictionary.status_catalog(code)`
+- FK: `buildings_complex_id_fkey`, `dictionary.physical_room_types(code)`, `dictionary.status_catalog(code)`
 - UNIQUE: `buildings_complex_id_name_key`
 - CHECK: `buildings_floors_count_check`, `buildings_status_check`
 Замечания:
 В рамках одного комплекса имена зданий уникальны
 
 ### 7. `floors` – Хранит информацию об этажах в зданиях
-| Колонка        | Тип         | Ограничения           | Комментарий                                                            |
-|----------------|-------------|-----------------------|------------------------------------------------------------------------|
-| id             | integer     | PK, NOT NULL          | Первичный ключ, автоинкремент                                          |
-| building_id    | integer     | FK, NOT NULL          | Ссылка на здание                                                       |
-| number         | integer     | NOT NULL, UNIQUE      | Номер этажа (0 - цоколь, -1 и ниже - подвальные, 1 и выше - надземные) |
-| description    | text        |                       | Описание этажа                                                         |
-| type           | varchar(30) | FK, NOT NULL          | Ссылка на статус помещений                                             |
-| plan_image_url | text        |                       | ССылка на план этажа в графическом виде                                |
-| created_at     | timestamp   |                       | Дата создания записи                                                   |
+| Колонка          | Тип         | Ограничения           | Комментарий                                                            |
+|------------------|-------------|-----------------------|------------------------------------------------------------------------|
+| id               | integer     | PK, NOT NULL          | Первичный ключ, автоинкремент                                          |
+| building_id      | integer     | FK, NOT NULL          | Ссылка на здание                                                       |
+| number           | integer     | NOT NULL, UNIQUE      | Номер этажа (0 - цоколь, -1 и ниже - подвальные, 1 и выше - надземные) |
+| description      | text        |                       | Описание этажа                                                         |
+| physical_type_id | integer     | FK, NOT NULL          | Ссылка на физические типы помещений                                    |
+| status_code      | varchar(20) | FK, NOT NULL          | Ссылка на справочник статуса                                           |
+| plan_image_url   | text        |                       | ССылка на план этажа в графическом виде                                |
+| created_at       | timestamp   |                       | Дата создания записи                                                   |
 Индексы:
 - PK: `floors_pkey`
-- FK: `floors_building_id_fkey`, `dictionary.status_catalog(code)`
+- FK: `floors_building_id_fkey`, `dictionary.physical_room_types(code)`, `dictionary.status_catalog(code)`
 - UNIQUE: `floors_building_id_number_key`
 - CHECK: `floors_type_check`
 
@@ -133,7 +138,7 @@
 | created_at       | timestamp     |                  | Дата создания записи                                        |
 Индексы:
 - PK: `rooms_pkey`
-- FK: `rooms_floor_id_fkey`, `dictionary.physical_room_types(id)`, `dictionary.status_catalog(code)`
+- FK: `rooms_floor_id_fkey`, `dictionary.physical_room_types(code)`, `dictionary.status_catalog(code)`
 - UNIQUE: `rooms_floor_id_number_key`
 - CHECK: `rooms_status_check`
 Замечания:

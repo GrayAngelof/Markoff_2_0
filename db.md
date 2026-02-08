@@ -39,33 +39,33 @@
 ### Таблица `roles`
 | Колонка     | Тип         | Ограничения            | Комментарий                             |
 |-------------|-------------|------------------------|-----------------------------------------|
-| id          | bigint      | NOT NULL               | Уникальный идентификатор роли          |
-| code        | text        | NOT NULL UNIQUE        | Код роли (sysadmin, lawyer, technician)|
-| name        | text        | NOT NULL               | Название роли                          |
-| description | text        |                        | Описание роли                          |
-| is_system   | boolean     | DEFAULT false          | Системная роль                         |
-| created_at  | timestamptz | NOT NULL DEFAULT now() | Дата создания записи                   |
-| updated_at  | timestamptz | NOT NULL DEFAULT now() | Дата обновления записи                 |
+| id          | bigint      | NOT NULL               | Уникальный идентификатор роли           |
+| code        | text        | NOT NULL UNIQUE        | Код роли (sysadmin, lawyer, technician) |
+| name        | text        | NOT NULL               | Название роли                           |
+| description | text        |                        | Описание роли                           |
+| is_system   | boolean     | DEFAULT false          | Системная роль                          |
+| created_at  | timestamptz | NOT NULL DEFAULT now() | Дата создания записи                    |
+| updated_at  | timestamptz | NOT NULL DEFAULT now() | Дата обновления записи                  |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
 - UNIQUE (code)
 
 ### Таблица `user_roles`
-| Колонка             | Тип         | Ограничения            | Комментарий                             |
-|---------------------|-------------|------------------------|-----------------------------------------|
-| id                  | bigint      | NOT NULL               | Уникальный идентификатор назначения    |
-| user_id             | bigint      | NOT NULL               | Идентификатор пользователя             |
-| role_id             | bigint      | NOT NULL               | Идентификатор роли                     |
-| context_entity_type | text        |                        | Тип сущности контекста                  |
-| context_entity_id   | bigint      |                        | ID сущности контекста                   |
-| is_primary          | boolean     | DEFAULT false          | Основная ли роль                       |
-| granted_by          | bigint      |                        | Кто выдал роль                          |
-| granted_at          | timestamptz | NOT NULL DEFAULT now() | Дата выдачи роли                       |
-| valid_until         | timestamptz |                        | Дата окончания действия роли           |
-| is_active           | boolean     | DEFAULT true           | Активна ли роль                        |
-| created_at          | timestamptz | NOT NULL DEFAULT now() | Дата создания записи                   |
-| updated_at          | timestamptz | NOT NULL DEFAULT now() | Дата обновления записи                 |
+| Колонка             | Тип         | Ограничения            | Комментарий                         |
+|---------------------|-------------|------------------------|-------------------------------------|
+| id                  | bigint      | NOT NULL               | Уникальный идентификатор назначения |
+| user_id             | bigint      | NOT NULL               | Идентификатор пользователя          |
+| role_id             | bigint      | NOT NULL               | Идентификатор роли                  |
+| context_entity_type | text        |                        | Тип сущности контекста              |
+| context_entity_id   | bigint      |                        | ID сущности контекста               |
+| is_primary          | boolean     | DEFAULT false          | Основная ли роль                    |
+| granted_by          | bigint      |                        | Кто выдал роль                      |
+| granted_at          | timestamptz | NOT NULL DEFAULT now() | Дата выдачи роли                    |
+| valid_until         | timestamptz |                        | Дата окончания действия роли        |
+| is_active           | boolean     | DEFAULT true           | Активна ли роль                     |
+| created_at          | timestamptz | NOT NULL DEFAULT now() | Дата создания записи                |
+| updated_at          | timestamptz | NOT NULL DEFAULT now() | Дата обновления записи              |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
@@ -75,37 +75,37 @@
 - FOREIGN KEY (granted_by) REFERENCES users(id)
 
 ### Таблица `data_visibility_rules`
-| Колонка            | Тип         | Ограничения            | Комментарий                             |
-|--------------------|-------------|------------------------|-----------------------------------------|
-| id                 | bigint      | NOT NULL               | Уникальный идентификатор правила       |
-| role_id            | bigint      | NOT NULL               | Идентификатор роли                     |
-| table_schema       | text        | NOT NULL               | Схема таблицы                          |
-| table_name         | text        | NOT NULL               | Имя таблицы                            |
-| column_name        | text        |                        | Имя колонки                            |
-| visibility_context | text        | NOT NULL               | Контекст видимости                     |
-| condition_sql      | text        |                        | SQL-условие                            |
-| priority           | integer     | DEFAULT 0              | Приоритет применения                   |
-| is_active          | boolean     | DEFAULT true           | Активно ли правило                     |
-| created_at         | timestamptz | NOT NULL DEFAULT now() | Дата создания записи                   |
-| updated_at         | timestamptz | NOT NULL DEFAULT now() | Дата обновления записи                 |
+| Колонка            | Тип         | Ограничения            | Комментарий                      |
+|--------------------|-------------|------------------------|----------------------------------|
+| id                 | bigint      | NOT NULL               | Уникальный идентификатор правила |
+| role_id            | bigint      | NOT NULL               | Идентификатор роли               |
+| table_schema       | text        | NOT NULL               | Схема таблицы                    |
+| table_name         | text        | NOT NULL               | Имя таблицы                      |
+| column_name        | text        |                        | Имя колонки                      |
+| visibility_context | text        | NOT NULL               | Контекст видимости               |
+| condition_sql      | text        |                        | SQL-условие                      |
+| priority           | integer     | DEFAULT 0              | Приоритет применения             |
+| is_active          | boolean     | DEFAULT true           | Активно ли правило               |
+| created_at         | timestamptz | NOT NULL DEFAULT now() | Дата создания записи             |
+| updated_at         | timestamptz | NOT NULL DEFAULT now() | Дата обновления записи           |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
 - FOREIGN KEY (role_id) REFERENCES roles(id)
 
 ### Таблица `session_log`
-| Колонка      | Тип         | Ограничения            | Комментарий                             |
-|--------------|-------------|------------------------|-----------------------------------------|
-| id           | bigint      | NOT NULL               | Уникальный идентификатор сессии        |
-| user_id      | bigint      | NOT NULL               | Идентификатор пользователя             |
-| session_token| text        | NOT NULL               | Токен сессии                           |
-| ip_address   | inet        |                        | IP-адрес входа                         |
-| user_agent   | text        |                        | User-Agent браузера                    |
-| login_at     | timestamptz | NOT NULL DEFAULT now() | Время входа                            |
-| logout_at    | timestamptz |                        | Время выхода                           |
-| is_active    | boolean     | DEFAULT true           | Активна ли сессия                      |
-| created_at   | timestamptz | NOT NULL DEFAULT now() | Дата создания записи                   |
-| updated_at   | timestamptz | NOT NULL DEFAULT now() | Дата обновления записи                 |
+| Колонка      | Тип         | Ограничения            | Комментарий                     |
+|--------------|-------------|------------------------|---------------------------------|
+| id           | bigint      | NOT NULL               | Уникальный идентификатор сессии |
+| user_id      | bigint      | NOT NULL               | Идентификатор пользователя      |
+| session_token| text        | NOT NULL               | Токен сессии                    |
+| ip_address   | inet        |                        | IP-адрес входа                  |
+| user_agent   | text        |                        | User-Agent браузера             |
+| login_at     | timestamptz | NOT NULL DEFAULT now() | Время входа                     |
+| logout_at    | timestamptz |                        | Время выхода                    |
+| is_active    | boolean     | DEFAULT true           | Активна ли сессия               |
+| created_at   | timestamptz | NOT NULL DEFAULT now() | Дата создания записи            |
+| updated_at   | timestamptz | NOT NULL DEFAULT now() | Дата обновления записи          |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
@@ -116,96 +116,96 @@
 ## Схема `dictionary`
 
 ### Таблица `physical_room_types`
-| Колонка              | Тип         | Ограничения                         | Комментарий                                     |
-|----------------------|-------------|-------------------------------------|-------------------------------------------------|
-| id                   | bigint      | NOT NULL                            | Первичный ключ, автоинкремент                  |
-| code                 | text        | NOT NULL UNIQUE                     | Машинный код (office, warehouse)               |
-| name                 | text        | NOT NULL                            | Человекочитаемое название типа помещения       |
-| description          | text        |                                     | Подробное описание типа помещения              |
-| fire_safety_category | character   |                                     | Категория пожарной опасности (A, B, C, D, F)   |
-| is_rentable          | boolean     | NOT NULL DEFAULT true               | Можно ли сдавать в аренду                      |
-| base_rate_weight     | numeric(5,2)| NOT NULL DEFAULT 1.0                | Базовый коэффициент для расчёта ставки         |
-| created_at           | timestamptz | NOT NULL DEFAULT now()              | Дата создания записи                           |
-| updated_at           | timestamptz | NOT NULL DEFAULT now()              | Дата обновления записи                         |
-| display_order        | integer     |                                     | Порядок отображения в интерфейсе               |
-| is_active            | boolean     | NOT NULL DEFAULT true               | Активен ли тип для выбора                      |
+| Колонка              | Тип          | Ограничения            | Комментарий                                  |
+|----------------------|--------------|------------------------|----------------------------------------------|
+| id                   | bigint       | NOT NULL               | Первичный ключ, автоинкремент                |
+| code                 | text         | NOT NULL UNIQUE        | Машинный код (office, warehouse)             |
+| name                 | text         | NOT NULL               | Человекочитаемое название типа помещения     |
+| description          | text         |                        | Подробное описание типа помещения            |
+| fire_safety_category | character    |                        | Категория пожарной опасности (A, B, C, D, F) |
+| is_rentable          | boolean      | NOT NULL DEFAULT true  | Можно ли сдавать в аренду                    |
+| base_rate_weight     | numeric(5,2) | NOT NULL DEFAULT 1.0   | Базовый коэффициент для расчёта ставки       |
+| created_at           | timestamptz  | NOT NULL DEFAULT now() | Дата создания записи                         |
+| updated_at           | timestamptz  | NOT NULL DEFAULT now() | Дата обновления записи                       |
+| display_order        | integer      |                        | Порядок отображения в интерфейсе             |
+| is_active            | boolean      | NOT NULL DEFAULT true  | Активен ли тип для выбора                    |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
 
 ### Таблица `placement_usage_types`
-| Колонка                  | Тип         | Ограничения                         | Комментарий                                     |
-|--------------------------|-------------|-------------------------------------|-------------------------------------------------|
-| id                       | bigint      | NOT NULL                            | Первичный ключ, автоинкремент                  |
-| code                     | text        | NOT NULL UNIQUE                     | Машинный код (office, warehouse)               |
-| name                     | text        | NOT NULL                            | Название типа                                  |
-| description              | text        |                                     | Описание типа                                  |
-| rate_multiplier          | numeric(5,2)| NOT NULL DEFAULT 1.0                | Множитель к базовой ставке помещения           |
-| requires_special_agreement| boolean    | NOT NULL DEFAULT false              | Требует отдельного соглашения                  |
-| compatible_physical_types| jsonb       |                                     | Массив кодов physical_room_types для совместимости |
-| created_at               | timestamptz | NOT NULL DEFAULT now()              | Дата создания записи                           |
-| updated_at               | timestamptz | NOT NULL DEFAULT now()              | Дата обновления записи                         |
-| display_order            | integer     |                                     | Порядок отображения в интерфейсе               |
-| is_active                | boolean     | NOT NULL DEFAULT true               | Активен ли тип для выбора                      |
+| Колонка                    | Тип          | Ограничения            | Комментарий                                        |
+|----------------------------|--------------|------------------------|----------------------------------------------------|
+| id                         | bigint       | NOT NULL               | Первичный ключ, автоинкремент                      |
+| code                       | text         | NOT NULL UNIQUE        | Машинный код (office, warehouse)                   |
+| name                       | text         | NOT NULL               | Название типа                                      |
+| description                | text         |                        | Описание типа                                      |
+| rate_multiplier            | numeric(5,2) | NOT NULL DEFAULT 1.0   | Множитель к базовой ставке помещения               |
+| requires_special_agreement | boolean      | NOT NULL DEFAULT false | Требует отдельного соглашения                      |
+| compatible_physical_types  | jsonb        |                        | Массив кодов physical_room_types для совместимости |
+| created_at                 | timestamptz  | NOT NULL DEFAULT now() | Дата создания записи                               |
+| updated_at                 | timestamptz  | NOT NULL DEFAULT now() | Дата обновления записи                             |
+| display_order              | integer      |                        | Порядок отображения в интерфейсе                   |
+| is_active                  | boolean      | NOT NULL DEFAULT true  | Активен ли тип для выбора                          |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
 
 ### Таблица `sensor_types`
-| Колонка           | Тип         | Ограничения                         | Комментарий                                     |
-|-------------------|-------------|-------------------------------------|-------------------------------------------------|
-| id                | bigint      | NOT NULL                            | Первичный ключ, автоинкремент                  |
-| code              | text        | NOT NULL UNIQUE                     | Машинный код (smoke, heat, manual)             |
-| name              | text        | NOT NULL                            | Название датчика                               |
-| description       | text        |                                     | Описание датчика                               |
-| check_interval_days| integer    |                                     | Рекомендуемый интервал проверки в днях         |
-| default_status    | text        | NOT NULL DEFAULT 'active'           | Статус по умолчанию при установке              |
-| display_order     | integer     |                                     | Порядок отображения в интерфейсе               |
-| created_at        | timestamptz | NOT NULL DEFAULT now()              | Дата создания записи                           |
-| updated_at        | timestamptz | NOT NULL DEFAULT now()              | Дата обновления записи                         |
+| Колонка             | Тип         | Ограничения               | Комментарий                            |
+|---------------------|-------------|---------------------------|----------------------------------------|
+| id                  | bigint      | NOT NULL                  | Первичный ключ, автоинкремент          |
+| code                | text        | NOT NULL UNIQUE           | Машинный код (smoke, heat, manual)     |
+| name                | text        | NOT NULL                  | Название датчика                       |
+| description         | text        |                           | Описание датчика                       |
+| check_interval_days | integer     |                           | Рекомендуемый интервал проверки в днях |
+| default_status      | text        | NOT NULL DEFAULT 'active' | Статус по умолчанию при установке      |
+| display_order       | integer     |                           | Порядок отображения в интерфейсе       |
+| created_at          | timestamptz | NOT NULL DEFAULT now()    | Дата создания записи                   |
+| updated_at          | timestamptz | NOT NULL DEFAULT now()    | Дата обновления записи                 |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
 
 ### Таблица `counterparties`
-| Колонка        | Тип         | Ограничения                         | Комментарий                                     |
-|----------------|-------------|-------------------------------------|-------------------------------------------------|
-| id             | bigint      | NOT NULL                            | Уникальный идентификатор контрагента           |
-| type           | text        | NOT NULL DEFAULT 'tenant'           | Тип: landlord, tenant, supplier, contractor, service |
-| short_name     | text        | NOT NULL                            | Краткое название                               |
-| full_name      | text        |                                     | Полное юридическое название                    |
-| tax_id         | text        |                                     | ИНН                                            |
-| legal_address  | text        |                                     | Юридический адрес                              |
-| actual_address | text        |                                     | Фактический адрес                              |
-| bank_details   | jsonb       |                                     | Банковские реквизиты в формате JSON            |
-| status_code    | varchar(20) | FK, NOT NULL DEFAULT 'active'       | Ссылка на counterparty_statuses.code           |
-| notes          | text        |                                     | Дополнительные заметки                         |
-| created_at     | timestamptz | NOT NULL DEFAULT now()              | Дата создания записи                           |
-| updated_at     | timestamptz | NOT NULL DEFAULT now()              | Дата обновления записи                         |
+| Колонка        | Тип         | Ограничения                   | Комментарий                                          |
+|----------------|-------------|-------------------------------|------------------------------------------------------|
+| id             | bigint      | NOT NULL                      | Уникальный идентификатор контрагента                 |
+| type           | text        | NOT NULL DEFAULT 'tenant'     | Тип: landlord, tenant, supplier, contractor, service |
+| short_name     | text        | NOT NULL                      | Краткое название                                     |
+| full_name      | text        |                               | Полное юридическое название                          |
+| tax_id         | text        |                               | ИНН                                                  |
+| legal_address  | text        |                               | Юридический адрес                                    |
+| actual_address | text        |                               | Фактический адрес                                    |
+| bank_details   | jsonb       |                               | Банковские реквизиты в формате JSON                  |
+| status_code    | varchar(20) | FK, NOT NULL DEFAULT 'active' | Ссылка на counterparty_statuses.code                 |
+| notes          | text        |                               | Дополнительные заметки                               |
+| created_at     | timestamptz | NOT NULL DEFAULT now()        | Дата создания записи                                 |
+| updated_at     | timestamptz | NOT NULL DEFAULT now()        | Дата обновления записи                               |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
 - FOREIGN KEY (status_code) REFERENCES counterparty_statuses(code)
 
 ### Таблица `responsible_persons`
-| Колонка            | Тип         | Ограничения                         | Комментарий                                     |
-|--------------------|-------------|-------------------------------------|-------------------------------------------------|
-| id                 | bigint      | NOT NULL                            | Уникальный идентификатор ответственного лица   |
-| counterparty_id    | bigint      |                                     | Идентификатор контрагента                      |
-| person_name        | text        | NOT NULL                            | ФИО ответственного лица                        |
-| position           | text        |                                     | Должность                                      |
-| department         | text        |                                     | Подразделение/отдел                            |
-| role_code          | text        | NOT NULL                            | Код роли                                       |
-| phone              | text        |                                     | Контактный телефон                             |
-| email              | text        |                                     | Электронная почта                              |
-| contact_categories | text[]      | DEFAULT '{}'                        | Категории: legal, fire_safety, technical, financial, emergency, general |
-| is_public_contact  | boolean     | DEFAULT false                       | Является ли публичным контактом                |
-| is_active          | boolean     | NOT NULL DEFAULT true               | Активен ли сотрудник                           |
-| hire_date          | date        |                                     | Дата приема на работу                          |
-| termination_date   | date        |                                     | Дата увольнения                                |
-| notes              | text        |                                     | Дополнительные заметки                         |
-| created_at         | timestamptz | NOT NULL DEFAULT now()              | Дата создания записи                           |
-| updated_at         | timestamptz | NOT NULL DEFAULT now()              | Дата обновления записи                         |
+| Колонка            | Тип         | Ограничения            | Комментарий                                                             |
+|--------------------|-------------|------------------------|-------------------------------------------------------------------------|
+| id                 | bigint      | NOT NULL               | Уникальный идентификатор ответственного лица                            |
+| counterparty_id    | bigint      |                        | Идентификатор контрагента                                               |
+| person_name        | text        | NOT NULL               | ФИО ответственного лица                                                 |
+| position           | text        |                        | Должность                                                               |
+| department         | text        |                        | Подразделение/отдел                                                     |
+| role_code          | text        | NOT NULL               | Код роли                                                                |
+| phone              | text        |                        | Контактный телефон                                                      |
+| email              | text        |                        | Электронная почта                                                       |
+| contact_categories | text[]      | DEFAULT '{}'           | Категории: legal, fire_safety, technical, financial, emergency, general |
+| is_public_contact  | boolean     | DEFAULT false          | Является ли публичным контактом                                         |
+| is_active          | boolean     | NOT NULL DEFAULT true  | Активен ли сотрудник                                                    |
+| hire_date          | date        |                        | Дата приема на работу                                                   |
+| termination_date   | date        |                        | Дата увольнения                                                         |
+| notes              | text        |                        | Дополнительные заметки                                                  |
+| created_at         | timestamptz | NOT NULL DEFAULT now() | Дата создания записи                                                    |
+| updated_at         | timestamptz | NOT NULL DEFAULT now() | Дата обновления записи                                                  |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
@@ -213,93 +213,93 @@
 - FOREIGN KEY (role_code) REFERENCES role_catalog(code)
 
 ### Таблица `role_catalog`
-| Колонка      | Тип         | Ограничения            | Комментарий                             |
-|--------------|-------------|------------------------|-----------------------------------------|
-| id           | bigint      | NOT NULL               | Уникальный идентификатор роли          |
-| code         | text        | NOT NULL UNIQUE        | Код роли                                |
-| name         | text        | NOT NULL               | Название роли                          |
-| description  | text        |                        | Описание роли                          |
-| category     | text        | NOT NULL               | Категория: safety, technical, legal, financial, management, contact, other |
-| display_order| integer     |                        | Порядок отображения                    |
-| is_active    | boolean     | DEFAULT true           | Активна ли роль                        |
-| created_at   | timestamptz | NOT NULL DEFAULT now() | Дата создания записи                   |
-| updated_at   | timestamptz | NOT NULL DEFAULT now() | Дата обновления записи                 |
+| Колонка       | Тип         | Ограничения            | Комментарий                                                                |
+|---------------|-------------|------------------------|----------------------------------------------------------------------------|
+| id            | bigint      | NOT NULL               | Уникальный идентификатор роли                                              |
+| code          | text        | NOT NULL UNIQUE        | Код роли                                                                   |
+| name          | text        | NOT NULL               | Название роли                                                              |
+| description   | text        |                        | Описание роли                                                              |
+| category      | text        | NOT NULL               | Категория: safety, technical, legal, financial, management, contact, other |
+| display_order | integer     |                        | Порядок отображения                                                        |
+| is_active     | boolean     | DEFAULT true           | Активна ли роль                                                            |
+| created_at    | timestamptz | NOT NULL DEFAULT now() | Дата создания записи                                                       |
+| updated_at    | timestamptz | NOT NULL DEFAULT now() | Дата обновления записи                                                     |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
 
 ### Таблица `contact_categories`
-| Колонка      | Тип         | Ограничения            | Комментарий                             |
-|--------------|-------------|------------------------|-----------------------------------------|
-| id           | bigint      | NOT NULL               | Уникальный идентификатор категории     |
-| code         | text        | NOT NULL UNIQUE        | Код категории                           |
-| name         | text        | NOT NULL               | Название категории                      |
-| description  | text        |                        | Описание категории                      |
-| allowed_roles| text[]      |                        | Массив ролей, которые могут видеть эти контакты |
-| created_at   | timestamptz | NOT NULL DEFAULT now() | Дата создания записи                   |
-| updated_at   | timestamptz | NOT NULL DEFAULT now() | Дата обновления записи                 |
+| Колонка       | Тип         | Ограничения            | Комментарий                                     |
+|---------------|-------------|------------------------|-------------------------------------------------|
+| id            | bigint      | NOT NULL               | Уникальный идентификатор категории              |
+| code          | text        | NOT NULL UNIQUE        | Код категории                                   |
+| name          | text        | NOT NULL               | Название категории                              |
+| description   | text        |                        | Описание категории                              |
+| allowed_roles | text[]      |                        | Массив ролей, которые могут видеть эти контакты |
+| created_at    | timestamptz | NOT NULL DEFAULT now() | Дата создания записи                            |
+| updated_at    | timestamptz | NOT NULL DEFAULT now() | Дата обновления записи                          |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
 
 ### Таблица `counterparty_statuses`
-| Колонка      | Тип         | Ограничения            | Комментарий                             |
-|--------------|-------------|------------------------|-----------------------------------------|
-| id           | bigint      | NOT NULL               | Уникальный идентификатор статуса       |
-| code         | varchar(20) | NOT NULL UNIQUE        | Код статуса: active, suspended, archived |
-| name         | varchar(100)| NOT NULL               | Название статуса                        |
-| description  | text        |                        | Описание                                |
-| is_initial   | boolean     | DEFAULT false          | Можно ли установить при создании        |
-| display_order| integer     | DEFAULT 0              | Порядок отображения                    |
-| created_at   | timestamptz | DEFAULT now()          | Дата создания записи                   |
-| updated_at   | timestamptz | DEFAULT now()          | Дата обновления записи                 |
+| Колонка       | Тип          | Ограничения      | Комментарий                              |
+|---------------|--------------|------------------|------------------------------------------|
+| id            | bigint       | NOT NULL         | Уникальный идентификатор статуса         |
+| code          | varchar(20)  | NOT NULL UNIQUE  | Код статуса: active, suspended, archived |
+| name          | varchar(100) | NOT NULL         | Название статуса                         |
+| description   | text         |                  | Описание                                 |
+| is_initial    | boolean      | DEFAULT false    | Можно ли установить при создании         |
+| display_order | integer      | DEFAULT 0        | Порядок отображения                      |
+| created_at    | timestamptz  | DEFAULT now()    | Дата создания записи                     |
+| updated_at    | timestamptz  | DEFAULT now()    | Дата обновления записи                   |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
 
 ### Таблица `room_statuses`
-| Колонка      | Тип         | Ограничения            | Комментарий                             |
-|--------------|-------------|------------------------|-----------------------------------------|
-| id           | bigint      | NOT NULL               | Уникальный идентификатор статуса       |
-| code         | varchar(20) | NOT NULL UNIQUE        | Код статуса: available, occupied, renovation |
-| name         | varchar(100)| NOT NULL               | Название статуса                        |
-| description  | text        |                        | Описание                                |
-| is_initial   | boolean     | DEFAULT false          | Можно ли установить при создании        |
-| allows_rent  | boolean     | DEFAULT false          | Можно ли сдавать в этом статусе         |
-| display_order| integer     | DEFAULT 0              | Порядок отображения                    |
-| created_at   | timestamptz | DEFAULT now()          | Дата создания записи                   |
-| updated_at   | timestamptz | DEFAULT now()          | Дата обновления записи                 |
+| Колонка       | Тип          | Ограничения     | Комментарий                                  |
+|---------------|--------------|-----------------|----------------------------------------------|
+| id            | bigint       | NOT NULL        | Уникальный идентификатор статуса             |
+| code          | varchar(20)  | NOT NULL UNIQUE | Код статуса: available, occupied, renovation |
+| name          | varchar(100) | NOT NULL        | Название статуса                             |
+| description   | text         |                 | Описание                                     |
+| is_initial    | boolean      | DEFAULT false   | Можно ли установить при создании             |
+| allows_rent   | boolean      | DEFAULT false   | Можно ли сдавать в этом статусе              |
+| display_order | integer      | DEFAULT 0       | Порядок отображения                          |
+| created_at    | timestamptz  | DEFAULT now()   | Дата создания записи                         |
+| updated_at    | timestamptz  | DEFAULT now()   | Дата обновления записи                       |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
 
 ### Таблица `contract_statuses`
-| Колонка      | Тип         | Ограничения            | Комментарий                             |
-|--------------|-------------|------------------------|-----------------------------------------|
-| id           | bigint      | NOT NULL               | Уникальный идентификатор статуса       |
-| code         | varchar(20) | NOT NULL UNIQUE        | Код статуса: draft, active, expired, terminated |
-| name         | varchar(100)| NOT NULL               | Название статуса                        |
-| description  | text        |                        | Описание                                |
-| is_initial   | boolean     | DEFAULT false          | Можно ли установить при создании        |
-| is_terminal  | boolean     | DEFAULT false          | Конечный ли статус                      |
-| display_order| integer     | DEFAULT 0              | Порядок отображения                    |
-| created_at   | timestamptz | DEFAULT now()          | Дата создания записи                   |
-| updated_at   | timestamptz | DEFAULT now()          | Дата обновления записи                 |
+| Колонка       | Тип          | Ограничения     | Комментарий                                     |
+|---------------|--------------|-----------------|-------------------------------------------------|
+| id            | bigint       | NOT NULL        | Уникальный идентификатор статуса                |
+| code          | varchar(20)  | NOT NULL UNIQUE | Код статуса: draft, active, expired, terminated |
+| name          | varchar(100) | NOT NULL        | Название статуса                                |
+| description   | text         |                 | Описание                                        |
+| is_initial    | boolean      | DEFAULT false   | Можно ли установить при создании                |
+| is_terminal   | boolean      | DEFAULT false   | Конечный ли статус                              |
+| display_order | integer      | DEFAULT 0       | Порядок отображения                             |
+| created_at    | timestamptz  | DEFAULT now()   | Дата создания записи                            |
+| updated_at    | timestamptz  | DEFAULT now()   | Дата обновления записи                          |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)
 
 ### Таблица `placement_statuses`
-| Колонка      | Тип         | Ограничения            | Комментарий                             |
-|--------------|-------------|------------------------|-----------------------------------------|
-| id           | bigint      | NOT NULL               | Уникальный идентификатор статуса       |
-| code         | varchar(20) | NOT NULL UNIQUE        | Код статуса: planned, active, completed, cancelled |
-| name         | varchar(100)| NOT NULL               | Название статуса                        |
-| description  | text        |                        | Описание                                |
-| is_initial   | boolean     | DEFAULT false          | Можно ли установить при создании        |
-| display_order| integer     | DEFAULT 0              | Порядок отображения                    |
-| created_at   | timestamptz | DEFAULT now()          | Дата создания записи                   |
-| updated_at   | timestamptz | DEFAULT now()          | Дата обновления записи                 |
+| Колонка       | Тип          | Ограничения            | Комментарий                                 |
+|---------------|--------------|-----------------|----------------------------------------------------|
+| id            | bigint       | NOT NULL        | Уникальный идентификатор статуса                   |
+| code          | varchar(20)  | NOT NULL UNIQUE | Код статуса: planned, active, completed, cancelled |
+| name          | varchar(100) | NOT NULL        | Название статуса                                   |
+| description   | text         |                 | Описание                                           |
+| is_initial    | boolean      | DEFAULT false   | Можно ли установить при создании                   |
+| display_order | integer      | DEFAULT 0       | Порядок отображения                                |
+| created_at    | timestamptz  | DEFAULT now()   | Дата создания записи                               |
+| updated_at    | timestamptz  | DEFAULT now()   | Дата обновления записи                             |
 
 **Ключи и ограничения:**
 - PRIMARY KEY (id)

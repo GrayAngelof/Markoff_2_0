@@ -1,0 +1,119 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Poetry / uv / pipenv
+.poetry/
+uv.lock
+Pipfile.lock
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Docker
+*.dockerignore
+Dockerfile.*
+docker-compose.override.yml
+
+# Models & large files (GGUF, checkpoints, etc.)
+*.gguf
+*.safetensors
+*.bin
+*.pth
+*.pt
+*.ckpt
+models/
+checkpoints/
+*.7z
+*.zip
+*.rar
+*.tar.gz
+
+# Koboldcpp specific
+koboldcpp.exe
+koboldcpp.log
+koboldcpp_cache/
+koboldcpp_state/
+
+# Database & temp files
+*.sqlite3
+*.db
+*.db-journal
+*.bak
+*.tmp
+*.temp
+
+# macOS / Windows junk
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Testing & coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+*.pytest_cache/
+tox/
+nox/
+.hypothesis/
+
+# Dependency directories (если не используешь Docker полностью)
+node_modules/
+jspm_packages/
+bower_components/
+
+# Personal / local config
+*.local.*
+.local/
+secrets/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Project-specific ignores
+# (можно добавить свои, если появятся)
+temp/
+backup/
+*.backup
+*.old

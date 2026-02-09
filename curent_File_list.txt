@@ -1,0 +1,33 @@
+Markoff_2.0/
+├── config/
+│   ├── .env                         # DATABASE_URL, другие секреты
+│   └── backend.env                  # (опционально, если хочешь разделить)
+│
+├── backend/                         # только эта часть сейчас нужна
+│   ├── src/
+│   │   ├── __init__.py
+│   │   ├── main.py                  # FastAPI приложение
+│   │   ├── api/
+│   │   │   ├── routers/
+│   │   │   │   ├── buildings.py
+│   │   │   │   ├── tenants.py
+│   │   │   │   ├── sensors.py
+│   │   │   │   └── health.py
+│   │   │   └── dependencies.py      # db сессия, аутентификация и т.д.
+│   │   ├── db/
+│   │   │   ├── models/              # SQLAlchemy модели
+│   │   │   │   ├── building.py
+│   │   │   │   ├── tenant.py
+│   │   │   │   └── sensor.py
+│   │   │   ├── crud/                # операции создания/чтения/обновления
+│   │   │   └── session.py           # фабрика сессий
+│   │   └── utils/
+│   │       └── helpers.py           # (если есть вспомогательные функции)
+│   └── requirements.txt             # fastapi uvicorn sqlalchemy psycopg2-binary pydantic
+│
+├── docker/
+│   ├── Dockerfile.backend           # для backend
+│   └── environments/
+│       └── dev-compose.yml          # (пока можно оставить, но необязательно)
+│
+└── .gitignore

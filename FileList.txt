@@ -1,98 +1,91 @@
 Markoff_2.0/
+├── config/                          # Конфиги (секреты, настройки LLM, каналов, БД)
+│   ├── .env                         # Общие переменные: DATABASE_URL, LLM_BASE_URL и т.д.
+│   ├── backend.env                  # Только для backend (если разделяем)
+│   ├── nanobot_config.json          # Конфиг Nanobot: providers (openai → Koboldcpp), channels (telegram), skills
+│   └── logging.yaml                 # Настройки логирования
 │
-├── config/                          # Все конфигурации проекта (общие + per-сервис)
-│   ├── .env                         # Секреты: DB_URL, API_SECRET, MODEL_PATHS, etc.
-│   ├── backend.env                  # Только для backend (если разделяем .env)
-│   ├── nanobot_config.json          # Конфиг Nanobot: providers, channels, temperature, max_iterations…
-│   └── logging.yaml                 # Общий logging конфиг (yaml для dictConfig)
-│
-├── backend/                         # API-сервер + бизнес-логика + доступ к БД (самый критичный слой)
+├── backend/                         # FastAPI + SQLAlchemy + доступ к PostgreSQL (в контейнере)
 │   ├── src/
 │   │   ├── __init__.py
-│   │   ├── main.py                  # uvicorn entrypoint: app = FastAPI(); if __name__ == "__main__": uvicorn.run…
+│   │   ├── main.py                  # uvicorn app = FastAPI()
 │   │   ├── api/
 │   │   │   ├── routers/
-│   │   │   │   ├── buildings.py     # Эндпоинты: /buildings, /floors, /rooms
-│   │   │   │   ├── tenants.py       # /tenants, /leases, /placements
-│   │   │   │   ├── sensors.py       # /sensors, /statuses, /events (POST update вручную)
-│   │   │   │   └── health.py        # /health, /ready для readiness/liveness
-│   │   │   └── dependencies.py      # common: get_current_user, get_db, rate_limit…
+│   │   │   │   ├── buildings.py
+│   │   │   │   ├── tenants.py
+│   │   │   │   ├── sensors.py
+│   │   │   │   └── health.py        # /health, /ready
+│   │   │   └── dependencies.py      # get_db, get_current_user, rate_limit
 │   │   ├── db/
-│   │   │   ├── models/              # SQLAlchemy declarative_base модели
+│   │   │   ├── models/              # SQLAlchemy модели
 │   │   │   │   ├── building.py
 │   │   │   │   ├── tenant.py
 │   │   │   │   └── sensor.py
-│   │   │   ├── crud/                # Create / Read / Update / Delete функции
-│   │   │   ├── migrations/          # alembic: versions/
-│   │   │   └── session.py           # get_db generator
+│   │   │   ├── crud/
+│   │   │   ├── migrations/          # alembic
+│   │   │   └── session.py
 │   │   └── utils/
-│   │       ├── visualization.py     # Pillow → генерация планов этажей (возвращает bytes)
-│   │       └── helpers.py           # dt utils, enums, validators
-│   └── requirements.txt             # fastapi, uvicorn, sqlalchemy, alembic, pydantic, pillow…
+│   │       ├── visualization.py     # Pillow для схем этажей
+│   │       └── helpers.py
+│   └── requirements.txt             # fastapi, uvicorn, sqlalchemy, alembic, pydantic, pillow
 │
-├── nanobot/                         # Локальный AI-агент (на базе nanobot-ai / HKUDS/nanobot стиля)
+├── nanobot/                         # Nanobot (в контейнере) — агент, каналы, навыки
 │   ├── src/
-│   │   ├── main.py                  # nanobot gateway: load config, start channels loop
-│   │   ├── agent.py                 # основной loop: plan → tool calls → execute → respond
-│   │   ├── providers/               # LLM провайдеры (локальные)
-│   │   │   └── vllm_local.py        # vLLM клиент на localhost:8000/v1 (OpenAI compatible)
-│   │   ├── skills/                  # Навыки / tools агента
-│   │   │   ├── api_bridge.py        # Вызовы backend API (httpx с auth)
-│   │   │   ├── visualize_plan.py    # Запрос схемы этажа → вызов backend → TTS если нужно
-│   │   │   └── status_report.py     # Агрегация тревог датчиков, etc.
+│   │   ├── main.py                  # запуск nanobot gateway / loop
+│   │   ├── agent.py                 # основной цикл: parse → plan → tool calls → respond
+│   │   ├── providers/
+│   │   │   └── openai_kobold.py     # кастомный провайдер для Koboldcpp (base_url = host.docker.internal:5001/v1)
+│   │   ├── skills/
+│   │   │   ├── api_bridge.py        # вызовы backend API (httpx)
+│   │   │   ├── visualize_plan.py    # запрос схемы → backend → render
+│   │   │   ├── status_report.py     # агрегация датчиков, тревоги
+│   │   │   └── voice_processor.py   # STT/TTS вызовы через Koboldcpp API (если поддерживает)
 │   │   ├── channels/
-│   │   │   ├── telegram.py          # Telegram бот (aiogram или python-telegram-bot)
-│   │   │   └── voice_processor.py   # Локальный STT + TTS пайплайн
-│   │   └── stt_tts/
-│   │       ├── stt.py               # faster-whisper large-v3 (cuda)
-│   │       └── tts.py               # XTTS-v2 или Piper (cuda или cpu fallback)
-│   └── requirements.txt             # nanobot-ai (если форк/пакет), faster-whisper, TTS (coqui), torch, torchaudio, httpx…
+│   │   │   ├── telegram.py          # aiogram / python-telegram-bot
+│   │   │   └── voice_handler.py     # обработка voice → Koboldcpp STT → текст → LLM → TTS → voice reply
+│   │   └── config_loader.py         # чтение nanobot_config.json
+│   └── requirements.txt             # nanobot-ai (если пакет), aiogram, httpx, pydantic
 │
-├── shared/                          # Общие типы и контракты между backend и nanobot
-│   ├── schemas/                     # Pydantic модели (API request/response)
+├── shared/                          # Общие схемы между backend и nanobot
+│   ├── schemas/
 │   │   ├── building.py
 │   │   ├── tenant.py
 │   │   └── sensor.py
-│   └── enums.py                     # StatusEnum, SensorTypeEnum, RoleEnum…
+│   └── enums.py
 │
 ├── docker/
 │   ├── environments/
-│   │   ├── dev-compose.yml          # hot-reload, debug, без GPU
-│   │   ├── prod-compose.yml         # минималистичный, restart: unless-stopped
-│   │   └── gpu-compose.yml          # nvidia runtime, vLLM + STT/TTS на GPU
-│   ├── monitoring/
-│   │   ├── prometheus.yml
-│   │   └── grafana/provisioning/    # datasources, dashboards (GPU, API latency, query count…)
-│   ├── init-scripts/
-│   │   ├── wait-for-postgres.sh
-│   │   ├── init-db.sql              # CREATE SCHEMA security, physical, business, fire…
-│   │   └── preload-models.sh        # optional: pull whisper, XTTS модели заранее
-│   ├── Dockerfile.backend           # python:3.12-slim + deps без GPU
-│   ├── Dockerfile.nanobot           # nvidia/cuda:12.8 + torch + vllm + faster-whisper + TTS
-│   └── nginx.conf                   # reverse proxy → backend:8000, nanobot если нужен внешний канал
+│   │   ├── dev-compose.yml          # Гибрид: backend + nanobot в Docker, Koboldcpp на хосте
+│   │   └── prod-compose.yml         # для будущего продакшена (если Koboldcpp тоже в контейнер)
+│   ├── Dockerfile.backend           # python:3.12-slim + deps
+│   ├── Dockerfile.nanobot           # python:3.12 + deps (без CUDA, т.к. LLM на хосте)
+│   └── nginx.conf                   # опционально, если нужен reverse-proxy
 │
 ├── tests/
-│   ├── backend/                     # pytest на API, crud, schemas validation
-│   ├── nanobot/                     # тесты навыков, voice roundtrip (mock STT/TTS)
-│   └── integration/                 # end-to-end: telegram mock → agent → api → db
+│   ├── backend/
+│   ├── nanobot/
+│   └── integration/
 │
 ├── docs/
-│   ├── architecture.md              # общая схема, ключевой цикл, потоки
-│   ├── module-import-diagram.md     # mermaid диаграмма импортов
-│   ├── api-openapi.md               # или swagger export
-│   ├── db-schema.md                 # ER-диаграмма или описание таблиц
-│   └── local-ai-stack.md            # настройка vLLM / faster-whisper / XTTS
+│   ├── architecture.md              # схема: Koboldcpp (host) ↔ nanobot (docker) ↔ backend (docker) ↔ PostgreSQL (external)
+│   ├── module-import-diagram.md     # mermaid
+│   ├── api-openapi.md
+│   ├── db-schema.md
+│   └── koboldcpp-integration.md     # как подключить, флаги, порты
 │
 ├── scripts/
-│   ├── setup.sh                     # pip install -r …, alembic upgrade, nanobot onboard (если нужно)
-│   ├── migrate.sh                   # alembic upgrade head
+│   ├── setup.sh                     # создание venv, pip install
 │   ├── run-backend.sh               # uvicorn backend.src.main:app --reload
 │   ├── run-nanobot.sh               # python nanobot/src/main.py
-│   └── start-gpu.sh                 # docker compose -f gpu-compose.yml up -d
+│   ├── start-dev.sh                 # docker compose -f dev-compose.yml up --build
+│   └── migrate-db.sh                # alembic upgrade head
+│
+├── models/                          # опционально: симлинк или копии моделей для документации
+│   └── README.md                    # где лежат gguf-файлы на хосте
 │
 ├── .gitignore
-├── pyproject.toml                   # poetry / uv / hatch (опционально вместо requirements)
-└── README.md                        # установка, запуск, стек, как добавить навык / канал
+├── pyproject.toml                   # опционально (poetry/uv)
+└── README.md                        # установка, запуск Koboldcpp, docker-compose, подключение Telegram
 
 Краткие комментарии к основным блокам
 config/

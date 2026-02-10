@@ -404,7 +404,6 @@
 | description      | text        |                                   | Описание здания                   |
 | address          | text        |                                   | Адрес здания                      |
 | floors_count     | integer     | NOT NULL CHECK (floors_count > 0) | Общее количество этажей           |
-| physical_type_id | bigint      | NOT NULL                          | Ссылка на physical_room_types.id  |
 | status_code      | varchar(20) | FK, NOT NULL                      | Ссылка на building_statuses.code  |
 | created_at       | timestamptz | NOT NULL DEFAULT now()            | Дата создания записи              |
 | updated_at       | timestamptz | NOT NULL DEFAULT now()            | Дата обновления записи            |
@@ -413,7 +412,6 @@
 - PRIMARY KEY (id)
 - UNIQUE (complex_id, name)
 - FOREIGN KEY (complex_id) REFERENCES complexes(id)
-- FOREIGN KEY (physical_type_id) REFERENCES dictionary.physical_room_types(id)
 - FOREIGN KEY (status_code) REFERENCES dictionary.building_statuses(code)
 
 ### Таблица `floors`. Этажи зданий. Этажи в здании с номерацией (подвальные, цокольные, надземные) и планами расположения.

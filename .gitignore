@@ -1,119 +1,117 @@
-# Python
+# -*- mode: gitignore; -*-
+# .gitignore для проекта Markoff 2.0
+# Frontend: PySide6 (Qt for Python)
+# Backend: FastAPI + SQLModel
+# База данных: PostgreSQL (внешняя)
+
+# ============================================
+# Python - общее для backend и client
+# ============================================
+
+# Виртуальное окружение (если кто-то запускает локально, не в Docker)
+venv/
+env/
+.env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Кэши Python
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-build/
-develop-eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Дистрибутивы и сборки
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+build/
 *.egg-info/
-.installed.cfg
 *.egg
 MANIFEST
 
-# Virtual environments
-venv/
-ENV/
-env/
-.venv/
-pip-log.txt
-pip-delete-this-directory.txt
+# Файлы с локальными настройками (не путать с .env для Docker!)
+*.local
+*.orig
 
-# Poetry / uv / pipenv
-.poetry/
-uv.lock
-Pipfile.lock
-
-# IDE / Editor
+# IDE и редакторы
 .vscode/
 .idea/
 *.swp
 *.swo
-*.sublime-project
-*.sublime-workspace
+*~
+.DS_Store
 
-# Logs
-*.log
+# ============================================
+# Backend (FastAPI)
+# ============================================
+
+# Локальные .env файлы (у нас конфиг через переменные окружения Docker)
+# Но если кто-то запускает локально - пусть создаст свой .env.local
+.env
+!.env.example  # если создадим пример конфига
+.env.local
+.env.*.local
+
+# Логи backend
 logs/
-*.log.*
+*.log
+backend/logs/
 
-# Docker
-*.dockerignore
-Dockerfile.*
+# Данные базы данных (если вдруг кто-то запустит SQLite для тестов)
+*.db
+*.sqlite3
+
+# ============================================
+# Client (PySide6)
+# ============================================
+
+# Локальные кэши Qt
+client/.qtox
+client/.qto-cache
+
+# Настройки Qt Creator (если кто-то использует)
+*.creator.user
+*.creator.user.*
+
+# ============================================
+# Docker - временные артефакты
+# ============================================
+
+# Локальные Dockerfile для разработки (не путать с основными в /docker/)
+Dockerfile.dev
+Dockerfile.local
 docker-compose.override.yml
 
-# Models & large files (GGUF, checkpoints, etc.)
-*.gguf
-*.safetensors
-*.bin
-*.pth
-*.pt
-*.ckpt
-models/
-checkpoints/
-*.7z
-*.zip
-*.rar
-*.tar.gz
+# Временные файлы сборки
+.dockerignore
+!docker/.dockerignore  # но основной .dockerignore в папке docker не игнорируем
 
-# Koboldcpp specific
-koboldcpp.exe
-koboldcpp.log
-koboldcpp_cache/
-koboldcpp_state/
+# ============================================
+# Системные файлы Windows (ты работаешь на Windows)
+# ============================================
 
-# Database & temp files
-*.sqlite3
-*.db
-*.db-journal
-*.bak
-*.tmp
-*.temp
-
-# macOS / Windows junk
-.DS_Store
+# Windows thumbnail cache
 Thumbs.db
+Thumbs.db:encryptable
 ehthumbs.db
-desktop.ini
+ehthumbs_vista.db
 
-# Testing & coverage
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-*.cover
-*.pytest_cache/
-tox/
-nox/
-.hypothesis/
+# Папка с историей и закладками проводника
+[Dd]esktop.ini
 
-# Dependency directories (если не используешь Docker полностью)
-node_modules/
-jspm_packages/
-bower_components/
+# Файлы, создаваемые Windows Explorer
+$RECYCLE.BIN/
 
-# Personal / local config
-*.local.*
-.local/
-secrets/
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# ============================================
+# Файлы, которые НЕ нужно игнорировать (важные для проекта)
+# ============================================
 
-# Project-specific ignores
-# (можно добавить свои, если появятся)
-temp/
-backup/
-*.backup
-*.old
+# НЕ игнорируем:
+# - docker/ - там наши production Dockerfile
+# - backend/src/ - исходники
+# - client/src/ - исходники
+# - docker-compose.yml - основной оркестратор
+# - requirements.txt - зависимости

@@ -1,3 +1,4 @@
+# docker-compose.yml
 version: '3.8'
 
 services:
@@ -6,27 +7,40 @@ services:
     container_name: markoff-backend
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend/src:/app/src:cached
     environment:
       - DATABASE_URL=postgresql+psycopg2://markoff:1@192.168.2.4:5432/markoff2_0_db
       - ENVIRONMENT=development
       - PYTHONUNBUFFERED=1
-    restart: unless-stopped
-    # healthcheck полностью удален
+    volumes:
+      - ./backend/src:/app/src
+    networks:
+      - markoff-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   client:
     image: markoff-client:dev
     container_name: markoff-client
-    build:
-      context: ./client
-      dockerfile: ../docker/Dockerfile.client
-    depends_on:
-      - backend  # просто зависит от backend, без условия healthcheck
     environment:
-      - DISPLAY=host.docker.internal:0
+      # Для VcXsrv на Windows нужно указать IP хоста
+      - DISPLAY=host.docker.internal:0.0
+      - QT_QPA_PLATFORM=xcb
+      - API_URL=http://backend:8000
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+      # Отключаем OpenGL для совместимости
+      - QT_OPENGL=software
     volumes:
-      - ./client/src:/app/src:cached
-      - /tmp/.X11-unix:/tmp/.X11-unix
-    network_mode: host
-    restart: unless-stopped
+      - ./client/src:/app/src
+      # Для X11 forwarding через VcXsrv не нужен mount /tmp/.X11-unix на Windows
+    networks:
+      - markoff-network
+    depends_on:
+      - backend
+    # Убираем временную команду - теперь запускаем реальное GUI
+    stdin_open: true
+    tty: true
+
+networks:
+  markoff-network:
+    driver: bridge

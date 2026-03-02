@@ -2,10 +2,11 @@
 """
 Инициализатор пакета моделей схемы physical
 Экспортирует все модели для удобного импорта
-
-Пример использования:
-from src.models.physical import Complex
 """
 from .complex import Complex
+from .building import Building
+from .floor import Floor
+from .room import Room
+from .zone import Zone
 
-__all__ = ["Complex"]
+__all__ = ["Complex", "Building", "Floor", "Room", "Zone"]

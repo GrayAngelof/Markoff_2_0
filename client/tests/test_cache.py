@@ -62,18 +62,51 @@ def test_hierarchical_keys():
     
     cache = DataCache()
     
-    # Создаём тестовые данные
-    complex_data = Complex(id=1, name="Тестовый комплекс")
+    # Создаём тестовые данные с правильными полями
+    complex_data = Complex(
+        id=1, 
+        name="Тестовый комплекс",
+        buildings_count=2
+    )
+    
     buildings_data = [
-        Building(id=1, name="Корпус А", complex_id=1, floors_count=2),
-        Building(id=2, name="Корпус Б", complex_id=1, floors_count=1)
+        Building(
+            id=1, 
+            name="Корпус А", 
+            complex_id=1, 
+            floors_count=2
+        ),
+        Building(
+            id=2, 
+            name="Корпус Б", 
+            complex_id=1, 
+            floors_count=1
+        )
     ]
+    
     floors_data = [
-        Floor(id=1, number=1, building_id=1, rooms_count=0),
-        Floor(id=2, number=2, building_id=1, rooms_count=0)
+        Floor(
+            id=1, 
+            number=1, 
+            building_id=1, 
+            rooms_count=0
+        ),
+        Floor(
+            id=2, 
+            number=2, 
+            building_id=1, 
+            rooms_count=0
+        )
     ]
+    
     rooms_data = [
-        Room(id=101, number="101", floor_id=1, area=50.0, status_code="free")
+        Room(
+            id=101, 
+            number="101", 
+            floor_id=1, 
+            area=50.0, 
+            status_code="free"
+        )
     ]
     
     # Сохраняем через специализированные методы
@@ -340,6 +373,8 @@ def run_all_tests():
             print(f"  ❌ Ошибка в {test.__name__}: {e}")
         except Exception as e:
             print(f"  ❌ Исключение в {test.__name__}: {e}")
+            import traceback
+            traceback.print_exc()
     
     print("\n" + "="*60)
     print(f"✅ Пройдено тестов: {passed}/{len(tests)}")

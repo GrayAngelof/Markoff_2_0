@@ -421,3 +421,15 @@ class DataCache:
         print(f"🔄 Инвалидаций: {stats['invalidations']}")
         print(f"🔍 Раскрытых узлов: {stats['expanded_nodes']}")
         print("=======================\n")
+
+    def is_expanded(self, node_type: str, node_id: int) -> bool:
+        """
+        Проверить, раскрыт ли узел
+        
+        Args:
+            node_type: тип узла
+            node_id: идентификатор узла
+        """
+        with self._lock:
+            key = self._make_key(node_type, node_id)
+            return key in self._expanded_nodes

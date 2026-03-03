@@ -19,6 +19,7 @@ def main():
     3. Создаём и показываем главное окно
     4. Запускаем event loop
     """
+
     # Создаём приложение
     app = QApplication(sys.argv)
     

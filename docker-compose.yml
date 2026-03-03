@@ -31,7 +31,8 @@ services:
       # Отключаем OpenGL для совместимости
       - QT_OPENGL=software
     volumes:
-      - ./client/src:/app/src
+      - ./client/src:/app/src # Приложение
+      - ./client/tests:/app/tests # Тесты
       # Для X11 forwarding через VcXsrv не нужен mount /tmp/.X11-unix на Windows
     networks:
       - markoff-network

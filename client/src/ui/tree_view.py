@@ -32,7 +32,7 @@ class TreeView(QWidget):
     """
     
     # Сигналы
-    item_selected = Signal(str, int)  # type, id
+    item_selected = Signal(str, int, object)  # type, id, data (объект модели)
     data_loading = Signal(str, int)   # тип узла, id
     data_loaded = Signal(str, int)    # тип узла, id
     data_error = Signal(str, int, str) # тип узла, id, сообщение
@@ -266,7 +266,60 @@ class TreeView(QWidget):
             return
         
         index = indexes[0]
-        self._refresh_node(index)
+        node = self.model._get_node(index)
+        if not node:
+            return
+        
+        print(f"🔄 TreeView: обновление узла {node.node_type.value} #{node.get_id()}")
+        
+        # Запоминаем данные текущего узла до обновления
+        node_type = node.node_type.value
+        node_id = node.get_id()
+        
+        # Определяем параметры для обновления
+        if node.node_type == NodeType.COMPLEX:
+            cache_key = f"complex:{node_id}:buildings"
+            load_func = self.api_client.get_buildings
+            child_type = NodeType.BUILDING
+        elif node.node_type == NodeType.BUILDING:
+            cache_key = f"building:{node_id}:floors"
+            load_func = self.api_client.get_floors
+            child_type = NodeType.FLOOR
+        elif node.node_type == NodeType.FLOOR:
+            cache_key = f"floor:{node_id}:rooms"
+            load_func = self.api_client.get_rooms
+            child_type = NodeType.ROOM
+        else:
+            return
+        
+        # Блокируем сигналы на время обновления
+        self.tree_view.selectionModel().blockSignals(True)
+        
+        try:
+            # Удаляем кэш детей
+            self.cache.remove(cache_key)
+            
+            # Загружаем свежие данные
+            children = load_func(node_id)
+            
+            if children is not None:
+                # Обновляем детей в модели
+                self.model.update_children(index, children, child_type)
+                # Сохраняем в кэш
+                self.cache.set(cache_key, children)
+            
+            print(f"✅ TreeView: узел {node_type} #{node_id} обновлён")
+            
+        except Exception as e:
+            print(f"❌ TreeView: ошибка обновления {node_type} #{node_id}: {e}")
+            self.data_error.emit(node_type, node_id, str(e))
+            
+        finally:
+            # Разблокируем сигналы
+            self.tree_view.selectionModel().blockSignals(False)
+        
+        # Восстанавливаем выделение
+        QTimer.singleShot(100, lambda: self._restore_selection_safe(node_type, node_id))
     
     def refresh_visible(self):
         """
@@ -331,19 +384,19 @@ class TreeView(QWidget):
         if not node:
             return
         
-        node_type = node.node_type
+        node_type = node.node_type.value
         node_id = node.get_id()
         
         # Определяем параметры для обновления
-        if node_type == NodeType.COMPLEX:
+        if node.node_type == NodeType.COMPLEX:
             cache_key = f"complex:{node_id}:buildings"
             load_func = self.api_client.get_buildings
             child_type = NodeType.BUILDING
-        elif node_type == NodeType.BUILDING:
+        elif node.node_type == NodeType.BUILDING:
             cache_key = f"building:{node_id}:floors"
             load_func = self.api_client.get_floors
             child_type = NodeType.FLOOR
-        elif node_type == NodeType.FLOOR:
+        elif node.node_type == NodeType.FLOOR:
             cache_key = f"floor:{node_id}:rooms"
             load_func = self.api_client.get_rooms
             child_type = NodeType.ROOM
@@ -355,7 +408,7 @@ class TreeView(QWidget):
             self.cache.remove(cache_key)
         
         try:
-            # Загружаем данные (из кэша или с сервера)
+            # Загружаем данные
             if use_cache:
                 children = self.cache.get(cache_key)
                 if children is None:
@@ -370,29 +423,23 @@ class TreeView(QWidget):
                 self.model.update_children(index, children, child_type)
             
         except Exception as e:
-            print(f"❌ TreeView: ошибка обновления {node_type.value} #{node_id}: {e}")
-            self.data_error.emit(node_type.value, node_id, str(e))
+            print(f"❌ TreeView: ошибка обновления {node_type} #{node_id}: {e}")
+            self.data_error.emit(node_type, node_id, str(e))
     
     def _restore_selection_safe(self, node_type: str, node_id: int):
-        """
-        Безопасное восстановление выделения с поиском узла по ID
-        """
+        """Безопасное восстановление выделения с поиском узла по ID"""
         try:
-            # Получаем свежий индекс через модель
             index = self.model.get_index_by_id(NodeType(node_type), node_id)
             
             if index.isValid():
-                # Проверяем, что узел действительно существует
                 node = self.model._get_node(index)
                 if node and node.get_id() == node_id:
-                    # Устанавливаем выделение
                     self.tree_view.setCurrentIndex(index)
-                    # Испускаем сигнал для обновления правой панели
-                    self.item_selected.emit(node_type, node_id)
+                    # Передаём данные в сигнале
+                    self.item_selected.emit(node_type, node_id, node.data)
                     print(f"🔹 TreeView: восстановлено выделение {node_type} #{node_id}")
                     return
             
-            # Если не нашли - пробуем найти родителя
             print(f"⚠️ TreeView: узел {node_type} #{node_id} не найден, ищем родителя")
             self._restore_parent_selection(node_type, node_id)
             
@@ -404,7 +451,6 @@ class TreeView(QWidget):
     def _restore_parent_selection(self, node_type: str, node_id: int):
         """Восстановить родительский узел, если не удалось найти целевой"""
         try:
-            # Определяем родительский тип
             parent_type = None
             if node_type == NodeType.ROOM.value:
                 parent_type = NodeType.FLOOR
@@ -415,14 +461,14 @@ class TreeView(QWidget):
             else:
                 return
             
-            # Ищем первый доступный узел родительского типа
             if parent_type == NodeType.COMPLEX:
                 index = self.model.index(0, 0)
                 if index.isValid():
                     self.tree_view.setCurrentIndex(index)
                     node = self.model._get_node(index)
                     if node:
-                        self.item_selected.emit(NodeType.COMPLEX.value, node.get_id())
+                        # Передаём данные в сигнале
+                        self.item_selected.emit(NodeType.COMPLEX.value, node.get_id(), node.data)
                         print(f"🔹 TreeView: выбран комплекс #{node.get_id()} как запасной вариант")
                         
         except Exception as e:
@@ -463,8 +509,10 @@ class TreeView(QWidget):
             if node:
                 item_type = node.node_type.value
                 item_id = node.get_id()
+                item_data = node.data  # Получаем объект модели
                 print(f"🔹 TreeView: выбран {item_type} #{item_id}")
-                self.item_selected.emit(item_type, item_id)
+                # Передаём данные в сигнале
+                self.item_selected.emit(item_type, item_id, item_data)
     
     def _on_model_data_loading(self, node_type: NodeType, node_id: int):
         """Обработчик начала загрузки данных в модели"""
@@ -492,12 +540,27 @@ class TreeView(QWidget):
         
         menu = QMenu()
         
+        # Определяем тип узла для текста меню
+        node_type_display = {
+            NodeType.COMPLEX: "комплекс",
+            NodeType.BUILDING: "корпус",
+            NodeType.FLOOR: "этаж",
+            NodeType.ROOM: "помещение"
+        }.get(node.node_type, "объект")
+        
         # Пункт обновления узла
-        refresh_action = QAction(f"Обновить {node.node_type.value}", menu)
-        refresh_action.triggered.connect(lambda: self._refresh_node(index, use_cache=False))
+        refresh_action = QAction(f"🔄 Обновить {node_type_display}", menu)
+        
+        # Вариант 1: Используем частичное применение через functools (рекомендуется)
+        from functools import partial
+        refresh_action.triggered.connect(partial(self._refresh_node, index, False))
+        
+        # Вариант 2: Если хотите оставить лямбду, то с правильным количеством параметров
+        # refresh_action.triggered.connect(lambda checked=False, idx=index: self._refresh_node(idx, False))
+        
         menu.addAction(refresh_action)
         
-        # Показываем меню
+        # Если есть выделение, показываем меню
         menu.exec(self.tree_view.viewport().mapToGlobal(position))
     
     # ===== Публичные методы =====

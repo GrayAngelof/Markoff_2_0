@@ -14,17 +14,31 @@ class Floor:
     
     Поля соответствуют FloorTreeResponse из бекенда:
     - id: уникальный идентификатор этажа
-    - number: номер этажа (целое число, может быть отрицательным для подвалов)
+    - number: номер этажа (целое число, может быть отрицательным)
     - building_id: ID родительского корпуса
-    - rooms_count: количество помещений на этаже (для отображения в скобках)
+    - rooms_count: количество помещений на этаже
     
-    Сортировка: по number (числовая, от меньшего к большему)
+    Дополнительные поля для детального просмотра:
+    - description: описание этажа
+    - physical_type_id: ID типа этажа
+    - status_id: ID статуса
+    - plan_image_url: URL плана этажа
+    - created_at: дата создания
+    - updated_at: дата обновления
     """
     
     id: int
     number: int
     building_id: int
     rooms_count: int
+    
+    # Дополнительные поля
+    description: Optional[str] = None
+    physical_type_id: Optional[int] = None
+    status_id: Optional[int] = None
+    plan_image_url: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
     
     @classmethod
     def from_dict(cls, data: dict) -> 'Floor':
@@ -42,12 +56,17 @@ class Floor:
             id=data['id'],
             number=data['number'],
             building_id=data['building_id'],
-            rooms_count=data['rooms_count']
+            rooms_count=data['rooms_count'],
+            description=data.get('description'),
+            physical_type_id=data.get('physical_type_id'),
+            status_id=data.get('status_id'),
+            plan_image_url=data.get('plan_image_url'),
+            created_at=data.get('created_at'),
+            updated_at=data.get('updated_at')
         )
     
     def __str__(self) -> str:
         """Строковое представление для отображения в дереве"""
-        # Для подвальных этажей добавляем пометку
         if self.number < 0:
             return f"Подвал {abs(self.number)}"
         elif self.number == 0:

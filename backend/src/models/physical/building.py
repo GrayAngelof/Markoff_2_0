@@ -28,21 +28,19 @@ class Building(SQLModel, table=True):
     # Основные поля
     name: str = Field(nullable=False)
     description: Optional[str] = Field(default=None)
-    address: Optional[str] = Field(default=None)
-    floors_count: int = Field(nullable=False)  # Денормализованное поле для быстрого доступа
+    address: Optional[str] = Field(default=None)  # Добавлено поле address
+    floors_count: int = Field(nullable=False)
     
-    # Статус (вероятно, ссылается на справочник statuses)
+    # Статус
     status_id: int = Field(nullable=False)
     
     # Метаданные
     created_at: datetime = Field(default_factory=datetime.now, nullable=False)
     updated_at: datetime = Field(default_factory=datetime.now, nullable=False)
     
-    # Relationships (для SQLAlchemy ORM)
-    # Позволяют обращаться к связанным объектам: building.complex, building.floors
+    # Relationships
     complex: Optional["Complex"] = Relationship(back_populates="buildings")
     floors: List["Floor"] = Relationship(back_populates="building")
     
     class Config:
-        """Pydantic конфигурация"""
         from_attributes = True

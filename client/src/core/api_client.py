@@ -159,9 +159,7 @@ class ApiClient:
         Получить список всех комплексов
         
         Returns:
-            List[Complex]: список комплексов
-            
-        Эндпоинт: GET /physical/
+            List[Complex]: список комплексов с полными данными
         """
         try:
             data = self._make_request('GET', self.ENDPOINT_COMPLEXES)
@@ -170,11 +168,14 @@ class ApiClient:
                 print("⚠️ Сервер вернул пустой список комплексов")
                 return []
             
+            # Теперь передаём все поля в from_dict
             complexes = [Complex.from_dict(item) for item in data]
             
             print(f"📦 Загружено комплексов: {len(complexes)}")
             for c in complexes:
                 print(f"  - {c.name} (корпусов: {c.buildings_count})")
+                if c.address:
+                    print(f"    адрес: {c.address}")
             
             return complexes
             
@@ -192,9 +193,7 @@ class ApiClient:
             complex_id: ID комплекса
             
         Returns:
-            List[Building]: список корпусов
-            
-        Эндпоинт: GET /physical/complexes/{complex_id}/buildings
+            List[Building]: список корпусов с полными данными
         """
         try:
             endpoint = self.ENDPOINT_BUILDINGS.format(complex_id)
@@ -206,11 +205,14 @@ class ApiClient:
                 print(f"⚠️ Сервер вернул пустой список корпусов для комплекса {complex_id}")
                 return []
             
+            # Передаём все поля в from_dict
             buildings = [Building.from_dict(item) for item in data]
             
             print(f"📦 Загружено корпусов: {len(buildings)}")
             for b in buildings:
                 print(f"  - {b.name} (этажей: {b.floors_count})")
+                if b.address:
+                    print(f"    адрес: {b.address}")
             
             return buildings
             
@@ -228,9 +230,7 @@ class ApiClient:
             building_id: ID корпуса
             
         Returns:
-            List[Floor]: список этажей (отсортированы по номеру)
-            
-        Эндпоинт: GET /physical/buildings/{building_id}/floors
+            List[Floor]: список этажей с полными данными
         """
         try:
             endpoint = self.ENDPOINT_FLOORS.format(building_id)
@@ -244,12 +244,14 @@ class ApiClient:
             
             floors = [Floor.from_dict(item) for item in data]
             
-            # Сортировка по номеру этажа (на всякий случай, хотя бекенд уже сортирует)
+            # Сортировка по номеру этажа
             floors.sort(key=lambda x: x.number)
             
             print(f"📦 Загружено этажей: {len(floors)}")
             for f in floors:
                 print(f"  - Этаж {f.number} (помещений: {f.rooms_count})")
+                if f.description:
+                    print(f"    описание: {f.description[:50]}...")
             
             return floors
             
@@ -267,9 +269,7 @@ class ApiClient:
             floor_id: ID этажа
             
         Returns:
-            List[Room]: список помещений
-            
-        Эндпоинт: GET /physical/floors/{floor_id}/rooms
+            List[Room]: список помещений с полными данными
         """
         try:
             endpoint = self.ENDPOINT_ROOMS.format(floor_id)
@@ -283,14 +283,15 @@ class ApiClient:
             
             rooms = [Room.from_dict(item) for item in data]
             
-            # Сортировка по номеру помещения (естественный порядок)
-            # Для строк с числами нужно специальное сравнение
+            # Сортировка по номеру помещения
             rooms.sort(key=lambda x: self._natural_sort_key(x.number))
             
             print(f"📦 Загружено помещений: {len(rooms)}")
-            for r in rooms[:5]:  # Показываем первые 5 для отладки
+            for r in rooms[:5]:
                 status = f" [{r.status_code}]" if r.status_code else ""
                 print(f"  - {r.number}{status}")
+                if r.description:
+                    print(f"    описание: {r.description[:50]}...")
             if len(rooms) > 5:
                 print(f"  - ... и ещё {len(rooms) - 5}")
             

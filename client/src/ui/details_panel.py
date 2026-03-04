@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QFont
+from datetime import datetime
 
 from src.models.complex import Complex
 from src.models.building import Building
@@ -35,7 +36,7 @@ class DetailsPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # Создаём шапку (она будет добавлена в layout отдельно)
+        # Создаём шапку
         self._create_header()
         layout.addWidget(self.header_widget)
         
@@ -141,6 +142,10 @@ class DetailsPanel(QWidget):
         self.description_label.setWordWrap(True)
         grid.addWidget(self.description_label, 2, 1)
         
+        # Дополнительная информация для помещений (будет заполняться динамически)
+        self.extra_label_1 = QLabel("")
+        self.extra_label_2 = QLabel("")
+        
         # Даты
         grid.addWidget(QLabel("Создан:"), 3, 0, Qt.AlignRight)
         self.created_label = QLabel("—")
@@ -204,12 +209,31 @@ class DetailsPanel(QWidget):
         return widget
     
     def _format_datetime(self, dt) -> str:
-        """Форматирование даты и времени"""
-        if not dt:
+        """Форматирование даты и времени с обработкой None"""
+        if dt is None:
             return "—"
+        
+        # Если это строка (как в тестовых данных)
+        if isinstance(dt, str):
+            try:
+                # Пробуем распарсить, если нужно
+                return dt
+            except:
+                return dt
+        
+        # Если это datetime объект
         if hasattr(dt, 'strftime'):
             return dt.strftime("%d.%m.%Y %H:%M")
+        
         return str(dt)
+    
+    def _get_text_or_placeholder(self, value, placeholder="—"):
+        """Вернуть значение или плейсхолдер, если значение None или пустая строка"""
+        if value is None:
+            return placeholder
+        if isinstance(value, str) and value.strip() == "":
+            return placeholder
+        return value
     
     def _clear_info(self):
         """Очистить всю информацию"""
@@ -221,13 +245,20 @@ class DetailsPanel(QWidget):
         self.created_label.setText("—")
         self.updated_label.setText("—")
         self.type_label.setText("🏢")
+        
+        # Скрываем дополнительные поля, если они были видны
+        self._hide_extra_fields()
+    
+    def _hide_extra_fields(self):
+        """Скрыть дополнительные поля (для помещений)"""
+        # TODO: скрыть поля, если они были добавлены динамически
+        pass
     
     def _set_complex_info(self, complex_data: Complex):
         """Заполнить информацию для комплекса"""
-        self.title_label.setText(complex_data.name)
+        self.title_label.setText(self._get_text_or_placeholder(complex_data.name, "Без названия"))
         
-        # Статус (пока заглушка, в модели Complex нет status_id, но есть в БД)
-        # TODO: получить статус по status_id
+        # Статус (пока заглушка, в модели Complex нет status_id)
         self.status_label.setText("Активен")
         self.status_label.setStyleSheet("""
             QLabel {
@@ -238,16 +269,22 @@ class DetailsPanel(QWidget):
             }
         """)
         
-        self.address_label.setText(complex_data.address or "Не указан")
-        self.owner_label.setText(f"ID владельца: {complex_data.owner_id}" if complex_data.owner_id else "Не указан")
-        self.description_label.setText(complex_data.description or "Нет описания")
+        self.address_label.setText(self._get_text_or_placeholder(complex_data.address))
+        
+        # Владелец может быть None
+        if complex_data.owner_id:
+            self.owner_label.setText(f"ID владельца: {complex_data.owner_id}")
+        else:
+            self.owner_label.setText("Не указан")
+        
+        self.description_label.setText(self._get_text_or_placeholder(complex_data.description, "Нет описания"))
         self.created_label.setText(self._format_datetime(complex_data.created_at))
         self.updated_label.setText(self._format_datetime(complex_data.updated_at))
         self.type_label.setText("🏢")
     
     def _set_building_info(self, building_data: Building):
         """Заполнить информацию для корпуса"""
-        self.title_label.setText(building_data.name)
+        self.title_label.setText(self._get_text_or_placeholder(building_data.name, "Без названия"))
         
         # Статус (пока заглушка)
         self.status_label.setText("Активен")
@@ -260,9 +297,9 @@ class DetailsPanel(QWidget):
             }
         """)
         
-        self.address_label.setText(building_data.address or "Не указан")
+        self.address_label.setText(self._get_text_or_placeholder(building_data.address))
         self.owner_label.setText("—")  # У корпуса нет отдельного владельца
-        self.description_label.setText(building_data.description or "Нет описания")
+        self.description_label.setText(self._get_text_or_placeholder(building_data.description, "Нет описания"))
         self.created_label.setText(self._format_datetime(building_data.created_at))
         self.updated_label.setText(self._format_datetime(building_data.updated_at))
         self.type_label.setText("🏭")
@@ -270,7 +307,7 @@ class DetailsPanel(QWidget):
     def _set_floor_info(self, floor_data: Floor):
         """Заполнить информацию для этажа"""
         # Формируем номер этажа с учётом подвала/цоколя
-        floor_num = floor_data.number
+        floor_num = floor_data.number if floor_data.number is not None else 0
         if floor_num < 0:
             floor_text = f"Подвал {abs(floor_num)}"
         elif floor_num == 0:
@@ -293,14 +330,14 @@ class DetailsPanel(QWidget):
         
         self.address_label.setText("—")
         self.owner_label.setText("—")
-        self.description_label.setText(floor_data.description or "Нет описания")
+        self.description_label.setText(self._get_text_or_placeholder(floor_data.description, "Нет описания"))
         self.created_label.setText(self._format_datetime(floor_data.created_at))
         self.updated_label.setText(self._format_datetime(floor_data.updated_at))
         self.type_label.setText("🏗️")
     
     def _set_room_info(self, room_data: Room):
         """Заполнить информацию для помещения"""
-        self.title_label.setText(f"Помещение {room_data.number}")
+        self.title_label.setText(f"Помещение {self._get_text_or_placeholder(room_data.number, '???')}")
         
         # Статус с цветом
         status_map = {
@@ -309,7 +346,8 @@ class DetailsPanel(QWidget):
             'reserved': 'ЗАРЕЗЕРВИРОВАНО',
             'maintenance': 'РЕМОНТ'
         }
-        status_text = status_map.get(room_data.status_code or '', room_data.status_code or 'НЕИЗВЕСТНО')
+        status_code = room_data.status_code or 'unknown'
+        status_text = status_map.get(status_code, status_code.upper())
         
         self.status_label.setText(status_text)
         
@@ -377,79 +415,40 @@ class DetailsPanel(QWidget):
     
     # ===== Публичные методы =====
     
-    @Slot(str, int)
-    def show_item_details(self, item_type: str, item_id: int):
+    @Slot(str, int, object)
+    def show_item_details(self, item_type: str, item_id: int, item_data):
         """
         Показать информацию о выбранном объекте
         
         Args:
             item_type: тип элемента ('complex', 'building', 'floor', 'room')
             item_id: идентификатор элемента
+            item_data: объект модели (Complex, Building, Floor или Room)
         """
         # Сохраняем текущий объект
         self.current_type = item_type
         self.current_id = item_id
+        self.current_data = item_data
         
-        print(f"📋 DetailsPanel: запрос информации для {item_type} #{item_id}")
+        print(f"📋 DetailsPanel: получены данные для {item_type} #{item_id}")
         
-        # В реальности здесь данные будут приходить из дерева
-        # Сейчас они передаются через сигнал, но сам объект модели не передаётся
-        # TODO: передавать в сигнале не только тип и ID, но и сам объект
+        if item_data is None:
+            print(f"⚠️ DetailsPanel: данные отсутствуют для {item_type} #{item_id}")
+            self._clear_info()
+            return
         
-        # ПОКА ИСПОЛЬЗУЕМ ТЕСТОВЫЕ ДАННЫЕ
-        # Позже нужно будет получать данные из кэша или по запросу
-        
-        if item_type == 'complex':
-            test_complex = Complex(
-                id=item_id,
-                name="Фабрика Веретено",
-                buildings_count=2
-            )
-            # Добавляем недостающие поля для теста
-            test_complex.address = "ул. Ткацкая, д. 15, Москва"
-            test_complex.owner_id = 1
-            test_complex.description = "Производственно-офисный комплекс бывшей текстильной фабрики. 4 корпуса, развитая инфраструктура, охраняемая территория."
-            test_complex.created_at = "2026-02-10 13:43:05"
-            test_complex.updated_at = "2026-02-10 13:43:05"
-            self._set_complex_info(test_complex)
-            
-        elif item_type == 'building':
-            test_building = Building(
-                id=item_id,
-                name="Корпус Б",
-                complex_id=1,
-                floors_count=2
-            )
-            test_building.address = "ул. Ткацкая, д. 15, корп. 2, Москва"
-            test_building.description = "Административно-офисный корпус с развитой инфраструктурой, 2 этажа, отдельный вход."
-            test_building.created_at = "2026-02-10 19:34:06"
-            test_building.updated_at = "2026-02-10 19:34:06"
-            self._set_building_info(test_building)
-            
-        elif item_type == 'floor':
-            test_floor = Floor(
-                id=item_id,
-                number=2,
-                building_id=4,
-                rooms_count=0
-            )
-            test_floor.description = "Офисный этаж с открытой планировкой и переговорными комнатами"
-            test_floor.created_at = "2026-02-10 20:07:58"
-            test_floor.updated_at = "2026-02-10 20:07:58"
-            self._set_floor_info(test_floor)
-            
-        elif item_type == 'room':
-            test_room = Room(
-                id=item_id,
-                number="205",
-                floor_id=5,
-                area=45.5,
-                status_code="free"
-            )
-            test_room.description = "Угловой офис с панорамными окнами, возможна перепланировка"
-            test_room.created_at = "2026-02-10 20:15:00"
-            test_room.updated_at = "2026-03-04 10:23:00"
-            self._set_room_info(test_room)
+        # Вызываем соответствующий метод заполнения
+        if item_type == 'complex' and isinstance(item_data, Complex):
+            self._set_complex_info(item_data)
+        elif item_type == 'building' and isinstance(item_data, Building):
+            self._set_building_info(item_data)
+        elif item_type == 'floor' and isinstance(item_data, Floor):
+            self._set_floor_info(item_data)
+        elif item_type == 'room' and isinstance(item_data, Room):
+            self._set_room_info(item_data)
+        else:
+            print(f"⚠️ DetailsPanel: неожиданный тип данных: {type(item_data)} для {item_type}")
+            self._clear_info()
     
     def clear(self):
         """Очистить панель (сбросить к начальному состоянию)"""
@@ -471,6 +470,6 @@ class DetailsPanel(QWidget):
         Получить текущий выбранный объект
         
         Returns:
-            tuple: (item_type, item_id) или (None, None)
+            tuple: (item_type, item_id, item_data) или (None, None, None)
         """
-        return self.current_type, self.current_id
+        return self.current_type, self.current_id, self.current_data

@@ -17,13 +17,24 @@ class Complex:
     - name: название комплекса (то, что показываем в дереве)
     - buildings_count: количество корпусов (для отображения в скобках)
     
-    Остальные поля (description, address, etc.) будем запрашивать
-    только при необходимости, когда пользователь кликнет на комплекс
+    Дополнительные поля для детального просмотра:
+    - description: описание комплекса
+    - address: адрес комплекса
+    - owner_id: ID владельца
+    - created_at: дата создания
+    - updated_at: дата обновления
     """
     
     id: int
     name: str
-    buildings_count: int  # Добавлено недостающее поле
+    buildings_count: int
+    
+    # Дополнительные поля (могут отсутствовать)
+    description: Optional[str] = None
+    address: Optional[str] = None
+    owner_id: Optional[int] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
     
     @classmethod
     def from_dict(cls, data: dict) -> 'Complex':
@@ -40,7 +51,12 @@ class Complex:
         return cls(
             id=data['id'],
             name=data['name'],
-            buildings_count=data.get('buildings_count', 0)  # На случай если поля нет
+            buildings_count=data.get('buildings_count', 0),
+            description=data.get('description'),
+            address=data.get('address'),
+            owner_id=data.get('owner_id'),
+            created_at=data.get('created_at'),
+            updated_at=data.get('updated_at')
         )
     
     def __str__(self) -> str:

@@ -26,16 +26,16 @@ class Room(SQLModel, table=True):
     floor_id: int = Field(foreign_key="physical.floors.id", nullable=False)
     
     # Основные поля
-    number: str = Field(nullable=False)  # Номер помещения (строка, может быть "101А")
-    description: Optional[str] = Field(default=None)
-    area: Optional[float] = Field(default=None)  # Площадь в кв. метрах
+    number: str = Field(nullable=False)
+    description: Optional[str] = Field(default=None)  # Добавлено поле description
+    area: Optional[float] = Field(default=None)
     
     # Ссылки на справочники
-    physical_type_id: int = Field(nullable=False)  # Тип помещения (офис, склад и т.д.)
-    status_code: str = Field(nullable=False)  # Статус (свободно, занято и т.д.)
+    physical_type_id: int = Field(nullable=False)
+    status_code: str = Field(nullable=False)
     
     # Дополнительные поля
-    max_tenants: Optional[int] = Field(default=None)  # Макс. количество арендаторов
+    max_tenants: Optional[int] = Field(default=None)
     
     # Метаданные
     created_at: datetime = Field(default_factory=datetime.now, nullable=False)

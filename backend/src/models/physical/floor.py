@@ -26,14 +26,14 @@ class Floor(SQLModel, table=True):
     building_id: int = Field(foreign_key="physical.buildings.id", nullable=False)
     
     # Основные поля
-    number: int = Field(nullable=False)  # Номер этажа (может быть отрицательным)
-    description: Optional[str] = Field(default=None)
+    number: int = Field(nullable=False)
+    description: Optional[str] = Field(default=None)  # Убедимся, что поле есть
     
     # Ссылки на справочники
     physical_type_id: Optional[int] = Field(default=None)
     status_id: Optional[int] = Field(default=None)
     
-    # URL к плану этажа (для будущего использования)
+    # URL к плану этажа
     plan_image_url: Optional[str] = Field(default=None)
     
     # Метаданные

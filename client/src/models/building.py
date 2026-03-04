@@ -16,15 +16,27 @@ class Building:
     - id: уникальный идентификатор корпуса
     - name: название корпуса (например, "Корпус А")
     - complex_id: ID родительского комплекса
-    - floors_count: количество этажей в корпусе (для отображения в скобках)
+    - floors_count: количество этажей в корпусе
     
-    Сортировка: по name (алфавитный порядок)
+    Дополнительные поля для детального просмотра:
+    - description: описание корпуса
+    - address: адрес корпуса
+    - status_id: ID статуса
+    - created_at: дата создания
+    - updated_at: дата обновления
     """
     
     id: int
     name: str
     complex_id: int
     floors_count: int
+    
+    # Дополнительные поля
+    description: Optional[str] = None
+    address: Optional[str] = None
+    status_id: Optional[int] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
     
     @classmethod
     def from_dict(cls, data: dict) -> 'Building':
@@ -42,7 +54,12 @@ class Building:
             id=data['id'],
             name=data['name'],
             complex_id=data['complex_id'],
-            floors_count=data['floors_count']
+            floors_count=data['floors_count'],
+            description=data.get('description'),
+            address=data.get('address'),
+            status_id=data.get('status_id'),
+            created_at=data.get('created_at'),
+            updated_at=data.get('updated_at')
         )
     
     def __str__(self) -> str:

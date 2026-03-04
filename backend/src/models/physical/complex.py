@@ -24,10 +24,8 @@ class Complex(SQLModel, table=True):
     # Основные поля
     name: str = Field(nullable=False, unique=True)
     description: Optional[str] = Field(default=None)
-    address: Optional[str] = Field(default=None)
-    
-    # Денормализованные поля для быстрого доступа
-    # buildings_count: int = Field(nullable=False, default=0)
+    address: Optional[str] = Field(default=None)  # Добавлено поле address
+    owner_id: Optional[int] = Field(default=None)  # Добавлено поле owner_id
     
     # Статус
     status_id: int = Field(nullable=False)

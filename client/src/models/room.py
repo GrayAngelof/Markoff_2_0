@@ -14,12 +14,17 @@ class Room:
     
     Поля соответствуют RoomTreeResponse из бекенда:
     - id: уникальный идентификатор помещения
-    - number: номер помещения (строка, может содержать буквы, например "101А")
+    - number: номер помещения (строка, может содержать буквы)
     - floor_id: ID родительского этажа
-    - area: площадь помещения (опционально, для отображения в деталях)
-    - status_code: статус помещения (опционально, для цветовой индикации)
+    - area: площадь помещения (опционально)
+    - status_code: статус помещения (опционально)
     
-    Сортировка: по number (как строка, но с учётом естественного порядка)
+    Дополнительные поля для детального просмотра:
+    - description: описание помещения
+    - physical_type_id: ID типа помещения
+    - max_tenants: максимальное количество арендаторов
+    - created_at: дата создания
+    - updated_at: дата обновления
     """
     
     id: int
@@ -27,6 +32,13 @@ class Room:
     floor_id: int
     area: Optional[float] = None
     status_code: Optional[str] = None
+    
+    # Дополнительные поля
+    description: Optional[str] = None
+    physical_type_id: Optional[int] = None
+    max_tenants: Optional[int] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
     
     @classmethod
     def from_dict(cls, data: dict) -> 'Room':
@@ -45,8 +57,13 @@ class Room:
             id=data['id'],
             number=data['number'],
             floor_id=data['floor_id'],
-            area=data.get('area'),  # используем get, так как поля могут отсутствовать
-            status_code=data.get('status_code')
+            area=data.get('area'),
+            status_code=data.get('status_code'),
+            description=data.get('description'),
+            physical_type_id=data.get('physical_type_id'),
+            max_tenants=data.get('max_tenants'),
+            created_at=data.get('created_at'),
+            updated_at=data.get('updated_at')
         )
     
     def __str__(self) -> str:
@@ -60,7 +77,6 @@ class Room:
     def get_status_display(self) -> str:
         """
         Возвращает человекочитаемый статус помещения
-        Для будущего использования в цветовой индикации
         """
         status_map = {
             'free': 'Свободно',

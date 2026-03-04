@@ -1,9 +1,7 @@
-# docker/Dockerfile.client
 # Базовый образ с Python и зависимостями для GUI
 FROM python:3.11-slim
 
 # Устанавливаем все необходимые зависимости для Qt/PySide6
-# Включая dbus, который теперь требуется
 RUN apt-get update && apt-get install -y \
     # Базовые графические библиотеки
     libgl1 \
@@ -54,7 +52,15 @@ RUN apt-get update && apt-get install -y \
     libjpeg62-turbo \
     # SSL (важно для requests)
     libssl3 \
+    # 🔥 ШРИФТЫ С ЭМОДЗИ И ИНСТРУМЕНТЫ ДЛЯ РАБОТЫ С НИМИ
+    fonts-noto-color-emoji \
+    fonts-dejavu-core \
+    fonts-dejavu-extra \
+    fontconfig \
     && rm -rf /var/lib/apt/lists/*
+
+# Обновляем кэш шрифтов (теперь fc-cache доступен)
+RUN fc-cache -f -v
 
 WORKDIR /app
 

@@ -170,12 +170,15 @@ class MainWindow(QMainWindow):
         self.addAction(full_reset)
     
     def _connect_signals(self):
-        """Подключение сигналов"""
-        # Сигналы от дерева
+        """Для нового detal_panel"""
         self.tree_view.item_selected.connect(self.details_panel.show_item_details)
-        self.tree_view.data_loading.connect(self._on_data_loading)
-        self.tree_view.data_loaded.connect(self._on_data_loaded)
-        self.tree_view.data_error.connect(self._on_data_error)
+        """Остальное вырубаем"""
+        # """Подключение сигналов"""
+        # Сигналы от дерева
+        # self.tree_view.item_selected.connect(self.details_panel.show_item_details)
+        # self.tree_view.data_loading.connect(self._on_data_loading)
+        # self.tree_view.data_loaded.connect(self._on_data_loaded)
+        # self.tree_view.data_error.connect(self._on_data_error)
         
         # Сигналы от меню обновления
         self.refresh_menu.refresh_current.connect(self._on_refresh_current)

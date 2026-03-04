@@ -70,7 +70,11 @@ class DetailsPanel(QWidget):
         # Добавляем растяжение в конце
         layout.addStretch()
         
-        print("✅ Панель информации создана")
+        # Текущий выбранный объект
+        self.current_type = None
+        self.current_id = None
+        
+        print("✅ DetailsPanel: создана")
     
     @Slot(str, int)
     def show_item_details(self, item_type: str, item_id: int):
@@ -81,6 +85,10 @@ class DetailsPanel(QWidget):
             item_type: тип элемента ('complex', 'building', 'floor', 'room')
             item_id: идентификатор элемента
         """
+        # Сохраняем текущий объект
+        self.current_type = item_type
+        self.current_id = item_id
+        
         # Показываем, что объект выбран
         self.selection_label.setText(f"Выбран объект: {item_type} #{item_id}")
         
@@ -93,3 +101,24 @@ class DetailsPanel(QWidget):
         )
         
         print(f"📋 Показана информация для {item_type} #{item_id}")
+    
+    def clear(self):
+        """
+        Очистить панель (сбросить к начальному состоянию)
+        """
+        self.current_type = None
+        self.current_id = None
+        
+        self.selection_label.setText("Выберите объект в дереве слева\nдля просмотра детальной информации")
+        self.info_label.setText("")
+        
+        print("🧹 DetailsPanel: очищена")
+    
+    def get_current_selection(self):
+        """
+        Получить текущий выбранный объект
+        
+        Returns:
+            tuple: (item_type, item_id) или (None, None)
+        """
+        return self.current_type, self.current_id

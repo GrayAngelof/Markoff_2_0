@@ -316,19 +316,34 @@ class ApiClient:
         import re
         return [int(c) if c.isdigit() else c.lower() for c in re.split('([0-9]+)', text)]
     
-    def check_connection(self) -> bool:
+    def check_connection(self, silent: bool = False) -> bool:
         """
         Проверить соединение с сервером
         
+        Args:
+            silent: если True - не выводить логи в консоль
+            
         Returns:
             bool: True если сервер доступен
         """
         try:
-            self._make_request('GET', '/health', timeout=3)
-            print("✅ Соединение с сервером установлено")
+            # Используем /health эндпоинт вместо корневого
+            if silent:
+                # Временно отключаем вывод логов
+                import contextlib
+                import io
+                f = io.StringIO()
+                with contextlib.redirect_stdout(f):
+                    self._make_request('GET', '/health', timeout=3)
+            else:
+                self._make_request('GET', '/health', timeout=3)
+            
+            if not silent:
+                print("✅ Соединение с сервером установлено")
             return True
         except Exception as e:
-            print(f"❌ Сервер недоступен: {e}")
+            if not silent:
+                print(f"❌ Сервер недоступен: {e}")
             return False
     
     def get_server_info(self) -> Dict[str, Any]:

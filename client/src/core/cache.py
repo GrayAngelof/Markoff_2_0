@@ -433,3 +433,26 @@ class DataCache:
         with self._lock:
             key = self._make_key(node_type, node_id)
             return key in self._expanded_nodes
+
+    def remove_children_cache(self, node_type: str, node_id: int):
+        """
+        Удалить только кэш дочерних элементов, сохраняя сам узел
+        
+        Args:
+            node_type: тип узла
+            node_id: идентификатор узла
+        """
+        with self._lock:
+            key = None
+            if node_type == self.TYPE_COMPLEX:
+                key = self._make_key(node_type, node_id, self.SUFFIX_BUILDINGS)
+            elif node_type == self.TYPE_BUILDING:
+                key = self._make_key(node_type, node_id, self.SUFFIX_FLOORS)
+            elif node_type == self.TYPE_FLOOR:
+                key = self._make_key(node_type, node_id, self.SUFFIX_ROOMS)
+            
+            if key and key in self._data:
+                del self._data[key]
+                if key in self._timestamps:
+                    del self._timestamps[key]
+                print(f"  🗑️ Cache: удалены дети {node_type}:{node_id}")

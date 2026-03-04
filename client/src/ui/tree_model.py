@@ -6,7 +6,7 @@
 """
 from PySide6.QtCore import QAbstractItemModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QFont, QBrush, QColor
-from typing import Optional, List, Any, Union
+from typing import Optional, List, Any, Dict
 from enum import Enum
 
 from src.models.complex import Complex
@@ -33,7 +33,6 @@ class TreeNode:
         parent: родительский узел (или None для корня)
         children: список дочерних узлов
         loaded: флаг, загружены ли дочерние элементы
-        loading: флаг, идёт ли загрузка (для индикатора)
     """
     
     def __init__(self, data: Any, node_type: NodeType, parent: Optional['TreeNode'] = None):
@@ -42,13 +41,17 @@ class TreeNode:
         self.parent = parent
         self.children: List['TreeNode'] = []
         self.loaded = False
-        self.loading = False
     
     def append_child(self, child: 'TreeNode'):
         """Добавить дочерний узел"""
         self.children.append(child)
     
-    def remove_children(self):
+    def remove_child(self, child: 'TreeNode'):
+        """Удалить конкретного ребёнка"""
+        if child in self.children:
+            self.children.remove(child)
+    
+    def remove_all_children(self):
         """Удалить всех детей"""
         self.children.clear()
         self.loaded = False
@@ -62,19 +65,15 @@ class TreeNode:
     def row(self) -> int:
         """Индекс этого узла в родителе"""
         if self.parent:
-            return self.parent.children.index(self)
+            try:
+                return self.parent.children.index(self)
+            except ValueError:
+                return 0
         return 0
     
     def child_count(self) -> int:
         """Количество детей"""
         return len(self.children)
-    
-    def has_children(self) -> bool:
-        """Есть ли дети (для отображения стрелочки)"""
-        if self.node_type == NodeType.ROOM:
-            return False  # У комнат нет детей
-        # Для остальных типов дети могут быть, даже если ещё не загружены
-        return True
     
     def get_display_text(self) -> str:
         """
@@ -113,6 +112,10 @@ class TreeNode:
             return self.data.id
         return -1
     
+    def update_data(self, new_data: Any):
+        """Обновить данные узла"""
+        self.data = new_data
+    
     def __repr__(self):
         return f"TreeNode({self.node_type.value}, id={self.get_id()}, loaded={self.loaded})"
 
@@ -131,7 +134,6 @@ class TreeModel(QAbstractItemModel):
     ItemIdRole = Qt.UserRole + 1      # ID объекта
     ItemTypeRole = Qt.UserRole + 2    # Тип объекта (NodeType)
     ItemDataRole = Qt.UserRole + 3    # Сырые данные (модель)
-    ItemLoadingRole = Qt.UserRole + 4 # Флаг загрузки
     
     # Сигналы
     data_loading = Signal(NodeType, int)  # началась загрузка узла
@@ -143,7 +145,7 @@ class TreeModel(QAbstractItemModel):
         # Корневой узел (виртуальный, не отображается)
         self._root_node = TreeNode(None, None)
         # Словарь для быстрого доступа к узлам по ID
-        self._node_index: dict[str, TreeNode] = {}
+        self._node_index: Dict[str, TreeNode] = {}
         self._cache = None  # будет установлен извне
     
     def set_cache(self, cache):
@@ -153,9 +155,7 @@ class TreeModel(QAbstractItemModel):
     # ===== Базовые методы QAbstractItemModel =====
     
     def index(self, row: int, column: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
-        """
-        Создаёт индекс для элемента по строке и колонке
-        """
+        """Создаёт индекс для элемента по строке и колонке"""
         if not self.hasIndex(row, column, parent):
             return QModelIndex()
         
@@ -170,9 +170,7 @@ class TreeModel(QAbstractItemModel):
         return self.createIndex(row, column, child_node)
     
     def parent(self, index: QModelIndex) -> QModelIndex:
-        """
-        Возвращает родительский индекс для данного индекса
-        """
+        """Возвращает родительский индекс для данного индекса"""
         if not index.isValid():
             return QModelIndex()
         
@@ -187,9 +185,7 @@ class TreeModel(QAbstractItemModel):
         return self.createIndex(parent_node.row(), 0, parent_node)
     
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
-        """
-        Количество строк (дочерних элементов) для родителя
-        """
+        """Количество строк (дочерних элементов) для родителя"""
         parent_node = self._get_node(parent)
         if parent_node is None:
             return 0
@@ -199,10 +195,38 @@ class TreeModel(QAbstractItemModel):
         """В дереве всегда одна колонка"""
         return 1
     
+    def hasChildren(self, parent: QModelIndex = QModelIndex()) -> bool:
+        """
+        Определяет, может ли узел иметь дочерние элементы
+        
+        Критерий: узел имеет детей ТОЛЬКО если счётчик в скобках > 0
+        """
+        parent_node = self._get_node(parent)
+        
+        if parent_node is None or parent_node == self._root_node:
+            return self._root_node.child_count() > 0
+        
+        # Комнаты никогда не имеют детей
+        if parent_node.node_type == NodeType.ROOM:
+            return False
+        
+        # Для остальных типов проверяем соответствующий счётчик
+        if parent_node.node_type == NodeType.COMPLEX:
+            if hasattr(parent_node.data, 'buildings_count'):
+                return parent_node.data.buildings_count > 0
+        
+        elif parent_node.node_type == NodeType.BUILDING:
+            if hasattr(parent_node.data, 'floors_count'):
+                return parent_node.data.floors_count > 0
+        
+        elif parent_node.node_type == NodeType.FLOOR:
+            if hasattr(parent_node.data, 'rooms_count'):
+                return parent_node.data.rooms_count > 0
+        
+        return False
+    
     def data(self, index: QModelIndex, role: int = Qt.DisplayRole):
-        """
-        Возвращает данные для отображения
-        """
+        """Возвращает данные для отображения"""
         if not index.isValid():
             return None
         
@@ -214,7 +238,6 @@ class TreeModel(QAbstractItemModel):
             return node.get_display_text()
         
         elif role == Qt.FontRole:
-            # Разные шрифты для разных типов узлов
             font = QFont()
             if node.node_type == NodeType.COMPLEX:
                 font.setBold(True)
@@ -224,26 +247,18 @@ class TreeModel(QAbstractItemModel):
             return font
         
         elif role == Qt.ForegroundRole:
-            # Цвет текста в зависимости от типа и статуса
             if node.node_type == NodeType.COMPLEX:
-                return QBrush(QColor(0, 70, 130))  # Тёмно-синий
+                return QBrush(QColor(0, 70, 130))
             elif node.node_type == NodeType.BUILDING:
-                return QBrush(QColor(0, 100, 0))  # Тёмно-зелёный
+                return QBrush(QColor(0, 100, 0))
             elif node.node_type == NodeType.FLOOR:
-                return QBrush(QColor(100, 100, 100))  # Серый
+                return QBrush(QColor(100, 100, 100))
             elif node.node_type == NodeType.ROOM and isinstance(node.data, Room):
-                # Для комнат цвет зависит от статуса
                 if node.data.status_code == 'occupied':
-                    return QBrush(QColor(200, 50, 50))  # Красный для занятых
+                    return QBrush(QColor(200, 50, 50))
                 elif node.data.status_code == 'free':
-                    return QBrush(QColor(50, 150, 50))  # Зелёный для свободных
-            return QBrush(QColor(0, 0, 0))  # Чёрный по умолчанию
-        
-        elif role == Qt.FontRole and node.loading:
-            # Для загружающихся узлов - курсив
-            font = QFont()
-            font.setItalic(True)
-            return font
+                    return QBrush(QColor(50, 150, 50))
+            return QBrush(QColor(0, 0, 0))
         
         elif role == self.ItemIdRole:
             return node.get_id()
@@ -253,9 +268,6 @@ class TreeModel(QAbstractItemModel):
         
         elif role == self.ItemDataRole:
             return node.data
-        
-        elif role == self.ItemLoadingRole:
-            return node.loading
         
         return None
     
@@ -319,7 +331,7 @@ class TreeModel(QAbstractItemModel):
     
     def add_children(self, parent_index: QModelIndex, children_data: List[Any], child_type: NodeType):
         """
-        Добавить дочерние узлы к родительскому
+        Добавить новые дочерние узлы к родительскому (первоначальная загрузка)
         
         Args:
             parent_index: индекс родительского узла
@@ -348,95 +360,78 @@ class TreeModel(QAbstractItemModel):
         
         # Помечаем, что дети загружены
         parent_node.loaded = True
-        parent_node.loading = False
         
         self.endInsertRows()
         
         print(f"✅ TreeModel: добавлено {len(children_data)} {child_type.value} к {parent_node.node_type.value} #{parent_node.get_id()}")
     
-    def clear_children(self, parent_index: QModelIndex):
+    def update_children(self, parent_index: QModelIndex, children_data: List[Any], child_type: NodeType):
         """
-        Очистить дочерние узлы родителя
+        Обновить дочерние узлы, сохраняя существующие где возможно
         
         Args:
             parent_index: индекс родительского узла
+            children_data: новые данные для дочерних узлов
+            child_type: тип дочерних узлов
         """
         parent_node = self._get_node(parent_index)
         if parent_node is None or parent_node == self._root_node:
             return
         
-        if parent_node.child_count() == 0:
-            return
+        # Создаём словарь существующих детей по ID
+        existing_children = {child.get_id(): (i, child) for i, child in enumerate(parent_node.children)}
         
-        self.beginRemoveRows(parent_index, 0, parent_node.child_count() - 1)
+        # Создаём словарь новых данных по ID
+        new_data_dict = {data.id: data for data in children_data}
         
-        # Удаляем из индекса
-        for child in parent_node.children:
-            key = self._make_key(child.node_type, child.get_id())
-            self._node_index.pop(key, None)
+        # Обновляем существующие узлы и удаляем те, которых больше нет
+        for child_id, (row, child_node) in list(existing_children.items()):
+            if child_id in new_data_dict:
+                # Обновляем существующий узел новыми данными
+                child_node.update_data(new_data_dict[child_id])
+                # Сигнализируем об изменении данных
+                child_index = self.index(row, 0, parent_index)
+                self.dataChanged.emit(child_index, child_index, [Qt.DisplayRole, Qt.ForegroundRole])
+                # Удаляем из словаря новых, чтобы не создавать дубликат
+                del new_data_dict[child_id]
+            else:
+                # Элемент удалён - убираем его
+                self.beginRemoveRows(parent_index, row, row)
+                parent_node.children.pop(row)
+                key = self._make_key(child_node.node_type, child_id)
+                self._node_index.pop(key, None)
+                self.endRemoveRows()
+                # Перестраиваем словарь existing_children после удаления
+                existing_children = {child.get_id(): (i, child) for i, child in enumerate(parent_node.children)}
         
-        parent_node.remove_children()
-        self.endRemoveRows()
+        # Добавляем новые элементы
+        if new_data_dict:
+            first_row = parent_node.child_count()
+            last_row = first_row + len(new_data_dict) - 1
+            self.beginInsertRows(parent_index, first_row, last_row)
+            
+            for data in new_data_dict.values():
+                child_node = TreeNode(data, child_type, parent_node)
+                parent_node.append_child(child_node)
+                key = self._make_key(child_type, data.id)
+                self._node_index[key] = child_node
+            
+            self.endInsertRows()
         
-        print(f"🔄 TreeModel: очищены дети {parent_node.node_type.value} #{parent_node.get_id()}")
-    
-    def node_loading(self, node_index: QModelIndex):
-        """
-        Отметить узел как загружающийся
-        Вызывается перед началом загрузки данных
-        """
-        node = self._get_node(node_index)
-        if node and not node.loading:
-            node.loading = True
-            # Обновляем отображение (покажет курсив или индикатор)
-            self.dataChanged.emit(node_index, node_index, [Qt.FontRole])
-            self.data_loading.emit(node.node_type, node.get_id())
-    
-    def node_loaded(self, node_index: QModelIndex):
-        """
-        Отметить узел как загруженный
-        Вызывается после успешной загрузки
-        """
-        node = self._get_node(node_index)
-        if node:
-            node.loading = False
-            self.dataChanged.emit(node_index, node_index, [Qt.FontRole])
-            self.data_loaded.emit(node.node_type, node.get_id())
-    
-    def node_error(self, node_index: QModelIndex, error_msg: str):
-        """
-        Отметить ошибку загрузки узла
-        """
-        node = self._get_node(node_index)
-        if node:
-            node.loading = False
-            self.dataChanged.emit(node_index, node_index, [Qt.FontRole])
-            self.data_error.emit(node.node_type, node.get_id(), error_msg)
+        # Помечаем, что дети загружены
+        parent_node.loaded = True
     
     def get_node_by_id(self, node_type: NodeType, node_id: int) -> Optional[TreeNode]:
-        """
-        Получить узел по типу и ID
-        """
+        """Получить узел по типу и ID"""
         key = self._make_key(node_type, node_id)
         return self._node_index.get(key)
     
     def get_index_by_id(self, node_type: NodeType, node_id: int) -> QModelIndex:
-        """
-        Получить индекс по типу и ID
-        """
+        """Получить индекс по типу и ID"""
         node = self.get_node_by_id(node_type, node_id)
         if node:
             return self._index_of_node(node)
         return QModelIndex()
-    
-    def get_all_expanded_nodes(self) -> List[tuple]:
-        """
-        Получить список всех раскрытых узлов (для обновления)
-        Должен вызываться из TreeView, который отслеживает состояние
-        """
-        # Этот метод будет заполнен в TreeView, так как только View знает,
-        # какие узлы раскрыты
-        return []
     
     def reset(self):
         """Полный сброс модели"""

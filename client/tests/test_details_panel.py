@@ -11,9 +11,8 @@ from datetime import datetime
 
 sys.path.append('/app')
 
-# === ПОДАВЛЕНИЕ QT ЛОГОВ ===
-os.environ["QT_LOGGING_RULES"] = "*.debug=false;qt.core.*=false"
-os.environ["QT_QPA_PLATFORM"] = "offscreen"  # Для CI/CD, если нужно
+# Убираем информационные сообщения, но оставляем предупреждения и ошибки
+os.environ["QT_LOGGING_RULES"] = "*.info=false;qt.core.debug=false"
 
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer, Qt

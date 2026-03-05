@@ -27,12 +27,12 @@ class Room(SQLModel, table=True):
     
     # Основные поля
     number: str = Field(nullable=False)
-    description: Optional[str] = Field(default=None)  # Добавлено поле description
+    description: Optional[str] = Field(default=None)
     area: Optional[float] = Field(default=None)
     
     # Ссылки на справочники
-    physical_type_id: int = Field(nullable=False)
-    status_code: str = Field(nullable=False)
+    physical_type_id: Optional[int] = Field(default=None)
+    status_code: Optional[str] = Field(default=None)
     
     # Дополнительные поля
     max_tenants: Optional[int] = Field(default=None)

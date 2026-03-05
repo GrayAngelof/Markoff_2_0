@@ -27,7 +27,7 @@ class Floor(SQLModel, table=True):
     
     # Основные поля
     number: int = Field(nullable=False)
-    description: Optional[str] = Field(default=None)  # Убедимся, что поле есть
+    description: Optional[str] = Field(default=None)
     
     # Ссылки на справочники
     physical_type_id: Optional[int] = Field(default=None)

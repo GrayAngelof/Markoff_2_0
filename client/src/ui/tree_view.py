@@ -509,10 +509,66 @@ class TreeView(QWidget):
             if node:
                 item_type = node.node_type.value
                 item_id = node.get_id()
-                item_data = node.data  # Получаем объект модели
-                print(f"🔹 TreeView: выбран {item_type} #{item_id}")
-                # Передаём данные в сигнале
+                item_data = node.data
+                
+                # Сразу отправляем текущие данные (минимальные)
                 self.item_selected.emit(item_type, item_id, item_data)
+                
+                # Для всех типов объектов проверяем, нужно ли загрузить детали
+                # Используем QTimer, чтобы не блокировать UI
+                QTimer.singleShot(50, lambda: self._load_details_if_needed(item_type, item_id, index))
+                
+                print(f"🔹 TreeView: выбран {item_type} #{item_id}")
+
+    def _load_details_if_needed(self, item_type: str, item_id: int, index: QModelIndex):
+        """
+        Загрузить детальные данные, если их нет в текущем объекте
+        """
+        node = self.model._get_node(index)
+        if not node:
+            return
+        
+        item_data = node.data
+        
+        if item_type == 'complex' and isinstance(item_data, Complex):
+            # Проверяем, есть ли уже детальные данные
+            if item_data.address is None and item_data.description is None:
+                print(f"🔍 Загружаем детали комплекса #{item_id}")
+                detailed = self.api_client.get_complex_detail(item_id)
+                if detailed:
+                    # Обновляем данные в узле
+                    node.data = detailed
+                    # Обновляем отображение
+                    self.model.dataChanged.emit(index, index, [])
+                    # Отправляем обновлённые данные
+                    self.item_selected.emit(item_type, item_id, detailed)
+        
+        elif item_type == 'building' and isinstance(item_data, Building):
+            if item_data.description is None and item_data.address is None:
+                print(f"🔍 Загружаем детали корпуса #{item_id}")
+                detailed = self.api_client.get_building_detail(item_id)
+                if detailed:
+                    node.data = detailed
+                    self.model.dataChanged.emit(index, index, [])
+                    self.item_selected.emit(item_type, item_id, detailed)
+        
+        elif item_type == 'floor' and isinstance(item_data, Floor):
+            if item_data.description is None:
+                print(f"🔍 Загружаем детали этажа #{item_id}")
+                detailed = self.api_client.get_floor_detail(item_id)
+                if detailed:
+                    node.data = detailed
+                    self.model.dataChanged.emit(index, index, [])
+                    self.item_selected.emit(item_type, item_id, detailed)
+        
+        elif item_type == 'room' and isinstance(item_data, Room):
+            if item_data.area is None or item_data.status_code is None:
+                print(f"🔍 Загружаем детали помещения #{item_id}")
+                detailed = self.api_client.get_room_detail(item_id)
+                if detailed:
+                    node.data = detailed
+                    self.model.dataChanged.emit(index, index, [])
+                    self.item_selected.emit(item_type, item_id, detailed)
     
     def _on_model_data_loading(self, node_type: NodeType, node_id: int):
         """Обработчик начала загрузки данных в модели"""

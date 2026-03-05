@@ -1,61 +1,105 @@
 # backend/src/schemas/physical.py
 """
 Pydantic схемы для ответов API
-Содержат только те поля, которые нужны для отображения в дереве
+Содержат как минимальные поля для дерева, так и детальные для просмотра
 """
 from pydantic import BaseModel
-from typing import List, Optional
+from datetime import datetime
+from typing import Optional, List
 
-# ===== Схемы для комплексов =====
+# ===== Базовые схемы (для дерева) =====
+
 class ComplexTreeResponse(BaseModel):
-    """
-    Ответ для отображения комплекса в дереве
-    Только поля, нужные для UI
-    """
+    """Минимальная информация о комплексе для дерева"""
     id: int
     name: str
-    buildings_count: int  # Для отображения количества корпусов
+    buildings_count: int
 
     class Config:
         from_attributes = True
 
-# ===== Схемы для корпусов =====
+
 class BuildingTreeResponse(BaseModel):
-    """
-    Ответ для отображения корпуса в дереве
-    """
+    """Минимальная информация о корпусе для дерева"""
     id: int
     name: str
     complex_id: int
-    floors_count: int  # Для отображения количества этажей
+    floors_count: int
 
     class Config:
         from_attributes = True
 
-# ===== Схемы для этажей =====
+
 class FloorTreeResponse(BaseModel):
-    """
-    Ответ для отображения этажа в дереве
-    """
+    """Минимальная информация об этаже для дерева"""
     id: int
     number: int
     building_id: int
-    rooms_count: int  # Для отображения количества помещений
+    rooms_count: int
 
     class Config:
         from_attributes = True
 
-# ===== Схемы для помещений =====
+
 class RoomTreeResponse(BaseModel):
-    """
-    Ответ для отображения помещения в дереве
-    """
+    """Минимальная информация о помещении для дерева"""
     id: int
     number: str
     floor_id: int
-    # Дополнительные поля, которые могут понадобиться в дереве
     area: Optional[float] = None
     status_code: Optional[str] = None
 
+    class Config:
+        from_attributes = True
+
+
+# ===== Детальные схемы (для правой панели) =====
+
+class ComplexDetailResponse(ComplexTreeResponse):
+    """Детальная информация о комплексе"""
+    description: Optional[str] = None
+    address: Optional[str] = None
+    owner_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class BuildingDetailResponse(BuildingTreeResponse):
+    """Детальная информация о корпусе"""
+    description: Optional[str] = None
+    address: Optional[str] = None
+    status_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class FloorDetailResponse(FloorTreeResponse):
+    """Детальная информация об этаже"""
+    description: Optional[str] = None
+    physical_type_id: Optional[int] = None
+    status_id: Optional[int] = None
+    plan_image_url: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class RoomDetailResponse(RoomTreeResponse):
+    """Детальная информация о помещении"""
+    description: Optional[str] = None
+    physical_type_id: Optional[int] = None
+    max_tenants: Optional[int] = None
+    status_code: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    
     class Config:
         from_attributes = True

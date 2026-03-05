@@ -360,6 +360,110 @@ class ApiClient:
         except Exception as e:
             print(f"❌ Не удалось получить информацию о сервере: {e}")
             return {}
+
+    def get_complex_detail(self, complex_id: int) -> Optional[Complex]:
+        """
+        Получить детальную информацию о комплексе
+        
+        Args:
+            complex_id: ID комплекса
+            
+        Returns:
+            Complex: объект комплекса с полными данными
+        """
+        try:
+            endpoint = f"/physical/complexes/{complex_id}"
+            print(f"🔍 Запрос деталей комплекса ID={complex_id}")
+            
+            data = self._make_request('GET', endpoint)
+            
+            if not data:
+                print(f"⚠️ Сервер вернул пустые данные для комплекса {complex_id}")
+                return None
+            
+            # Создаём комплекс со всеми полями
+            complex_obj = Complex.from_dict(data)
+            
+            print(f"📦 Получены детали комплекса: {complex_obj.name}")
+            if complex_obj.address:
+                print(f"   адрес: {complex_obj.address[:50]}...")
+            if complex_obj.description:
+                print(f"   описание: {complex_obj.description[:50]}...")
+            
+            return complex_obj
+            
+        except Exception as e:
+            print(f"❌ Ошибка загрузки деталей комплекса {complex_id}: {e}")
+            return None
+
+
+    def get_building_detail(self, building_id: int) -> Optional[Building]:
+        """
+        Получить детальную информацию о корпусе
+        """
+        try:
+            endpoint = f"/physical/buildings/{building_id}"
+            print(f"🔍 Запрос деталей корпуса ID={building_id}")
+            
+            data = self._make_request('GET', endpoint)
+            
+            if not data:
+                print(f"⚠️ Сервер вернул пустые данные для корпуса {building_id}")
+                return None
+            
+            building = Building.from_dict(data)
+            print(f"📦 Получены детали корпуса: {building.name}")
+            return building
+            
+        except Exception as e:
+            print(f"❌ Ошибка загрузки деталей корпуса {building_id}: {e}")
+            return None
+
+
+    def get_floor_detail(self, floor_id: int) -> Optional[Floor]:
+        """
+        Получить детальную информацию об этаже
+        """
+        try:
+            endpoint = f"/physical/floors/{floor_id}"
+            print(f"🔍 Запрос деталей этажа ID={floor_id}")
+            
+            data = self._make_request('GET', endpoint)
+            
+            if not data:
+                print(f"⚠️ Сервер вернул пустые данные для этажа {floor_id}")
+                return None
+            
+            floor = Floor.from_dict(data)
+            print(f"📦 Получены детали этажа: {floor.number}")
+            return floor
+            
+        except Exception as e:
+            print(f"❌ Ошибка загрузки деталей этажа {floor_id}: {e}")
+            return None
+
+
+    def get_room_detail(self, room_id: int) -> Optional[Room]:
+        """
+        Получить детальную информацию о помещении
+        """
+        try:
+            endpoint = f"/physical/rooms/{room_id}"
+            print(f"🔍 Запрос деталей помещения ID={room_id}")
+            
+            data = self._make_request('GET', endpoint)
+            
+            if not data:
+                print(f"⚠️ Сервер вернул пустые данные для помещения {room_id}")
+                return None
+            
+            room = Room.from_dict(data)
+            print(f"📦 Получены детали помещения: {room.number}")
+            return room
+            
+        except Exception as e:
+            print(f"❌ Ошибка загрузки деталей помещения {room_id}: {e}")
+            return None
     
     # ===== Методы для отладки =====
     

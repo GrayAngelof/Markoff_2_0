@@ -3,7 +3,17 @@
 Точка входа в клиентское приложение Markoff
 Создаёт главное окно и запускает event loop
 """
+import os
 import sys
+# Убираем информационные сообщения, но оставляем предупреждения и ошибки
+os.environ["QT_LOGGING_RULES"] = """
+    qt.core.plugin.factoryloader.debug=false;
+    qt.core.plugin.loader.debug=false;
+    qt.core.library.debug=false;
+    *.warning=true;
+    *.critical=true;
+"""
+
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 

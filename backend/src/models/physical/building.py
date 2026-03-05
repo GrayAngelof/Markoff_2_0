@@ -28,7 +28,7 @@ class Building(SQLModel, table=True):
     # Основные поля
     name: str = Field(nullable=False)
     description: Optional[str] = Field(default=None)
-    address: Optional[str] = Field(default=None)  # Добавлено поле address
+    address: Optional[str] = Field(default=None)
     floors_count: int = Field(nullable=False)
     
     # Статус

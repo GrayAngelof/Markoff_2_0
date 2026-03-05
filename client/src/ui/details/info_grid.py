@@ -4,6 +4,7 @@
 """
 from PySide6.QtWidgets import QWidget, QGridLayout, QLabel
 from PySide6.QtCore import Qt
+from typing import List  # <-- ВАЖНО: добавить этот импорт
 
 
 class InfoGrid(QWidget):
@@ -20,6 +21,7 @@ class InfoGrid(QWidget):
         self.grid.setColumnStretch(1, 1)
         
         self.fields = {}
+        self.labels = {}
         self._create_fields()
     
     def _create_fields(self):
@@ -51,6 +53,7 @@ class InfoGrid(QWidget):
             self.grid.addWidget(value_widget, i, 1)
             
             self.fields[key] = value_widget
+            self.labels[key] = label_widget
     
     def clear_all(self):
         """Очистить все поля"""
@@ -68,12 +71,42 @@ class InfoGrid(QWidget):
             self.fields[key].setText(str(value))
     
     def show_only(self, *keys):
-        """Показать только указанные поля"""
-        # Сначала скрываем все
-        for field in self.fields.values():
-            field.parent().hide()
+        """
+        Показать только указанные поля, скрыть остальные
         
-        # Показываем нужные
+        Args:
+            *keys: ключи полей для отображения
+        """
+        # Сначала скрываем ВСЕ поля
+        for key in self.fields:
+            self.fields[key].setVisible(False)
+            self.labels[key].setVisible(False)
+        
+        # Показываем только нужные
         for key in keys:
             if key in self.fields:
-                self.fields[key].parent().show()
+                self.fields[key].setVisible(True)
+                self.labels[key].setVisible(True)
+        
+        # Для отладки
+        visible = [k for k in self.fields if self.fields[k].isVisible()]
+        print(f"🔧 InfoGrid.show_only: запрошены {sorted(keys)}, стали видны {sorted(visible)}")
+    
+    def show_all(self):
+        """Показать все поля (для отладки)"""
+        for key in self.fields:
+            self.fields[key].setVisible(True)
+            self.labels[key].setVisible(True)
+    
+    def get_visible_fields(self) -> List[str]:
+        """
+        Вернуть список ключей видимых полей
+        
+        Returns:
+            List[str]: список ключей полей, которые сейчас видимы
+        """
+        visible = []
+        for key, widget in self.fields.items():
+            if widget.isVisible():
+                visible.append(key)
+        return visible

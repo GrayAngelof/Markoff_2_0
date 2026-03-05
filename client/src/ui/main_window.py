@@ -70,6 +70,9 @@ class MainWindow(QMainWindow):
         # Таймер для проверки статуса
         self._setup_status_timer()
         
+        # Финальная проверка видимости через 500мс
+        QTimer.singleShot(500, self._check_visibility)
+        
         print("✅ MainWindow: создано")
     
     # ===== Инициализация UI =====
@@ -77,6 +80,7 @@ class MainWindow(QMainWindow):
     def _setup_central_widget(self):
         """Настройка центрального виджета с разделителем"""
         central_widget = QWidget()
+        central_widget.setVisible(True)
         self.setCentralWidget(central_widget)
         
         # Основной горизонтальный layout
@@ -87,6 +91,7 @@ class MainWindow(QMainWindow):
         # Создаём разделитель
         self.splitter = QSplitter(Qt.Horizontal)
         self.splitter.setHandleWidth(5)
+        self.splitter.setVisible(True)
         self.splitter.setStyleSheet("""
             QSplitter::handle {
                 background-color: #c0c0c0;
@@ -97,20 +102,31 @@ class MainWindow(QMainWindow):
         """)
         
         layout.addWidget(self.splitter)
+        
+        # Отладка
+        print(f"🔧 central_widget видим: {central_widget.isVisible()}")
+        print(f"🔧 splitter видим: {self.splitter.isVisible()}")
     
     def _create_components(self):
         """Создание основных компонентов"""
         # Левая панель с деревом
         self.tree_view = TreeView()
+        self.tree_view.setVisible(True)
         
         # Правая панель с информацией
         self.details_panel = DetailsPanel()
+        self.details_panel.setVisible(True)
         
         # Добавляем в разделитель
         self.splitter.addWidget(self.tree_view)
         self.splitter.addWidget(self.details_panel)
         
-        # Устанавливаем начальные размеры (30% - дерево, 70% - информация)
+        # Убеждаемся, что виджеты добавились
+        print(f"🔧 splitter содержит {self.splitter.count()} виджетов")
+        print(f"🔧 tree_view видим: {self.tree_view.isVisible()}")
+        print(f"🔧 details_panel видим: {self.details_panel.isVisible()}")
+        
+        # Устанавливаем начальные размеры
         self.splitter.setSizes([300, 700])
     
     def _create_toolbar(self):
@@ -261,6 +277,21 @@ class MainWindow(QMainWindow):
     
     # ===== Вспомогательные методы =====
     
+    @Slot()
+    def _check_visibility(self):
+        """Проверка видимости всех компонентов"""
+        print("\n🔧 ФИНАЛЬНАЯ ПРОВЕРКА ВИДИМОСТИ:")
+        print(f"  MainWindow видимо: {self.isVisible()}")
+        if self.centralWidget():
+            print(f"  central_widget видим: {self.centralWidget().isVisible()}")
+        else:
+            print("  central_widget: None")
+        print(f"  splitter видим: {self.splitter.isVisible()}")
+        print(f"  splitter содержит виджетов: {self.splitter.count()}")
+        print(f"  tree_view видим: {self.tree_view.isVisible()}")
+        print(f"  details_panel видим: {self.details_panel.isVisible()}")
+    
+    @Slot()
     def _check_connection_status(self):
         """Проверка статуса соединения с сервером"""
         try:

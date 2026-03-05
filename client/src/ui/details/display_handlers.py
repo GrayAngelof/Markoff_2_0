@@ -17,6 +17,16 @@ class DisplayHandlers:
     @staticmethod
     def show_complex(panel, data: Complex):
         """Отображение комплекса"""
+        # В начало метода show_complex, show_building, show_floor, show_room
+        print("🔧 ПРОВЕРКА ЦЕПОЧКИ ВИДИМОСТИ:")
+        print(f"  panel.isVisible(): {panel.isVisible()}")
+        print(f"  panel.parent().isVisible(): {panel.parent().isVisible() if panel.parent() else 'Нет родителя'}")
+        print(f"  panel.parent().parent().isVisible(): {panel.parent().parent().isVisible() if panel.parent() and panel.parent().parent() else 'Нет родителя'}")
+        # Принудительно показываем виджеты
+        print("🔧 Принудительно показываем виджеты для complex")
+        panel.content_widget.setVisible(True)
+        panel.info_grid.setVisible(True)
+        panel.info_grid.parent().setVisible(True)
         panel.title_label.setText(f"КОМПЛЕКС: {data.name}")
         panel.hierarchy_label.setText("")
         panel.icon_label.setText("🏢")
@@ -26,17 +36,31 @@ class DisplayHandlers:
         panel.status_label.setText("Активен")
         panel.set_status_style(None)
         
+        # Устанавливаем поля
         panel.set_field("address", data.address)
         panel.set_field("owner", FieldManager.format_owner(data.owner_id))
         panel.set_field("description", data.description)
         panel.set_field("plan", "[ ссылка на общий план ]")
         
+        # Очищаем лишние поля
+        panel.set_field("tenant", None)
+        panel.set_field("type", None)
+        panel.set_field("contract", None)
+        panel.set_field("valid_until", None)
+        panel.set_field("rent", None)
+        
         panel.show_info_grid()
+        # Показываем только нужные поля
         panel.show_fields("address", "owner", "description", "plan")
     
     @staticmethod
     def show_building(panel, data: Building, complex_name: str):
         """Отображение корпуса"""
+        # В начало метода show_complex, show_building, show_floor, show_room
+        print("🔧 ПРОВЕРКА ЦЕПОЧКИ ВИДИМОСТИ:")
+        print(f"  panel.isVisible(): {panel.isVisible()}")
+        print(f"  panel.parent().isVisible(): {panel.parent().isVisible() if panel.parent() else 'Нет родителя'}")
+        print(f"  panel.parent().parent().isVisible(): {panel.parent().parent().isVisible() if panel.parent() and panel.parent().parent() else 'Нет родителя'}")
         panel.title_label.setText(f"КОРПУС: {data.name}")
         hierarchy_text = f"(в составе комплекса: {complex_name})"
         panel.hierarchy_label.setText(hierarchy_text)
@@ -47,15 +71,30 @@ class DisplayHandlers:
         panel.status_label.setText("Активен")
         panel.set_status_style(None)
         
+        # Устанавливаем поля
         panel.set_field("address", data.address)
         panel.set_field("description", data.description)
         panel.set_field("plan", "[ ссылка на планы корпуса ]")
         
+        # Очищаем лишние поля
+        panel.set_field("owner", None)
+        panel.set_field("tenant", None)
+        panel.set_field("type", None)
+        panel.set_field("contract", None)
+        panel.set_field("valid_until", None)
+        panel.set_field("rent", None)
+        
         panel.show_info_grid()
+        # Показываем только нужные поля
         panel.show_fields("address", "description", "plan")
     
     @staticmethod
     def show_floor(panel, data: Floor, building_name: str, complex_name: str):
+        # В начало метода show_complex, show_building, show_floor, show_room
+        print("🔧 ПРОВЕРКА ЦЕПОЧКИ ВИДИМОСТИ:")
+        print(f"  panel.isVisible(): {panel.isVisible()}")
+        print(f"  panel.parent().isVisible(): {panel.parent().isVisible() if panel.parent() else 'Нет родителя'}")
+        print(f"  panel.parent().parent().isVisible(): {panel.parent().parent().isVisible() if panel.parent() and panel.parent().parent() else 'Нет родителя'}")
         """Отображение этажа"""
         # Номер этажа
         if data.number < 0:
@@ -75,16 +114,31 @@ class DisplayHandlers:
         panel.status_label.setText("Активен")
         panel.set_status_style(None)
         
+        # Устанавливаем поля
         panel.set_field("description", data.description)
         panel.set_field("plan", "[ ссылка на план этажа ]")
         panel.set_field("type", "Этаж с офисами")
         
+        # Очищаем лишние поля
+        panel.set_field("address", None)
+        panel.set_field("owner", None)
+        panel.set_field("tenant", None)
+        panel.set_field("contract", None)
+        panel.set_field("valid_until", None)
+        panel.set_field("rent", None)
+        
         panel.show_info_grid()
+        # Показываем только нужные поля
         panel.show_fields("description", "plan", "type")
     
     @staticmethod
     def show_room(panel, data: Room, floor_num: int, building_name: str, complex_name: str):
         """Отображение помещения"""
+        # В начало метода show_complex, show_building, show_floor, show_room
+        print("🔧 ПРОВЕРКА ЦЕПОЧКИ ВИДИМОСТИ:")
+        print(f"  panel.isVisible(): {panel.isVisible()}")
+        print(f"  panel.parent().isVisible(): {panel.parent().isVisible() if panel.parent() else 'Нет родителя'}")
+        print(f"  panel.parent().parent().isVisible(): {panel.parent().parent().isVisible() if panel.parent() and panel.parent().parent() else 'Нет родителя'}")
         panel.title_label.setText(f"ПОМЕЩЕНИЕ: {data.number}")
         
         # Формируем строку иерархии
@@ -106,7 +160,7 @@ class DisplayHandlers:
         panel.status_label.setText(status_text)
         panel.set_status_style(data.status_code)
         
-        # Площадь
+        # Для помещения поле address используем для отображения площади
         panel.set_field("address", FieldManager.format_area(data.area))
         
         # Тип помещения
@@ -131,6 +185,9 @@ class DisplayHandlers:
             panel.set_field("valid_until", "Действует до: 31.12.2025")
             panel.set_field("rent", "Арендная плата: 45 000 ₽/мес")
             
+            # Очищаем лишние поля
+            panel.set_field("owner", None)
+            
             # Показываем все поля
             panel.show_fields(*(base_fields + ["tenant", "contract", "valid_until", "rent"]))
         else:
@@ -139,6 +196,7 @@ class DisplayHandlers:
             panel.set_field("contract", None)
             panel.set_field("valid_until", None)
             panel.set_field("rent", None)
+            panel.set_field("owner", None)
             
             # Показываем только базовые поля
             panel.show_fields(*base_fields)

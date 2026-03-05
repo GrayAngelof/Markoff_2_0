@@ -71,6 +71,12 @@ class DetailsPanel(DetailsPanelBase):
             
         else:
             self.clear()
+        # Отладочный вывод
+        visible = []
+        for key, widget in self.fields.items():
+            if widget.parent().isVisible():
+                visible.append(key)
+        print(f"📊 После отображения видимы поля: {sorted(visible)}")
     
     def clear(self):
         """Очистить панель (показать заглушку)"""

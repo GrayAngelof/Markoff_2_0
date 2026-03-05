@@ -15,42 +15,45 @@ from src.ui.details.tabs import DetailsTabs
 class DetailsPanelBase(QWidget):
     """
     Базовый класс для панели детальной информации
-    Содержит:
-    - Шапку (HeaderWidget)
-    - Заглушку (PlaceholderWidget)
-    - Сетку информации (InfoGrid)
-    - Вкладки (DetailsTabs)
     """
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        
+        # Явно делаем себя видимым
+        self.setVisible(True)
         
         # Основной layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # Шапка
+        # Шапка (всегда видима)
         self.header = HeaderWidget()
+        self.header.setVisible(True)
         layout.addWidget(self.header)
         
         # Контейнер для контента
         self.content_widget = QWidget()
+        self.content_widget.setVisible(True)
+        
         self.content_layout = QVBoxLayout(self.content_widget)
         self.content_layout.setContentsMargins(10, 10, 10, 10)
         self.content_layout.setSpacing(10)
         
-        # Заглушка
+        # Заглушка (видима по умолчанию)
         self.placeholder = PlaceholderWidget()
+        self.placeholder.setVisible(True)
         self.content_layout.addWidget(self.placeholder)
         
-        # Сетка информации (изначально скрыта)
+        # Сетка информации (скрыта по умолчанию)
         self.info_grid = InfoGrid()
-        self.info_grid.hide()
+        self.info_grid.setVisible(False)
         self.content_layout.addWidget(self.info_grid)
         
-        # Вкладки
+        # Вкладки (всегда видимы)
         self.tabs = DetailsTabs()
+        self.tabs.setVisible(True)
         self.content_layout.addWidget(self.tabs)
         
         layout.addWidget(self.content_widget)
@@ -85,13 +88,25 @@ class DetailsPanelBase(QWidget):
     
     def show_info_grid(self):
         """Показать сетку информации и скрыть заглушку"""
-        self.placeholder.hide()
-        self.info_grid.show()
+        print("🔧 base_panel.show_info_grid: показываем info_grid")
+        
+        # Убеждаемся, что вся цепочка видима
+        self.setVisible(True)
+        self.content_widget.setVisible(True)
+        self.info_grid.setVisible(True)
+        
+        # Скрываем заглушку
+        self.placeholder.setVisible(False)
+        
+        # Проверка видимости
+        print(f"🔧 base_panel видим: {self.isVisible()}")
+        print(f"🔧 content_widget видим: {self.content_widget.isVisible()}")
+        print(f"🔧 info_grid видим: {self.info_grid.isVisible()}")
     
     def hide_info_grid(self):
         """Скрыть сетку информации и показать заглушку"""
-        self.placeholder.show()
-        self.info_grid.hide()
+        self.placeholder.setVisible(True)
+        self.info_grid.setVisible(False)
     
     def clear_all_fields(self):
         """Очистить все поля"""

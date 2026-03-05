@@ -7,9 +7,10 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTreeView, QLabel,
     QProgressBar, QMessageBox, QMenu
 )
-from PySide6.QtCore import Qt, Signal, Slot, QModelIndex, QPoint, QTimer
+from PySide6.QtCore import Qt, Signal, Slot, QModelIndex, QPoint, QTimer, QItemSelection
 from PySide6.QtGui import QAction
 from typing import Optional, List, Dict, Any, Tuple
+from functools import partial
 
 from src.core.api_client import ApiClient
 from src.core.cache import DataCache
@@ -32,10 +33,10 @@ class TreeView(QWidget):
     """
     
     # Сигналы
-    item_selected = Signal(str, int, object)  # type, id, data (объект модели)
-    data_loading = Signal(str, int)   # тип узла, id
-    data_loaded = Signal(str, int)    # тип узла, id
-    data_error = Signal(str, int, str) # тип узла, id, сообщение
+    item_selected = Signal(str, int, object, dict)  # type, id, data, context
+    data_loading = Signal(str, int)                  # тип узла, id
+    data_loaded = Signal(str, int)                   # тип узла, id
+    data_error = Signal(str, int, str)                # тип узла, id, сообщение
     
     def __init__(self, parent=None):
         """Инициализация виджета дерева"""
@@ -44,6 +45,9 @@ class TreeView(QWidget):
         # Создаём клиент API и кэш
         self.api_client = ApiClient()
         self.cache = DataCache()
+        
+        # Флаг для блокировки обработки выделения во время загрузки
+        self._loading_details = False
         
         # Настройка UI
         self._setup_ui()
@@ -55,6 +59,8 @@ class TreeView(QWidget):
         self.load_complexes()
         
         print("✅ TreeView: инициализирован")
+    
+    # ===== Инициализация UI =====
     
     def _setup_ui(self):
         """Настройка пользовательского интерфейса"""
@@ -159,8 +165,47 @@ class TreeView(QWidget):
         self.model.data_loaded.connect(self._on_model_data_loaded)
         self.model.data_error.connect(self._on_model_data_error)
     
+    # ===== Вспомогательные методы =====
+    
+    def _get_context_for_node(self, node) -> dict:
+        """
+        Собрать контекст из родительских узлов
+        
+        Returns:
+            dict: словарь с именами родительских узлов
+                  {'complex_name': str, 'building_name': str, 'floor_num': int}
+        """
+        context = {
+            'complex_name': None,
+            'building_name': None,
+            'floor_num': None
+        }
+        
+        current = node
+        while current:
+            if current.node_type == NodeType.COMPLEX and current.data:
+                context['complex_name'] = current.data.name
+            elif current.node_type == NodeType.BUILDING and current.data:
+                context['building_name'] = current.data.name
+            elif current.node_type == NodeType.FLOOR and current.data:
+                context['floor_num'] = current.data.number
+            current = current.parent
+        
+        return context
+    
+    @Slot()
+    def _reset_loading_flag(self):
+        """Сбросить флаг загрузки деталей"""
+        self._loading_details = False
+    
+    @Slot(str, int, object, dict)
+    def _emit_updated_selection(self, item_type: str, item_id: int, item_data, context: dict):
+        """Отправить обновлённые данные в DetailsPanel"""
+        self.item_selected.emit(item_type, item_id, item_data, context)
+    
     # ===== Загрузка данных =====
     
+    @Slot()
     def load_complexes(self):
         """Загрузка комплексов (корневые узлы)"""
         self.show_loading(True)
@@ -190,12 +235,10 @@ class TreeView(QWidget):
         finally:
             self.show_loading(False)
     
+    @Slot(QModelIndex)
     def _load_children(self, parent_index: QModelIndex):
         """
         Загрузка дочерних элементов для узла (первоначальная загрузка)
-        
-        Args:
-            parent_index: индекс родительского узла
         """
         node = self.model._get_node(parent_index)
         if not node:
@@ -256,10 +299,9 @@ class TreeView(QWidget):
     
     # ===== Методы обновления данных =====
     
+    @Slot()
     def refresh_current(self):
-        """
-        Обновить текущий выбранный узел, сохраняя его и детей
-        """
+        """Обновить текущий выбранный узел"""
         indexes = self.tree_view.selectedIndexes()
         if not indexes:
             print("⚠️ TreeView: нет выбранного узла для обновления")
@@ -270,11 +312,11 @@ class TreeView(QWidget):
         if not node:
             return
         
-        print(f"🔄 TreeView: обновление узла {node.node_type.value} #{node.get_id()}")
-        
-        # Запоминаем данные текущего узла до обновления
         node_type = node.node_type.value
         node_id = node.get_id()
+        context = self._get_context_for_node(node)
+        
+        print(f"🔄 TreeView: обновление узла {node_type} #{node_id}")
         
         # Определяем параметры для обновления
         if node.node_type == NodeType.COMPLEX:
@@ -319,12 +361,11 @@ class TreeView(QWidget):
             self.tree_view.selectionModel().blockSignals(False)
         
         # Восстанавливаем выделение
-        QTimer.singleShot(100, lambda: self._restore_selection_safe(node_type, node_id))
+        QTimer.singleShot(100, lambda: self._restore_selection_safe(node_type, node_id, context))
     
+    @Slot()
     def refresh_visible(self):
-        """
-        Обновить все раскрытые узлы, сохраняя структуру дерева и выделение
-        """
+        """Обновить все раскрытые узлы"""
         expanded = self.cache.get_expanded_nodes()
         if not expanded:
             print("ℹ️ TreeView: нет раскрытых узлов для обновления")
@@ -334,8 +375,16 @@ class TreeView(QWidget):
         current_selection = self.get_selected_node_info()
         selected_type = None
         selected_id = None
+        selected_context = None
+        
         if current_selection:
-            selected_type, selected_id, _ = current_selection
+            selected_type, selected_id, selected_data = current_selection
+            # Находим узел чтобы получить контекст
+            index = self.model.get_index_by_id(NodeType(selected_type), selected_id)
+            if index.isValid():
+                node = self.model._get_node(index)
+                if node:
+                    selected_context = self._get_context_for_node(node)
             print(f"🔍 Будет восстановлен узел: {selected_type} #{selected_id}")
         
         print(f"🔄 TreeView: обновление {len(expanded)} раскрытых узлов")
@@ -358,12 +407,12 @@ class TreeView(QWidget):
         # Восстанавливаем выделение, если оно было
         if selected_type and selected_id:
             # Даём время на завершение обновления
-            QTimer.singleShot(100, lambda: self._restore_selection_safe(selected_type, selected_id))
+            QTimer.singleShot(100, 
+                lambda: self._restore_selection_safe(selected_type, selected_id, selected_context))
     
+    @Slot()
     def full_reset(self):
-        """
-        Полная перезагрузка (очистка кэша и перезагрузка комплексов)
-        """
+        """Полная перезагрузка (очистка кэша и перезагрузка комплексов)"""
         print("🔄 TreeView: полная перезагрузка")
         
         # Очищаем кэш
@@ -372,14 +421,9 @@ class TreeView(QWidget):
         # Перезагружаем комплексы
         self.load_complexes()
     
+    @Slot(QModelIndex, bool)
     def _refresh_node(self, index: QModelIndex, use_cache: bool = False):
-        """
-        Обновить конкретный узел
-        
-        Args:
-            index: индекс узла для обновления
-            use_cache: использовать ли кэш (True) или принудительно с сервера (False)
-        """
+        """Обновить конкретный узел"""
         node = self.model._get_node(index)
         if not node:
             return
@@ -426,7 +470,8 @@ class TreeView(QWidget):
             print(f"❌ TreeView: ошибка обновления {node_type} #{node_id}: {e}")
             self.data_error.emit(node_type, node_id, str(e))
     
-    def _restore_selection_safe(self, node_type: str, node_id: int):
+    @Slot(str, int, dict)
+    def _restore_selection_safe(self, node_type: str, node_id: int, context: dict = None):
         """Безопасное восстановление выделения с поиском узла по ID"""
         try:
             index = self.model.get_index_by_id(NodeType(node_type), node_id)
@@ -435,8 +480,10 @@ class TreeView(QWidget):
                 node = self.model._get_node(index)
                 if node and node.get_id() == node_id:
                     self.tree_view.setCurrentIndex(index)
-                    # Передаём данные в сигнале
-                    self.item_selected.emit(node_type, node_id, node.data)
+                    # Передаём данные в сигнале с контекстом
+                    if context is None:
+                        context = self._get_context_for_node(node)
+                    self.item_selected.emit(node_type, node_id, node.data, context)
                     print(f"🔹 TreeView: восстановлено выделение {node_type} #{node_id}")
                     return
             
@@ -448,6 +495,7 @@ class TreeView(QWidget):
             import traceback
             traceback.print_exc()
     
+    @Slot(str, int)
     def _restore_parent_selection(self, node_type: str, node_id: int):
         """Восстановить родительский узел, если не удалось найти целевой"""
         try:
@@ -467,8 +515,8 @@ class TreeView(QWidget):
                     self.tree_view.setCurrentIndex(index)
                     node = self.model._get_node(index)
                     if node:
-                        # Передаём данные в сигнале
-                        self.item_selected.emit(NodeType.COMPLEX.value, node.get_id(), node.data)
+                        context = self._get_context_for_node(node)
+                        self.item_selected.emit(NodeType.COMPLEX.value, node.get_id(), node.data, context)
                         print(f"🔹 TreeView: выбран комплекс #{node.get_id()} как запасной вариант")
                         
         except Exception as e:
@@ -476,6 +524,7 @@ class TreeView(QWidget):
     
     # ===== Обработчики сигналов =====
     
+    @Slot(QModelIndex)
     def _on_node_expanded(self, index: QModelIndex):
         """Обработчик раскрытия узла - ленивая загрузка"""
         node = self.model._get_node(index)
@@ -493,6 +542,7 @@ class TreeView(QWidget):
             print(f"🔍 TreeView: раскрыт узел {node.node_type.value} #{node.get_id()}, загружаем детей")
             self._load_children(index)
     
+    @Slot(QModelIndex)
     def _on_node_collapsed(self, index: QModelIndex):
         """Обработчик сворачивания узла"""
         node = self.model._get_node(index)
@@ -500,8 +550,13 @@ class TreeView(QWidget):
             self.cache.mark_collapsed(node.node_type.value, node.get_id())
             print(f"📂 TreeView: свёрнут узел {node.node_type.value} #{node.get_id()}")
     
+    @Slot(QItemSelection, QItemSelection)
     def _on_selection_changed(self, selected, deselected):
         """Обработчик изменения выбора в дереве"""
+        # Если идёт загрузка деталей - игнорируем временные выделения
+        if self._loading_details:
+            return
+        
         indexes = selected.indexes()
         if indexes:
             index = indexes[0]
@@ -510,80 +565,91 @@ class TreeView(QWidget):
                 item_type = node.node_type.value
                 item_id = node.get_id()
                 item_data = node.data
+                context = self._get_context_for_node(node)
                 
-                # Сразу отправляем текущие данные (минимальные)
-                self.item_selected.emit(item_type, item_id, item_data)
+                # Отправляем сигнал с контекстом
+                self.item_selected.emit(item_type, item_id, item_data, context)
                 
-                # Для всех типов объектов проверяем, нужно ли загрузить детали
-                # Используем QTimer, чтобы не блокировать UI
-                QTimer.singleShot(50, lambda: self._load_details_if_needed(item_type, item_id, index))
+                # Загружаем детали
+                self._load_details_if_needed(item_type, item_id, index, context)
                 
                 print(f"🔹 TreeView: выбран {item_type} #{item_id}")
-
-    def _load_details_if_needed(self, item_type: str, item_id: int, index: QModelIndex):
-        """
-        Загрузить детальные данные, если их нет в текущем объекте
-        """
-        node = self.model._get_node(index)
-        if not node:
-            return
-        
-        item_data = node.data
-        
-        if item_type == 'complex' and isinstance(item_data, Complex):
-            # Проверяем, есть ли уже детальные данные
-            if item_data.address is None and item_data.description is None:
-                print(f"🔍 Загружаем детали комплекса #{item_id}")
-                detailed = self.api_client.get_complex_detail(item_id)
-                if detailed:
-                    # Обновляем данные в узле
-                    node.data = detailed
-                    # Обновляем отображение
-                    self.model.dataChanged.emit(index, index, [])
-                    # Отправляем обновлённые данные
-                    self.item_selected.emit(item_type, item_id, detailed)
-        
-        elif item_type == 'building' and isinstance(item_data, Building):
-            if item_data.description is None and item_data.address is None:
-                print(f"🔍 Загружаем детали корпуса #{item_id}")
-                detailed = self.api_client.get_building_detail(item_id)
-                if detailed:
-                    node.data = detailed
-                    self.model.dataChanged.emit(index, index, [])
-                    self.item_selected.emit(item_type, item_id, detailed)
-        
-        elif item_type == 'floor' and isinstance(item_data, Floor):
-            if item_data.description is None:
-                print(f"🔍 Загружаем детали этажа #{item_id}")
-                detailed = self.api_client.get_floor_detail(item_id)
-                if detailed:
-                    node.data = detailed
-                    self.model.dataChanged.emit(index, index, [])
-                    self.item_selected.emit(item_type, item_id, detailed)
-        
-        elif item_type == 'room' and isinstance(item_data, Room):
-            if item_data.area is None or item_data.status_code is None:
-                print(f"🔍 Загружаем детали помещения #{item_id}")
-                detailed = self.api_client.get_room_detail(item_id)
-                if detailed:
-                    node.data = detailed
-                    self.model.dataChanged.emit(index, index, [])
-                    self.item_selected.emit(item_type, item_id, detailed)
     
+    @Slot(str, int, QModelIndex, dict)
+    def _load_details_if_needed(self, item_type: str, item_id: int, index: QModelIndex, context: dict):
+        """Загрузить детальные данные, если их нет в текущем объекте"""
+        # Устанавливаем флаг загрузки
+        self._loading_details = True
+        
+        try:
+            node = self.model._get_node(index)
+            if not node:
+                return
+            
+            item_data = node.data
+            
+            if item_type == 'complex' and isinstance(item_data, Complex):
+                if item_data.address is None and item_data.description is None:
+                    print(f"🔍 Загружаем детали комплекса #{item_id}")
+                    detailed = self.api_client.get_complex_detail(item_id)
+                    if detailed:
+                        node.data = detailed
+                        self.model.dataChanged.emit(index, index, [])
+                        # Отправляем обновлённые данные с тем же контекстом
+                        QTimer.singleShot(10, 
+                            lambda: self._emit_updated_selection(item_type, item_id, detailed, context))
+            
+            elif item_type == 'building' and isinstance(item_data, Building):
+                if item_data.description is None and item_data.address is None:
+                    print(f"🔍 Загружаем детали корпуса #{item_id}")
+                    detailed = self.api_client.get_building_detail(item_id)
+                    if detailed:
+                        node.data = detailed
+                        self.model.dataChanged.emit(index, index, [])
+                        QTimer.singleShot(10, 
+                            lambda: self._emit_updated_selection(item_type, item_id, detailed, context))
+            
+            elif item_type == 'floor' and isinstance(item_data, Floor):
+                if item_data.description is None:
+                    print(f"🔍 Загружаем детали этажа #{item_id}")
+                    detailed = self.api_client.get_floor_detail(item_id)
+                    if detailed:
+                        node.data = detailed
+                        self.model.dataChanged.emit(index, index, [])
+                        QTimer.singleShot(10, 
+                            lambda: self._emit_updated_selection(item_type, item_id, detailed, context))
+            
+            elif item_type == 'room' and isinstance(item_data, Room):
+                if item_data.area is None or item_data.status_code is None:
+                    print(f"🔍 Загружаем детали помещения #{item_id}")
+                    detailed = self.api_client.get_room_detail(item_id)
+                    if detailed:
+                        node.data = detailed
+                        self.model.dataChanged.emit(index, index, [])
+                        QTimer.singleShot(10, 
+                            lambda: self._emit_updated_selection(item_type, item_id, detailed, context))
+        finally:
+            # Сбрасываем флаг через небольшую задержку
+            QTimer.singleShot(100, self._reset_loading_flag)
+    
+    @Slot(NodeType, int)
     def _on_model_data_loading(self, node_type: NodeType, node_id: int):
         """Обработчик начала загрузки данных в модели"""
         self.data_loading.emit(node_type.value, node_id)
     
+    @Slot(NodeType, int)
     def _on_model_data_loaded(self, node_type: NodeType, node_id: int):
         """Обработчик завершения загрузки данных"""
         self.data_loaded.emit(node_type.value, node_id)
     
+    @Slot(NodeType, int, str)
     def _on_model_data_error(self, node_type: NodeType, node_id: int, error: str):
         """Обработчик ошибки загрузки"""
         self.data_error.emit(node_type.value, node_id, error)
     
     # ===== Контекстное меню =====
     
+    @Slot(QPoint)
     def _show_context_menu(self, position: QPoint):
         """Показать контекстное меню для узла"""
         index = self.tree_view.indexAt(position)
@@ -606,21 +672,15 @@ class TreeView(QWidget):
         
         # Пункт обновления узла
         refresh_action = QAction(f"🔄 Обновить {node_type_display}", menu)
-        
-        # Вариант 1: Используем частичное применение через functools (рекомендуется)
-        from functools import partial
         refresh_action.triggered.connect(partial(self._refresh_node, index, False))
-        
-        # Вариант 2: Если хотите оставить лямбду, то с правильным количеством параметров
-        # refresh_action.triggered.connect(lambda checked=False, idx=index: self._refresh_node(idx, False))
-        
         menu.addAction(refresh_action)
         
-        # Если есть выделение, показываем меню
+        # Показываем меню
         menu.exec(self.tree_view.viewport().mapToGlobal(position))
     
     # ===== Публичные методы =====
     
+    @Slot(bool)
     def show_loading(self, show: bool = True):
         """Показать/скрыть индикатор загрузки в заголовке"""
         if show:
@@ -628,6 +688,7 @@ class TreeView(QWidget):
             self.title_label.setText("Объекты (загрузка...)")
         else:
             self.loading_bar.hide()
+            self.title_label.setText("Объекты")
         
         self.loading_bar.repaint()
     
@@ -636,10 +697,7 @@ class TreeView(QWidget):
         QMessageBox.warning(self, title, message)
     
     def get_selected_node_info(self) -> Optional[Tuple[str, int, Any]]:
-        """
-        Получить информацию о выбранном узле
-        Returns: (тип, id, данные) или None
-        """
+        """Получить информацию о выбранном узле"""
         indexes = self.tree_view.selectedIndexes()
         if not indexes:
             return None

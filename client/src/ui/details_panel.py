@@ -5,11 +5,11 @@
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QTabWidget, QFrame, QGridLayout, QGroupBox
+    QTabWidget, QGridLayout
 )
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QFont
-from datetime import datetime
+from typing import Optional, Tuple, Any
 
 from src.models.complex import Complex
 from src.models.building import Building
@@ -21,48 +21,69 @@ class DetailsPanel(QWidget):
     """
     Панель детальной информации с вкладками
     
-    Структура:
-    - Шапка: тип объекта, название, статус
-    - Основная информация: адрес, описание, даты
-    - Вкладки: Физика, Юрики, Пожарка
+    Структура для каждого типа объекта:
+    
+    КОМПЛЕКС:
+    - Заголовок: КОМПЛЕКС: Название
+    - Иерархия: (пусто)
+    - Основная информация: адрес, владелец, описание, планировка
+    
+    КОРПУС:
+    - Заголовок: КОРПУС: Название
+    - Иерархия: (в составе комплекса: Название комплекса)
+    - Основная информация: адрес, описание, планировка
+    
+    ЭТАЖ:
+    - Заголовок: ЭТАЖ: Номер
+    - Иерархия: (в составе корпуса: Название корпуса, комплекс: Название комплекса)
+    - Основная информация: описание, планировка, тип этажа
+    
+    ПОМЕЩЕНИЕ:
+    - Заголовок: ПОМЕЩЕНИЕ: Номер
+    - Иерархия: (этаж Номер, корпус Название, комплекс: Название комплекса)
+    - Основная информация: площадь, тип, описание
+    - Для занятых: арендатор, договор, срок действия, арендная плата
     """
     
-    def __init__(self):
-        """Инициализация панели информации"""
-        super().__init__()
+    def __init__(self, parent=None):
+        """Инициализация панели"""
+        super().__init__(parent)
         
         # Основной layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # Создаём шапку
+        # Шапка
         self._create_header()
         layout.addWidget(self.header_widget)
         
-        # Создаём контейнер для контента
+        # Контейнер для контента
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout(self.content_widget)
         self.content_layout.setContentsMargins(10, 10, 10, 10)
         self.content_layout.setSpacing(10)
         
-        # Создаём блок основной информации
-        self._create_info_block()
+        # Заглушка
+        self._create_placeholder()
         
-        # Создаём вкладки
+        # Информационные блоки
+        self._create_info_blocks()
+        
+        # Вкладки
         self._create_tabs()
         
         layout.addWidget(self.content_widget)
-        
-        # Добавляем растяжение в конце
         layout.addStretch()
         
-        # Текущий выбранный объект
+        # Состояние
         self.current_type = None
         self.current_id = None
         self.current_data = None
         
-        print("✅ DetailsPanel: создана с вкладками")
+        print("✅ DetailsPanel: создана")
+    
+    # ===== Инициализация UI =====
     
     def _create_header(self):
         """Создание шапки панели"""
@@ -73,89 +94,108 @@ class DetailsPanel(QWidget):
                 border-bottom: 2px solid #d0d0d0;
             }
         """)
-        self.header_widget.setFixedHeight(60)
+        self.header_widget.setFixedHeight(80)
         
-        header_layout = QHBoxLayout(self.header_widget)
+        header_layout = QVBoxLayout(self.header_widget)
         header_layout.setContentsMargins(15, 5, 15, 5)
         
-        # Тип объекта (иконка + текст)
-        self.type_label = QLabel("🏢")
-        self.type_label.setStyleSheet("font-size: 24px;")
-        header_layout.addWidget(self.type_label)
+        # Верхняя строка: иконка + заголовок + статус
+        top_row = QHBoxLayout()
         
-        # Название объекта
-        self.title_label = QLabel("Выберите объект")
+        self.icon_label = QLabel("🏢")
+        self.icon_label.setStyleSheet("font-size: 24px;")
+        top_row.addWidget(self.icon_label)
+        
+        self.title_label = QLabel("")
         title_font = QFont()
         title_font.setBold(True)
-        title_font.setPointSize(14)
+        title_font.setPointSize(16)
         self.title_label.setFont(title_font)
-        header_layout.addWidget(self.title_label, 1)
+        top_row.addWidget(self.title_label, 1)
         
-        # Статус объекта
-        self.status_label = QLabel("—")
+        self.status_label = QLabel("")
         self.status_label.setStyleSheet("""
             QLabel {
                 padding: 4px 12px;
                 border-radius: 12px;
                 background-color: #e0e0e0;
                 font-weight: bold;
+                font-size: 12px;
             }
         """)
-        header_layout.addWidget(self.status_label)
+        top_row.addWidget(self.status_label)
+        
+        header_layout.addLayout(top_row)
+        
+        # Нижняя строка: иерархия
+        self.hierarchy_label = QLabel("")
+        self.hierarchy_label.setStyleSheet("color: #666666; font-size: 11px;")
+        self.hierarchy_label.setWordWrap(True)
+        header_layout.addWidget(self.hierarchy_label)
     
-    def _create_info_block(self):
-        """Создание блока с основной информацией"""
-        info_group = QGroupBox("Основная информация")
-        info_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                border: 1px solid #c0c0c0;
-                border-radius: 5px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
+    def _create_placeholder(self):
+        """Создание заглушки"""
+        self.placeholder_widget = QWidget()
+        placeholder_layout = QVBoxLayout(self.placeholder_widget)
+        
+        placeholder_text = QLabel("🔍 Выберите объект в дереве слева\nдля просмотра детальной информации")
+        placeholder_text.setAlignment(Qt.AlignCenter)
+        placeholder_text.setStyleSheet("""
+            QLabel {
+                color: #999999;
+                font-size: 14px;
+                padding: 40px;
+                border: 2px dashed #cccccc;
+                border-radius: 10px;
+                margin: 20px;
             }
         """)
+        placeholder_layout.addWidget(placeholder_text)
         
-        grid = QGridLayout(info_group)
-        grid.setVerticalSpacing(8)
-        grid.setHorizontalSpacing(20)
+        self.content_layout.addWidget(self.placeholder_widget)
+    
+    def _create_info_blocks(self):
+        """Создание информационных блоков"""
+        # Блок основной информации
+        self.info_grid = QGridLayout()
+        self.info_grid.setVerticalSpacing(8)
+        self.info_grid.setHorizontalSpacing(20)
+        self.info_grid.setColumnStretch(1, 1)
         
-        # Адрес
-        grid.addWidget(QLabel("Адрес:"), 0, 0, Qt.AlignRight)
-        self.address_label = QLabel("—")
-        self.address_label.setWordWrap(True)
-        grid.addWidget(self.address_label, 0, 1)
+        self.info_widget = QWidget()
+        self.info_widget.setLayout(self.info_grid)
+        self.info_widget.hide()
+        self.content_layout.addWidget(self.info_widget)
         
-        # Владелец
-        grid.addWidget(QLabel("Владелец:"), 1, 0, Qt.AlignRight)
-        self.owner_label = QLabel("—")
-        grid.addWidget(self.owner_label, 1, 1)
+        # Создаём все возможные поля
+        self.fields = {}
+        field_names = [
+            ("address", "Адрес:"),
+            ("owner", "Владелец:"),
+            ("tenant", "Арендатор:"),
+            ("description", "Описание:"),
+            ("plan", "Планировка:"),
+            ("type", "Тип:"),
+            ("contract", "Договор:"),
+            ("valid_until", "Действует до:"),
+            ("rent", "Арендная плата:"),
+        ]
         
-        # Описание
-        grid.addWidget(QLabel("Описание:"), 2, 0, Qt.AlignRight)
-        self.description_label = QLabel("—")
-        self.description_label.setWordWrap(True)
-        grid.addWidget(self.description_label, 2, 1)
-        
-        # Дополнительная информация для помещений (будет заполняться динамически)
-        self.extra_label_1 = QLabel("")
-        self.extra_label_2 = QLabel("")
-        
-        # Даты
-        grid.addWidget(QLabel("Создан:"), 3, 0, Qt.AlignRight)
-        self.created_label = QLabel("—")
-        grid.addWidget(self.created_label, 3, 1)
-        
-        grid.addWidget(QLabel("Обновлён:"), 4, 0, Qt.AlignRight)
-        self.updated_label = QLabel("—")
-        grid.addWidget(self.updated_label, 4, 1)
-        
-        self.content_layout.addWidget(info_group)
+        for i, (key, label) in enumerate(field_names):
+            # Лейбл
+            label_widget = QLabel(label)
+            label_widget.setStyleSheet("font-weight: bold; color: #666666;")
+            label_widget.setAlignment(Qt.AlignRight | Qt.AlignTop)
+            
+            # Значение
+            value_widget = QLabel("—")
+            value_widget.setWordWrap(True)
+            value_widget.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            
+            self.info_grid.addWidget(label_widget, i, 0)
+            self.info_grid.addWidget(value_widget, i, 1)
+            
+            self.fields[key] = value_widget
     
     def _create_tabs(self):
         """Создание вкладок"""
@@ -165,6 +205,7 @@ class DetailsPanel(QWidget):
                 border: 1px solid #c0c0c0;
                 border-radius: 5px;
                 padding: 5px;
+                margin-top: 5px;
             }
             QTabBar::tab {
                 padding: 8px 16px;
@@ -177,299 +218,300 @@ class DetailsPanel(QWidget):
         """)
         
         # Вкладка Физика
-        self.physics_tab = self._create_placeholder_tab("📊 Статистика по физике будет здесь")
-        self.tab_widget.addTab(self.physics_tab, "📊 Физика")
+        physics_tab = QWidget()
+        physics_layout = QVBoxLayout(physics_tab)
+        physics_label = QLabel("📊 Статистика по физике будет здесь")
+        physics_label.setAlignment(Qt.AlignCenter)
+        physics_label.setStyleSheet("color: #808080; padding: 40px;")
+        physics_layout.addWidget(physics_label)
+        self.tab_widget.addTab(physics_tab, "📊 Физика")
         
         # Вкладка Юрики
-        self.legal_tab = self._create_placeholder_tab("⚖️ Информация о юридических лицах будет здесь")
-        self.tab_widget.addTab(self.legal_tab, "⚖️ Юрики")
+        legal_tab = QWidget()
+        legal_layout = QVBoxLayout(legal_tab)
+        legal_label = QLabel("⚖️ Информация о юридических лицах будет здесь")
+        legal_label.setAlignment(Qt.AlignCenter)
+        legal_label.setStyleSheet("color: #808080; padding: 40px;")
+        legal_layout.addWidget(legal_label)
+        self.tab_widget.addTab(legal_tab, "⚖️ Юрики")
         
         # Вкладка Пожарка
-        self.fire_tab = self._create_placeholder_tab("🔥 Данные пожарной безопасности будут здесь")
-        self.tab_widget.addTab(self.fire_tab, "🔥 Пожарка")
+        fire_tab = QWidget()
+        fire_layout = QVBoxLayout(fire_tab)
+        fire_label = QLabel("🔥 Данные пожарной безопасности будут здесь")
+        fire_label.setAlignment(Qt.AlignCenter)
+        fire_label.setStyleSheet("color: #808080; padding: 40px;")
+        fire_layout.addWidget(fire_label)
+        self.tab_widget.addTab(fire_tab, "🔥 Пожарка")
         
         self.content_layout.addWidget(self.tab_widget)
     
-    def _create_placeholder_tab(self, text: str) -> QWidget:
-        """Создать виджет-заглушку для вкладки"""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        
-        label = QLabel(text)
-        label.setAlignment(Qt.AlignCenter)
-        label.setStyleSheet("""
-            QLabel {
-                color: #808080;
-                padding: 40px;
-                font-size: 12px;
-            }
-        """)
-        
-        layout.addWidget(label)
-        return widget
+    # ===== Вспомогательные методы =====
     
-    def _format_datetime(self, dt) -> str:
-        """Форматирование даты и времени с обработкой None"""
-        if dt is None:
-            return "—"
-        
-        # Если это строка (как в тестовых данных)
-        if isinstance(dt, str):
-            try:
-                # Пробуем распарсить, если нужно
-                return dt
-            except:
-                return dt
-        
-        # Если это datetime объект
-        if hasattr(dt, 'strftime'):
-            return dt.strftime("%d.%m.%Y %H:%M")
-        
-        return str(dt)
+    def _clear_all_fields(self):
+        """Очистить все поля"""
+        for field in self.fields.values():
+            field.setText("—")
     
-    def _get_text_or_placeholder(self, value, placeholder="—"):
-        """Вернуть значение или плейсхолдер, если значение None или пустая строка"""
-        if value is None:
-            return placeholder
-        if isinstance(value, str) and value.strip() == "":
-            return placeholder
-        return value
-    
-    def _clear_info(self):
-        """Очистить всю информацию"""
-        self.title_label.setText("Выберите объект")
-        self.status_label.setText("—")
-        self.address_label.setText("—")
-        self.owner_label.setText("—")
-        self.description_label.setText("—")
-        self.created_label.setText("—")
-        self.updated_label.setText("—")
-        self.type_label.setText("🏢")
-        
-        # Скрываем дополнительные поля, если они были видны
-        self._hide_extra_fields()
-    
-    def _hide_extra_fields(self):
-        """Скрыть дополнительные поля (для помещений)"""
-        # TODO: скрыть поля, если они были добавлены динамически
-        pass
-    
-    def _set_complex_info(self, complex_data: Complex):
-        """Заполнить информацию для комплекса"""
-        self.title_label.setText(self._get_text_or_placeholder(complex_data.name, "Без названия"))
-        
-        # Статус (пока заглушка, в модели Complex нет status_id)
-        self.status_label.setText("Активен")
-        self.status_label.setStyleSheet("""
-            QLabel {
-                padding: 4px 12px;
-                border-radius: 12px;
-                background-color: #e0e0e0;
-                font-weight: bold;
-            }
-        """)
-        
-        self.address_label.setText(self._get_text_or_placeholder(complex_data.address))
-        
-        # Владелец может быть None
-        if complex_data.owner_id:
-            self.owner_label.setText(f"ID владельца: {complex_data.owner_id}")
+    def _set_field(self, key: str, value):
+        """Установить значение поля с проверкой"""
+        if value is None or (isinstance(value, str) and value.strip() == ""):
+            self.fields[key].setText("—")
         else:
-            self.owner_label.setText("Не указан")
-        
-        self.description_label.setText(self._get_text_or_placeholder(complex_data.description, "Нет описания"))
-        self.created_label.setText(self._format_datetime(complex_data.created_at))
-        self.updated_label.setText(self._format_datetime(complex_data.updated_at))
-        self.type_label.setText("🏢")
+            self.fields[key].setText(str(value))
     
-    def _set_building_info(self, building_data: Building):
-        """Заполнить информацию для корпуса"""
-        self.title_label.setText(self._get_text_or_placeholder(building_data.name, "Без названия"))
+    def _set_status_style(self, status: str):
+        """Установка стиля статуса"""
+        base_style = "padding: 4px 12px; border-radius: 12px; font-weight: bold; font-size: 12px;"
         
-        # Статус (пока заглушка)
+        styles = {
+            'free': base_style + "background-color: #c8e6c9; color: #2e7d32;",
+            'occupied': base_style + "background-color: #ffcdd2; color: #c62828;",
+            'reserved': base_style + "background-color: #fff9c4; color: #f57f17;",
+            'maintenance': base_style + "background-color: #ffecb3; color: #ff6f00;",
+        }
+        self.status_label.setStyleSheet(styles.get(status, base_style + "background-color: #e0e0e0;"))
+    
+    def _show_all_fields(self, *keys):
+        """Показать только указанные поля"""
+        # Сначала скрываем все
+        for field in self.fields.values():
+            field.parent().hide()
+        
+        # Показываем нужные
+        for key in keys:
+            if key in self.fields:
+                self.fields[key].parent().show()
+    
+    def _log_hierarchy(self, item_type: str, hierarchy_text: str):
+        """Логирование иерархии для отладки"""
+        print(f"📋 DetailsPanel: [{item_type}] иерархия: {hierarchy_text}")
+    
+    # ===== Методы отображения для каждого типа =====
+    
+    def _show_complex(self, data: Complex):
+        """Отображение комплекса"""
+        self.title_label.setText(f"КОМПЛЕКС: {data.name}")
+        self.hierarchy_label.setText("")
+        self.icon_label.setText("🏢")
+        
+        # Логируем
+        self._log_hierarchy("complex", "корневой уровень")
+        
+        # Статус
         self.status_label.setText("Активен")
-        self.status_label.setStyleSheet("""
-            QLabel {
-                padding: 4px 12px;
-                border-radius: 12px;
-                background-color: #e0e0e0;
-                font-weight: bold;
-            }
-        """)
+        self._set_status_style(None)
         
-        self.address_label.setText(self._get_text_or_placeholder(building_data.address))
-        self.owner_label.setText("—")  # У корпуса нет отдельного владельца
-        self.description_label.setText(self._get_text_or_placeholder(building_data.description, "Нет описания"))
-        self.created_label.setText(self._format_datetime(building_data.created_at))
-        self.updated_label.setText(self._format_datetime(building_data.updated_at))
-        self.type_label.setText("🏭")
+        # Поля для комплекса
+        self._set_field("address", data.address)
+        self._set_field("owner", f"ID владельца: {data.owner_id}" if data.owner_id else None)
+        self._set_field("description", data.description)
+        self._set_field("plan", "[ ссылка на общий план ]")
+        
+        # Показываем информационный блок
+        self.info_widget.show()
+        
+        # Показываем нужные поля
+        self._show_all_fields("address", "owner", "description", "plan")
     
-    def _set_floor_info(self, floor_data: Floor):
-        """Заполнить информацию для этажа"""
-        # Формируем номер этажа с учётом подвала/цоколя
-        floor_num = floor_data.number if floor_data.number is not None else 0
-        if floor_num < 0:
-            floor_text = f"Подвал {abs(floor_num)}"
-        elif floor_num == 0:
+    def _show_building(self, data: Building, complex_name: str):
+        """Отображение корпуса"""
+        self.title_label.setText(f"КОРПУС: {data.name}")
+        hierarchy_text = f"(в составе комплекса: {complex_name})"
+        self.hierarchy_label.setText(hierarchy_text)
+        self.icon_label.setText("🏭")
+        
+        # Логируем
+        self._log_hierarchy("building", hierarchy_text)
+        
+        # Статус
+        self.status_label.setText("Активен")
+        self._set_status_style(None)
+        
+        # Поля для корпуса
+        self._set_field("address", data.address)
+        self._set_field("description", data.description)
+        self._set_field("plan", "[ ссылка на планы корпуса ]")
+        
+        # Показываем информационный блок
+        self.info_widget.show()
+        
+        # Показываем нужные поля
+        self._show_all_fields("address", "description", "plan")
+    
+    def _show_floor(self, data: Floor, building_name: str, complex_name: str):
+        """Отображение этажа"""
+        # Номер этажа
+        if data.number < 0:
+            floor_text = f"Подвал {abs(data.number)}"
+        elif data.number == 0:
             floor_text = "Цокольный этаж"
         else:
-            floor_text = f"Этаж {floor_num}"
+            floor_text = f"Этаж {data.number}"
         
-        self.title_label.setText(floor_text)
+        self.title_label.setText(f"ЭТАЖ: {floor_text}")
+        hierarchy_text = f"(в составе корпуса: {building_name}, комплекс: {complex_name})"
+        self.hierarchy_label.setText(hierarchy_text)
+        self.icon_label.setText("🏗️")
         
-        # Статус (пока заглушка)
+        # Логируем
+        self._log_hierarchy("floor", hierarchy_text)
+        
+        # Статус
         self.status_label.setText("Активен")
-        self.status_label.setStyleSheet("""
-            QLabel {
-                padding: 4px 12px;
-                border-radius: 12px;
-                background-color: #e0e0e0;
-                font-weight: bold;
-            }
-        """)
+        self._set_status_style(None)
         
-        self.address_label.setText("—")
-        self.owner_label.setText("—")
-        self.description_label.setText(self._get_text_or_placeholder(floor_data.description, "Нет описания"))
-        self.created_label.setText(self._format_datetime(floor_data.created_at))
-        self.updated_label.setText(self._format_datetime(floor_data.updated_at))
-        self.type_label.setText("🏗️")
+        # Поля для этажа
+        self._set_field("description", data.description)
+        self._set_field("plan", "[ ссылка на план этажа ]")
+        self._set_field("type", "Этаж с офисами")
+        
+        # Показываем информационный блок
+        self.info_widget.show()
+        
+        # Показываем нужные поля
+        self._show_all_fields("description", "plan", "type")
     
-    def _set_room_info(self, room_data: Room):
-        """Заполнить информацию для помещения"""
-        self.title_label.setText(f"Помещение {self._get_text_or_placeholder(room_data.number, '???')}")
+    def _show_room(self, data: Room, floor_num: int, building_name: str, complex_name: str):
+        """Отображение помещения"""
+        self.title_label.setText(f"ПОМЕЩЕНИЕ: {data.number}")
         
-        # Статус с цветом
+        # Формируем строку иерархии
+        if floor_num < 0:
+            floor_text = f"подвал {abs(floor_num)}"
+        elif floor_num == 0:
+            floor_text = "цокольный этаж"
+        else:
+            floor_text = f"этаж {floor_num}"
+        
+        hierarchy_text = f"(этаж {floor_num}, корпус {building_name}, комплекс: {complex_name})"
+        self.hierarchy_label.setText(hierarchy_text)
+        self.icon_label.setText("🚪")
+        
+        # Логируем
+        self._log_hierarchy("room", hierarchy_text)
+        
+        # Статус
         status_map = {
             'free': 'СВОБОДНО',
             'occupied': 'ЗАНЯТО',
             'reserved': 'ЗАРЕЗЕРВИРОВАНО',
             'maintenance': 'РЕМОНТ'
         }
-        status_code = room_data.status_code or 'unknown'
-        status_text = status_map.get(status_code, status_code.upper())
-        
+        status_text = status_map.get(data.status_code, data.status_code or "НЕИЗВЕСТНО")
         self.status_label.setText(status_text)
+        self._set_status_style(data.status_code)
         
-        # Цвет статуса
-        if room_data.status_code == 'free':
-            self.status_label.setStyleSheet("""
-                QLabel {
-                    padding: 4px 12px;
-                    border-radius: 12px;
-                    background-color: #c8e6c9;
-                    color: #2e7d32;
-                    font-weight: bold;
-                }
-            """)
-        elif room_data.status_code == 'occupied':
-            self.status_label.setStyleSheet("""
-                QLabel {
-                    padding: 4px 12px;
-                    border-radius: 12px;
-                    background-color: #ffcdd2;
-                    color: #c62828;
-                    font-weight: bold;
-                }
-            """)
-        elif room_data.status_code == 'reserved':
-            self.status_label.setStyleSheet("""
-                QLabel {
-                    padding: 4px 12px;
-                    border-radius: 12px;
-                    background-color: #fff9c4;
-                    color: #f57f17;
-                    font-weight: bold;
-                }
-            """)
+        # Площадь
+        if data.area:
+            self._set_field("address", f"Площадь: {data.area} м²")
         else:
-            self.status_label.setStyleSheet("""
-                QLabel {
-                    padding: 4px 12px;
-                    border-radius: 12px;
-                    background-color: #e0e0e0;
-                    color: #000000;
-                    font-weight: bold;
-                }
-            """)
+            self._set_field("address", "Площадь не указана")
         
-        self.address_label.setText("—")
+        # Тип помещения
+        type_map = {
+            1: "Офисное помещение",
+            2: "Архив",
+            3: "Склад",
+            4: "Техническое помещение",
+        }
+        room_type = type_map.get(data.physical_type_id, "Неизвестный тип")
+        self._set_field("type", room_type)
         
-        # Для занятых помещений показываем арендатора (пока заглушка)
-        if room_data.status_code == 'occupied':
-            self.owner_label.setText("Арендатор: ООО \"Ромашка\" (будет из БД)")
+        # Описание
+        self._set_field("description", data.description or "Описание отсутствует")
+        
+        # Планировка (пока нет)
+        self._set_field("plan", None)
+        
+        # Показываем информационный блок
+        self.info_widget.show()
+        
+        # Базовые поля для всех помещений
+        base_fields = ["address", "type", "description", "plan"]
+        
+        # Для занятых помещений добавляем поля аренды
+        if data.status_code == 'occupied':
+            # TODO: брать реальные данные из БД
+            self._set_field("tenant", "Арендатор: ООО \"Ромашка\" (ИНН 7712345678)")
+            self._set_field("contract", "Договор: №А-2024-001 от 01.01.2024")
+            self._set_field("valid_until", "Действует до: 31.12.2025")
+            self._set_field("rent", "Арендная плата: 45 000 ₽/мес")
+            
+            # Показываем все поля
+            self._show_all_fields(*(base_fields + ["tenant", "contract", "valid_until", "rent"]))
         else:
-            self.owner_label.setText("Нет арендатора")
-        
-        # Добавляем информацию о площади, если есть
-        description_parts = []
-        if room_data.description:
-            description_parts.append(room_data.description)
-        if room_data.area:
-            description_parts.append(f"Площадь: {room_data.area} м²")
-        
-        self.description_label.setText("\n".join(description_parts) if description_parts else "Нет описания")
-        self.created_label.setText(self._format_datetime(room_data.created_at))
-        self.updated_label.setText(self._format_datetime(room_data.updated_at))
-        self.type_label.setText("🚪")
+            # Для свободных и других статусов
+            self._set_field("tenant", None)
+            self._set_field("contract", None)
+            self._set_field("valid_until", None)
+            self._set_field("rent", None)
+            
+            # Показываем только базовые поля
+            self._show_all_fields(*base_fields)
     
     # ===== Публичные методы =====
     
-    @Slot(str, int, object)
-    def show_item_details(self, item_type: str, item_id: int, item_data):
+    @Slot(str, int, object, dict)
+    def show_item_details(self, item_type: str, item_id: int, item_data, context: dict):
         """
-        Показать информацию о выбранном объекте
+        Показать информацию о выбранном объекте с контекстом из родительских узлов
         
         Args:
-            item_type: тип элемента ('complex', 'building', 'floor', 'room')
-            item_id: идентификатор элемента
-            item_data: объект модели (Complex, Building, Floor или Room)
+            item_type: тип элемента
+            item_id: идентификатор
+            item_data: объект модели
+            context: словарь с именами родительских узлов
         """
-        # Сохраняем текущий объект
         self.current_type = item_type
         self.current_id = item_id
         self.current_data = item_data
         
-        print(f"📋 DetailsPanel: получены данные для {item_type} #{item_id}")
+        print(f"\n📋 DetailsPanel: выбран {item_type} #{item_id}")
+        print(f"   Контекст: {context}")
         
-        if item_data is None:
-            print(f"⚠️ DetailsPanel: данные отсутствуют для {item_type} #{item_id}")
-            self._clear_info()
-            return
+        # Скрываем заглушку
+        self.placeholder_widget.hide()
         
-        # Вызываем соответствующий метод заполнения
+        # Очищаем поля
+        self._clear_all_fields()
+        
+        # Отображаем соответствующий тип с контекстом из узла
         if item_type == 'complex' and isinstance(item_data, Complex):
-            self._set_complex_info(item_data)
+            self._show_complex(item_data)
+            
         elif item_type == 'building' and isinstance(item_data, Building):
-            self._set_building_info(item_data)
+            complex_name = context.get('complex_name', 'Неизвестный комплекс')
+            self._show_building(item_data, complex_name)
+            
         elif item_type == 'floor' and isinstance(item_data, Floor):
-            self._set_floor_info(item_data)
+            building_name = context.get('building_name', 'Неизвестный корпус')
+            complex_name = context.get('complex_name', 'Неизвестный комплекс')
+            self._show_floor(item_data, building_name, complex_name)
+            
         elif item_type == 'room' and isinstance(item_data, Room):
-            self._set_room_info(item_data)
+            floor_num = context.get('floor_num', 0)
+            building_name = context.get('building_name', 'Неизвестный корпус')
+            complex_name = context.get('complex_name', 'Неизвестный комплекс')
+            self._show_room(item_data, floor_num, building_name, complex_name)
+            
         else:
-            print(f"⚠️ DetailsPanel: неожиданный тип данных: {type(item_data)} для {item_type}")
-            self._clear_info()
+            self.clear()
     
     def clear(self):
-        """Очистить панель (сбросить к начальному состоянию)"""
+        """Очистить панель (показать заглушку)"""
         self.current_type = None
         self.current_id = None
         self.current_data = None
         
-        self._clear_info()
+        self.placeholder_widget.show()
+        self.info_widget.hide()
         
-        # Сбрасываем заглушки вкладок
-        self.tab_widget.setTabText(0, "📊 Физика")
-        self.tab_widget.setTabText(1, "⚖️ Юрики")
-        self.tab_widget.setTabText(2, "🔥 Пожарка")
-        
-        print("🧹 DetailsPanel: очищена")
+        self.title_label.setText("")
+        self.hierarchy_label.setText("")
+        self.status_label.setText("")
+        self.icon_label.setText("🏢")
     
-    def get_current_selection(self):
-        """
-        Получить текущий выбранный объект
-        
-        Returns:
-            tuple: (item_type, item_id, item_data) или (None, None, None)
-        """
+    def get_current_selection(self) -> Tuple[Optional[str], Optional[int], Optional[Any]]:
+        """Получить текущий выбранный объект"""
         return self.current_type, self.current_id, self.current_data

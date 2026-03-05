@@ -15,8 +15,8 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer, Qt
 
 from src.ui.main_window import MainWindow
-from src.ui.tree_view import TreeView
-from src.ui.details_panel import DetailsPanel
+from src.ui.tree import TreeView
+from src.ui.details import DetailsPanel
 from src.core.api_client import ApiClient
 from src.core.cache import DataCache
 from src.models.complex import Complex
@@ -63,7 +63,7 @@ class TestDetailsPanel(unittest.TestCase):
         elif data is None:
             print("  • Нет данных")
     
-    def log_displayed_data(self, panel: DetailsPanel):
+    def log_displayed_data(self, panel):
         """Логирование того, что отображается в DetailsPanel"""
         print("\n📋 Отображаемые данные в DetailsPanel:")
         
@@ -89,10 +89,10 @@ class TestDetailsPanel(unittest.TestCase):
             if widget.text() and widget.text() != "—":
                 print(f"  {label} {widget.text()}")
         
-        # Вкладки
-        print(f"  Вкладки: {panel.tab_widget.count()} шт.")
-        for i in range(panel.tab_widget.count()):
-            print(f"    • {panel.tab_widget.tabText(i)}")
+        # Вкладки - ИСПРАВЛЕНО: panel.tabs вместо panel.tab_widget
+        print(f"  Вкладки: {panel.tabs.count()} шт.")
+        for i in range(panel.tabs.count()):
+            print(f"    • {panel.tabs.tabText(i)}")
     
     def run_user_scenario(self):
         """

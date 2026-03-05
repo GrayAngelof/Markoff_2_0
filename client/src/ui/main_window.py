@@ -10,13 +10,14 @@
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, 
     QSplitter, QToolBar, QStatusBar, QMessageBox,
-    QMenu, QPushButton, QApplication, QLabel  # Добавлен QLabel
+    QPushButton, QLabel
 )
 from PySide6.QtCore import Qt, Slot, QSize, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 
-from src.ui.tree_view import TreeView
-from src.ui.details_panel import DetailsPanel
+# Импортируем компоненты из новых пакетов
+from src.ui.tree import TreeView
+from src.ui.details import DetailsPanel
 from src.ui.refresh_menu import RefreshMenu
 
 
@@ -32,7 +33,7 @@ class MainWindow(QMainWindow):
     Панель инструментов:
     - Кнопка с меню для выбора типа обновления
     - Индикатор статуса подключения
-    - Счётчик загруженных объектов (опционально)
+    - Счётчик загруженных объектов
     
     Горячие клавиши:
     - F5: обновить текущий узел
@@ -46,7 +47,7 @@ class MainWindow(QMainWindow):
         
         # Настраиваем окно
         self.setWindowTitle("Markoff - Управление помещениями")
-        self.setMinimumSize(1000, 700)  # Чуть больше для комфорта
+        self.setMinimumSize(1000, 700)
         
         # Создаём центральный виджет и layout
         self._setup_central_widget()
@@ -66,10 +67,12 @@ class MainWindow(QMainWindow):
         # Подключаем сигналы
         self._connect_signals()
         
-        # Таймер для обновления статуса (периодическая проверка соединения)
+        # Таймер для проверки статуса
         self._setup_status_timer()
         
         print("✅ MainWindow: создано")
+    
+    # ===== Инициализация UI =====
     
     def _setup_central_widget(self):
         """Настройка центрального виджета с разделителем"""
@@ -134,7 +137,7 @@ class MainWindow(QMainWindow):
         self.status_action.setEnabled(False)
         toolbar.addAction(self.status_action)
         
-        # Счётчик объектов (будет обновляться)
+        # Счётчик объектов
         self.counter_action = QAction("📊 Объектов: -", self)
         self.counter_action.setEnabled(False)
         toolbar.addAction(self.counter_action)
@@ -153,7 +156,7 @@ class MainWindow(QMainWindow):
         """Настройка горячих клавиш"""
         # F5 - обновить текущий узел
         refresh_current = QAction(self)
-        refresh_current.setShortcut(QKeySequence.Refresh)  # F5
+        refresh_current.setShortcut(QKeySequence.Refresh)
         refresh_current.triggered.connect(self._on_refresh_current)
         self.addAction(refresh_current)
         
@@ -169,30 +172,32 @@ class MainWindow(QMainWindow):
         full_reset.triggered.connect(self._on_full_reset)
         self.addAction(full_reset)
     
-    def _connect_signals(self):
-        """Для нового detal_panel"""
-        self.tree_view.item_selected.connect(self.details_panel.show_item_details)
-        """Остальное вырубаем"""
-        # """Подключение сигналов"""
-        # Сигналы от дерева
-        # self.tree_view.item_selected.connect(self.details_panel.show_item_details)
-        # self.tree_view.data_loading.connect(self._on_data_loading)
-        # self.tree_view.data_loaded.connect(self._on_data_loaded)
-        # self.tree_view.data_error.connect(self._on_data_error)
-        
-        # Сигналы от меню обновления
-        self.refresh_menu.refresh_current.connect(self._on_refresh_current)
-        self.refresh_menu.refresh_visible.connect(self._on_refresh_visible)
-        self.refresh_menu.full_reset.connect(self._on_full_reset)
-    
     def _setup_status_timer(self):
         """Настройка таймера для периодической проверки статуса"""
         self.status_timer = QTimer(self)
         self.status_timer.timeout.connect(self._check_connection_status)
-        self.status_timer.start(30000)  # Проверка каждые 30 секунд
+        self.status_timer.start(30000)  # Каждые 30 секунд
         
         # Первая проверка через 1 секунду
         QTimer.singleShot(1000, self._check_connection_status)
+    
+    # ===== Подключение сигналов =====
+    
+    def _connect_signals(self):
+        """Подключение всех сигналов"""
+        
+        # Сигнал выбора элемента в дереве -> панель деталей
+        self.tree_view.item_selected.connect(self.details_panel.show_item_details)
+        
+        # Сигналы загрузки данных -> статус бар
+        self.tree_view.data_loading.connect(self._on_data_loading)
+        self.tree_view.data_loaded.connect(self._on_data_loaded)
+        self.tree_view.data_error.connect(self._on_data_error)
+        
+        # Сигналы от меню обновления -> методы дерева
+        self.refresh_menu.refresh_current.connect(self._on_refresh_current)
+        self.refresh_menu.refresh_visible.connect(self._on_refresh_visible)
+        self.refresh_menu.full_reset.connect(self._on_full_reset)
     
     # ===== Слоты для обновления =====
     
@@ -216,12 +221,11 @@ class MainWindow(QMainWindow):
     @Slot()
     def _on_full_reset(self):
         """Полная перезагрузка"""
-        # Спрашиваем подтверждение
         reply = QMessageBox.question(
             self,
             "Подтверждение",
             "Вы уверены, что хотите выполнить полную перезагрузку?\n"
-            "Все несохранённые данные будут потеряны.",
+            "Все данные будут загружены заново.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
         )
@@ -238,7 +242,6 @@ class MainWindow(QMainWindow):
     def _on_data_loading(self, node_type: str, node_id: int):
         """Начало загрузки данных"""
         self.status_bar.showMessage(f"📡 Загрузка {node_type} #{node_id}...")
-        # Можно добавить индикатор в статус-бар
     
     @Slot(str, int)
     def _on_data_loaded(self, node_type: str, node_id: int):
@@ -250,7 +253,6 @@ class MainWindow(QMainWindow):
     def _on_data_error(self, node_type: str, node_id: int, error: str):
         """Ошибка загрузки данных"""
         self.status_bar.showMessage(f"❌ Ошибка загрузки {node_type} #{node_id}", 5000)
-        # Можно показать более детальное сообщение
         QMessageBox.warning(
             self,
             "Ошибка загрузки",
@@ -262,35 +264,36 @@ class MainWindow(QMainWindow):
     def _check_connection_status(self):
         """Проверка статуса соединения с сервером"""
         try:
-            # Используем silent=True, чтобы не засорять логи
-            is_connected = self.tree_view.api_client.check_connection(silent=True)
+            # Используем метод check_connection если он есть
+            if hasattr(self.tree_view.api_client, 'check_connection'):
+                is_connected = self.tree_view.api_client.check_connection()
+            else:
+                # Fallback: пробуем получить информацию о сервере
+                info = self.tree_view.api_client.get_server_info()
+                is_connected = bool(info and 'message' in info)
             
             if is_connected:
                 self.status_action.setText("✅ Онлайн")
-                self.status_action.setIconText("✅")
                 self.connection_label.setText("✅ Сервер доступен")
                 self.connection_label.setStyleSheet("color: green;")
             else:
                 self._set_offline_status()
-        except Exception as e:
-            # Даже при ошибке не выводим в логи, только меняем статус
+        except Exception:
             self._set_offline_status()
     
     def _set_offline_status(self):
         """Установка статуса офлайн"""
         self.status_action.setText("❌ Офлайн")
-        self.status_action.setIconText("❌")
         self.connection_label.setText("❌ Сервер недоступен")
         self.connection_label.setStyleSheet("color: red;")
     
     def _update_object_counter(self):
         """Обновление счётчика объектов в тулбаре"""
-        # Получаем статистику из кэша
         if hasattr(self.tree_view, 'cache'):
             stats = self.tree_view.cache.get_stats()
             self.counter_action.setText(f"📊 В кэше: {stats['size']} объектов")
     
-    # ===== Публичные методы =====
+    # ===== Обработчик закрытия =====
     
     def closeEvent(self, event):
         """
@@ -303,18 +306,18 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'status_timer'):
             self.status_timer.stop()
         
-        # Очищаем кэш (он сам очистится, но для порядка)
+        # Очищаем кэш
         if hasattr(self.tree_view, 'cache'):
             self.tree_view.cache.clear()
         
-        # Принимаем событие закрытия
         event.accept()
         print("✅ Приложение завершено")
 
 
 # Для тестирования окна отдельно
 if __name__ == "__main__":
-    app = QApplication([])
+    import sys
+    app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
-    app.exec()
+    sys.exit(app.exec())

@@ -1,9 +1,18 @@
 # client/src/ui/__init__.py
 """
-UI компоненты клиентского приложения
+Инициализатор пакета UI
+Экспортирует все основные компоненты интерфейса
 """
-from .main_window import MainWindow
-from .tree_view import TreeView
-from .details_panel import DetailsPanel
 
-__all__ = ["MainWindow", "TreeView", "DetailsPanel"]
+# Импортируем из новых пакетов
+from src.ui.tree import TreeView
+from src.ui.details import DetailsPanel
+from src.ui.main_window import MainWindow
+from src.ui.refresh_menu import RefreshMenu
+
+__all__ = [
+    "TreeView",
+    "DetailsPanel", 
+    "MainWindow",
+    "RefreshMenu"
+]

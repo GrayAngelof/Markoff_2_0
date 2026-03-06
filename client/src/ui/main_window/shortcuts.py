@@ -3,7 +3,7 @@
 Модуль управления горячими клавишами главного окна.
 Определяет сочетания клавиш для основных действий.
 """
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMainWindow
 

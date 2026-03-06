@@ -322,7 +322,7 @@ class TreeLoaderMixin:
                 # Обновляем данные в узле
                 node = self.model._get_node(index)
                 if node:
-                    node.data = detailed_data
+                    node.update_data(detailed_data)
                     
                     # Сигнализируем об изменении данных
                     self.model.dataChanged.emit(index, index, [])
@@ -365,7 +365,7 @@ class TreeLoaderMixin:
             if detailed_data:
                 node = self.model._get_node(index)
                 if node:
-                    node.data = detailed_data
+                    node.update_data(detailed_data)
                     self.model.dataChanged.emit(index, index, [])
                     
                     QTimer.singleShot(
@@ -404,7 +404,7 @@ class TreeLoaderMixin:
             if detailed_data:
                 node = self.model._get_node(index)
                 if node:
-                    node.data = detailed_data
+                    node.update_data(detailed_data)
                     self.model.dataChanged.emit(index, index, [])
                     
                     QTimer.singleShot(
@@ -444,7 +444,7 @@ class TreeLoaderMixin:
             if detailed_data:
                 node = self.model._get_node(index)
                 if node:
-                    node.data = detailed_data
+                    node.update_data(detailed_data)
                     self.model.dataChanged.emit(index, index, [])
                     
                     QTimer.singleShot(

@@ -5,6 +5,8 @@
 """
 from typing import Optional, Dict
 
+from PySide6.QtCore import QModelIndex
+
 from src.ui.tree_model.node_types import NodeType
 from src.ui.tree_model.tree_node import TreeNode
 from src.utils.logger import get_logger

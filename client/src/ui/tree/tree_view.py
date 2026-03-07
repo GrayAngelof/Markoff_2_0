@@ -16,6 +16,7 @@ from src.ui.tree.tree_updater import TreeUpdaterMixin
 from src.ui.tree.tree_menu import TreeMenuMixin
 from src.ui.tree_model import NodeType
 
+
 from src.utils.logger import get_logger
 log = get_logger(__name__)
 

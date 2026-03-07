@@ -1,4 +1,4 @@
-ты сеньор фуллстек разработчик, который обучает "зеленого" джуна программированию на python.
+ты сеньор фуллстек разработчик, который помогает мне с написанием сложного приложения.
 У нас есть уже готовый и корректно работающий прототип клиентского приложения.
 Файловая структура клиента:
 client/src/
@@ -9418,3 +9418,882 @@ Markoff_2.0/
 - Система готова к масштабированию и добавлению новых фич без кардинальных переделок
 
 Данная архитектура соответствует лучшим практикам разработки десктоп-приложений и обеспечивает долгосрочную поддерживаемость кода.
+
+и вот мой план по переходу на новую архитектуру:
+прежде чем приступить проанализируй мои предложения и сравни с тем что ты предложил:
+Отлично! Вот **уточненный план миграции**, объединяющий вашу структуру и мои технические доработки:
+
+# План миграции на новую архитектуру Markoff (MVP 3)
+## Версия 2.0 — с техническими уточнениями
+
+---
+
+## Стратегия: **"Чистое переписывание с реюзингом"**
+
+Мы создаём новое приложение с нуля, используя старый код как:
+- **Источник проверенных алгоритмов** (как работают загрузка, форматирование)
+- **Библиотеку UI-компонентов** (виджеты, которые можно взять целиком)
+- **Спецификацию поведения** (что должно происходить при действиях пользователя)
+
+---
+
+## Этап 0: Подготовка и архитектурный компас (1 день)
+
+### Цель: Создать "конституцию" проекта, которая будет отвечать на все спорные вопросы
+
+#### 0.1 Создание структуры папок
+```bash
+client/
+├── src/
+│   ├── core/              # Ядро (новая разработка)
+│   │   ├── __init__.py
+│   │   ├── event_bus.py    # Шина событий
+│   │   └── events.py       # Константы событий
+│   │
+│   ├── data/               # Хранилище (новая разработка)
+│   │   ├── __init__.py
+│   │   ├── entity_graph.py  # Граф с индексами
+│   │   └── entity_types.py  # Enum'ы для типов
+│   │
+│   ├── services/           # Бизнес-логика (переработка старого)
+│   │   ├── __init__.py
+│   │   ├── api_client.py    # Из core/api_client.py
+│   │   ├── data_service.py  # Логика из tree_loader.py
+│   │   └── connection_service.py # Новый
+│   │
+│   ├── projections/        # Построители представлений (новая разработка)
+│   │   ├── __init__.py
+│   │   ├── base_projection.py  # С debounce
+│   │   └── tree_projection.py  # Строит дерево
+│   │
+│   ├── models/             # Модели данных (БЕЗ ИЗМЕНЕНИЙ)
+│   │   └── ...             # complex.py, building.py и т.д. - остаются как есть
+│   │
+│   ├── ui/                 # Презентационный слой (новая разработка)
+│   │   ├── __init__.py
+│   │   ├── widgets/        # Переиспользуемые виджеты
+│   │   │   ├── __init__.py
+│   │   │   └── refresh_menu.py  # ИЗ СТАРОГО refresh_menu.py
+│   │   │
+│   │   ├── tree/           # Дерево (новая версия)
+│   │   │   ├── __init__.py
+│   │   │   ├── tree_view.py     # Только события
+│   │   │   └── tree_model.py    # Только отображение
+│   │   │
+│   │   ├── details/        # Панель деталей (новая версия)
+│   │   │   ├── __init__.py
+│   │   │   ├── details_panel.py  # Только отображение
+│   │   │   ├── header_widget.py  # ИЗ СТАРОГО (без изменений)
+│   │   │   ├── info_grid.py      # ИЗ СТАРОГО (без изменений)
+│   │   │   ├── placeholder.py    # ИЗ СТАРОГО (без изменений)
+│   │   │   ├── tabs.py           # ИЗ СТАРОГО (без изменений)
+│   │   │   ├── field_manager.py  # ИЗ СТАРОГО (без изменений)
+│   │   │   └── display_handlers.py # ИЗ СТАРОГО (без изменений)
+│   │   │
+│   │   └── main_window/     # Главное окно (новая версия)
+│   │       ├── __init__.py
+│   │       ├── main_window.py    # Композиционный корень
+│   │       ├── components/       # ИЗ СТАРОГО
+│   │       │   ├── central_widget.py
+│   │       │   ├── toolbar.py
+│   │       │   └── status_bar.py
+│   │       └── shortcuts.py      # ИЗ СТАРОГО
+│   │
+│   └── utils/               # Утилиты (с небольшими изменениями)
+│       ├── __init__.py
+│       └── logger.py         # ИЗ СТАРОГО (добавить категории)
+│
+├── tests/                   # Тесты (новые + адаптированные старые)
+│   └── ...
+│
+└── main.py                  # Точка входа (новая)
+```
+
+#### 0.2 Карта переиспользования (точная спецификация)
+
+| Старый файл | Новая роль | Изменения |
+|-------------|------------|-----------|
+| `models/*.py` | `models/` | **Без изменений** — остаются чистыми дата-классами |
+| `core/api_client.py` | `services/api_client.py` | Убрать создание моделей, возвращать dict |
+| `core/cache.py` | `data/entity_graph.py` | Полная переработка (идеи индексации) |
+| `ui/tree_model/tree_node.py` | `projections/tree_projection.py` | Класс узла для дерева |
+| `ui/tree/tree_loader.py` | `services/data_service.py` | Логика загрузки |
+| `ui/tree/tree_selection.py` | `controllers/selection_controller.py` | Логика выделения |
+| `ui/tree/tree_updater.py` | `controllers/refresh_controller.py` | Логика обновления |
+| `ui/tree/tree_menu.py` | `ui/widgets/refresh_menu.py` | Меню (почти без изменений) |
+| `ui/details/*` | `ui/details/` | **Без изменений** (кроме details_panel.py) |
+| `ui/main_window/components/*` | `ui/main_window/components/` | **Без изменений** |
+| `ui/main_window/shortcuts.py` | `ui/main_window/shortcuts.py` | **Без изменений** |
+| `utils/logger.py` | `utils/logger.py` | Добавить категории API/CACHE/DATA |
+
+#### 0.3 Архитектурный компас (контракты)
+
+**Формат событий:**
+```python
+@dataclass
+class Event:
+    type: str                # 'ui.node_expanded', 'sys.data_loaded'
+    data: dict               # {'node_type': 'complex', 'node_id': 1}
+    source: str              # 'tree_view', 'data_service'
+    timestamp: float         # time.time()
+```
+
+**Типы событий (events.py):**
+```python
+class UIEvents:
+    NODE_SELECTED = 'ui.node_selected'
+    NODE_EXPANDED = 'ui.node_expanded'
+    NODE_COLLAPSED = 'ui.node_collapsed'
+    REFRESH_REQUESTED = 'ui.refresh_requested'
+    TAB_CHANGED = 'ui.tab_changed'
+
+class SystemEvents:
+    DATA_LOADING = 'sys.data_loading'
+    DATA_LOADED = 'sys.data_loaded'
+    DATA_ERROR = 'sys.data_error'
+    CONNECTION_CHANGED = 'sys.connection_changed'
+    CACHE_UPDATED = 'sys.cache_updated'
+```
+
+**Контракты сервисов:**
+```python
+# services/api_client.py
+def get_complexes() -> List[dict]: ...
+def get_buildings(complex_id: int) -> List[dict]: ...
+def get_floors(building_id: int) -> List[dict]: ...
+def get_rooms(floor_id: int) -> List[dict]: ...
+def get_complex_detail(complex_id: int) -> Optional[dict]: ...
+def get_building_detail(building_id: int) -> Optional[dict]: ...
+def get_floor_detail(floor_id: int) -> Optional[dict]: ...
+def get_room_detail(room_id: int) -> Optional[dict]: ...
+def check_connection() -> bool: ...
+
+# data/entity_graph.py
+def add_or_update(entity: Union[Complex, Building, Floor, Room]) -> None: ...
+def get(node_type: NodeType, entity_id: int) -> Optional[Any]: ...
+def get_children(parent_type: NodeType, parent_id: int) -> List[int]: ...
+def get_parent(child_type: NodeType, child_id: int) -> Optional[Tuple[NodeType, int]]: ...
+def get_all(node_type: NodeType) -> List[Any]: ...
+```
+
+---
+
+## Этап 1: Фундамент (Core + Data) — 2 дня
+
+### День 1: Event Bus (слабые ссылки)
+
+```python
+# core/event_bus.py
+import weakref
+from typing import Callable, Dict, List, Tuple
+from collections import defaultdict
+
+class EventBus:
+    def __init__(self):
+        self._subscribers: Dict[str, List[Tuple[weakref.ref, Callable]]] = defaultdict(list)
+        self._debug = False
+    
+    def subscribe(self, event_type: str, callback: Callable) -> Callable:
+        """Возвращает функцию для отписки"""
+        ref = weakref.ref(callback.__self__) if hasattr(callback, '__self__') else None
+        
+        self._subscribers[event_type].append((ref, callback))
+        
+        def unsubscribe():
+            self._subscribers[event_type] = [
+                (r, cb) for r, cb in self._subscribers[event_type]
+                if cb != callback
+            ]
+        
+        return unsubscribe
+    
+    def emit(self, event_type: str, data: dict = None, source: str = None):
+        """Испускает событие"""
+        event = {
+            'type': event_type,
+            'data': data or {},
+            'source': source,
+            'timestamp': time.time()
+        }
+        
+        if self._debug:
+            from utils.logger import get_logger
+            get_logger('EventBus').debug(f"EMIT {event_type}")
+        
+        # Очищаем мёртвые ссылки и вызываем живые
+        dead_refs = []
+        for ref, callback in self._subscribers[event_type]:
+            if ref and ref() is None:
+                dead_refs.append((ref, callback))
+            else:
+                try:
+                    callback(event)
+                except Exception as e:
+                    print(f"Error in event handler: {e}")
+        
+        # Удаляем мёртвые ссылки
+        for dead in dead_refs:
+            self._subscribers[event_type].remove(dead)
+```
+
+### День 2: Entity Graph (с индексами)
+
+```python
+# data/entity_graph.py
+from threading import RLock
+from typing import Dict, List, Optional, Any
+from src.models import Complex, Building, Floor, Room
+
+class NodeType:
+    COMPLEX = 'complex'
+    BUILDING = 'building'
+    FLOOR = 'floor'
+    ROOM = 'room'
+
+class EntityGraph:
+    def __init__(self):
+        self._lock = RLock()
+        
+        # Хранилища сущностей
+        self._entities: Dict[str, Dict[int, Any]] = {
+            NodeType.COMPLEX: {},
+            NodeType.BUILDING: {},
+            NodeType.FLOOR: {},
+            NodeType.ROOM: {}
+        }
+        
+        # Индексы: родитель -> список детей
+        self._children: Dict[str, Dict[int, List[int]]] = {
+            NodeType.COMPLEX: {},    # complex_id -> [building_ids]
+            NodeType.BUILDING: {},   # building_id -> [floor_ids]
+            NodeType.FLOOR: {},      # floor_id -> [room_ids]
+        }
+        
+        # Обратные индексы: ребёнок -> родитель
+        self._parents: Dict[str, Dict[int, tuple]] = {
+            NodeType.BUILDING: {},   # building_id -> ('complex', parent_id)
+            NodeType.FLOOR: {},      # floor_id -> ('building', parent_id)
+            NodeType.ROOM: {},       # room_id -> ('floor', parent_id)
+        }
+    
+    def add_or_update(self, entity: Any) -> None:
+        """Добавляет или обновляет сущность"""
+        with self._lock:
+            # Определяем тип и ID
+            if isinstance(entity, Complex):
+                node_type = NodeType.COMPLEX
+                entity_id = entity.id
+            elif isinstance(entity, Building):
+                node_type = NodeType.BUILDING
+                entity_id = entity.id
+                # Обновляем индекс родителей
+                self._parents[node_type][entity_id] = (NodeType.COMPLEX, entity.complex_id)
+                # Обновляем индекс детей у родителя
+                if entity.complex_id not in self._children[NodeType.COMPLEX]:
+                    self._children[NodeType.COMPLEX][entity.complex_id] = []
+                if entity_id not in self._children[NodeType.COMPLEX][entity.complex_id]:
+                    self._children[NodeType.COMPLEX][entity.complex_id].append(entity_id)
+            
+            # ... аналогично для Floor и Room
+            
+            # Сохраняем сущность
+            self._entities[node_type][entity_id] = entity
+    
+    def get(self, node_type: str, entity_id: int) -> Optional[Any]:
+        """O(1) доступ к сущности"""
+        with self._lock:
+            return self._entities.get(node_type, {}).get(entity_id)
+    
+    def get_children(self, parent_type: str, parent_id: int) -> List[int]:
+        """O(1) получение детей"""
+        with self._lock:
+            return self._children.get(parent_type, {}).get(parent_id, [])
+    
+    def get_parent(self, child_type: str, child_id: int) -> Optional[tuple]:
+        """O(1) получение родителя"""
+        with self._lock:
+            return self._parents.get(child_type, {}).get(child_id)
+```
+
+---
+
+## Этап 2: Сервисный слой — 2 дня
+
+### День 3: API Client (адаптация)
+
+```python
+# services/api_client.py
+from utils.logger import get_logger
+import requests
+
+class ApiClient:
+    def __init__(self):
+        self._base_url = os.getenv("API_URL", "http://localhost:8000")
+        self._session = requests.Session()
+        self._logger = get_logger(__name__)
+    
+    def get_complexes(self) -> List[dict]:
+        """Возвращает список комплексов в виде словарей"""
+        response = self._make_request('GET', '/physical/')
+        return response  # уже список dict
+    
+    def get_buildings(self, complex_id: int) -> List[dict]:
+        response = self._make_request('GET', f'/physical/complexes/{complex_id}/buildings')
+        return response
+    
+    # ... остальные методы, но без создания моделей
+```
+
+### День 4: Data Service (ядро бизнес-логики)
+
+```python
+# services/data_service.py
+from PySide6.QtCore import QObject
+from src.core.event_bus import EventBus
+from src.data.entity_graph import EntityGraph, NodeType
+from src.services.api_client import ApiClient
+from src.models import Complex, Building, Floor, Room
+from utils.logger import get_logger
+
+class DataService(QObject):
+    def __init__(self, event_bus: EventBus, api_client: ApiClient, graph: EntityGraph):
+        super().__init__()
+        self._bus = event_bus
+        self._api = api_client
+        self._graph = graph
+        self._logger = get_logger(__name__)
+        
+        # Подписка на события
+        self._bus.subscribe('ui.node_expanded', self._on_node_expanded)
+        self._bus.subscribe('ui.refresh_requested', self._on_refresh_requested)
+    
+    def _on_node_expanded(self, event):
+        """Обрабатывает раскрытие узла"""
+        node_type = event['data']['node_type']
+        node_id = event['data']['node_id']
+        
+        self._logger.api(f"Node expanded: {node_type} #{node_id}")
+        self._bus.emit('sys.data_loading', {'node_type': node_type, 'node_id': node_id})
+        
+        try:
+            # Определяем, какие данные загружать
+            if node_type == 'complex':
+                self._load_buildings(node_id)
+            elif node_type == 'building':
+                self._load_floors(node_id)
+            elif node_type == 'floor':
+                self._load_rooms(node_id)
+        except Exception as e:
+            self._bus.emit('sys.data_error', {
+                'node_type': node_type,
+                'node_id': node_id,
+                'error': str(e)
+            })
+    
+    def _load_buildings(self, complex_id: int):
+        """Загружает корпуса для комплекса"""
+        # Проверяем граф
+        buildings = self._graph.get_children(NodeType.COMPLEX, complex_id)
+        if buildings:
+            self._logger.cache(f"Buildings for complex {complex_id} found in cache")
+            self._bus.emit('sys.data_loaded', {
+                'node_type': 'building',
+                'parent_type': 'complex',
+                'parent_id': complex_id,
+                'data': [self._graph.get(NodeType.BUILDING, id) for id in buildings]
+            })
+            return
+        
+        # Загружаем из API
+        self._logger.api(f"Loading buildings for complex {complex_id}")
+        buildings_data = self._api.get_buildings(complex_id)
+        
+        # Преобразуем в модели и сохраняем в граф
+        for b in buildings_data:
+            building = Building.from_dict(b)
+            self._graph.add_or_update(building)
+        
+        self._bus.emit('sys.data_loaded', {
+            'node_type': 'building',
+            'parent_type': 'complex',
+            'parent_id': complex_id,
+            'data': [Building.from_dict(b) for b in buildings_data]
+        })
+    
+    # ... аналогично для _load_floors, _load_rooms
+```
+
+---
+
+## Этап 3: Проекции — 2 дня
+
+### День 5: BaseProjection с debounce
+
+```python
+# projections/base_projection.py
+from PySide6.QtCore import QTimer, QObject
+from utils.logger import get_logger
+
+class BaseProjection(QObject):
+    def __init__(self, event_bus, debounce_ms=50):
+        super().__init__()
+        self._bus = event_bus
+        self._debounce_ms = debounce_ms
+        self._timer = QTimer()
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self._rebuild)
+        self._logger = get_logger(__name__)
+        self._cached_result = None
+    
+    def _schedule_rebuild(self):
+        """Запускает или перезапускает таймер перестроения"""
+        self._timer.start(self._debounce_ms)
+    
+    def _rebuild(self):
+        """Должен быть переопределён в наследнике"""
+        raise NotImplementedError
+    
+    def get_result(self):
+        """Возвращает кэшированный результат"""
+        return self._cached_result
+```
+
+### День 6: TreeProjection (построитель дерева)
+
+```python
+# projections/tree_projection.py
+from src.data.entity_graph import EntityGraph, NodeType
+from src.projections.base_projection import BaseProjection
+
+class TreeNode:
+    """Узел дерева (адаптирован из старого tree_node.py)"""
+    def __init__(self, data, node_type, parent=None):
+        self.data = data
+        self.node_type = node_type
+        self.parent = parent
+        self.children = []
+    
+    def add_child(self, child):
+        self.children.append(child)
+    
+    def get_id(self):
+        return self.data.id if self.data else -1
+
+class TreeProjection(BaseProjection):
+    def __init__(self, event_bus, graph: EntityGraph):
+        super().__init__(event_bus, debounce_ms=50)
+        self._graph = graph
+        
+        # Подписываемся на все загрузки данных
+        self._bus.subscribe('sys.data_loaded', self._on_data_changed)
+    
+    def _on_data_changed(self, event):
+        """Любое изменение данных вызывает перестроение"""
+        self._schedule_rebuild()
+    
+    def _rebuild(self):
+        """Строит дерево из графа"""
+        self._logger.debug("Rebuilding tree...")
+        
+        # Получаем все комплексы
+        complexes = self._graph.get_all(NodeType.COMPLEX)
+        root_nodes = []
+        
+        for complex_data in complexes:
+            complex_node = TreeNode(complex_data, NodeType.COMPLEX)
+            
+            # Добавляем корпуса
+            building_ids = self._graph.get_children(NodeType.COMPLEX, complex_data.id)
+            for building_id in building_ids:
+                building_data = self._graph.get(NodeType.BUILDING, building_id)
+                if building_data:
+                    building_node = TreeNode(building_data, NodeType.BUILDING, complex_node)
+                    
+                    # Добавляем этажи
+                    floor_ids = self._graph.get_children(NodeType.BUILDING, building_id)
+                    for floor_id in floor_ids:
+                        floor_data = self._graph.get(NodeType.FLOOR, floor_id)
+                        if floor_data:
+                            floor_node = TreeNode(floor_data, NodeType.FLOOR, building_node)
+                            
+                            # Добавляем комнаты
+                            room_ids = self._graph.get_children(NodeType.FLOOR, floor_id)
+                            for room_id in room_ids:
+                                room_data = self._graph.get(NodeType.ROOM, room_id)
+                                if room_data:
+                                    room_node = TreeNode(room_data, NodeType.ROOM, floor_node)
+                                    floor_node.add_child(room_node)
+                            
+                            building_node.add_child(floor_node)
+                    
+                    complex_node.add_child(building_node)
+            
+            root_nodes.append(complex_node)
+        
+        self._cached_result = root_nodes
+        self._logger.debug(f"Tree rebuilt: {len(root_nodes)} complexes")
+        
+        # Сигнализируем об обновлении (можно через событие)
+        self._bus.emit('projection.tree_updated', {'tree': root_nodes})
+```
+
+---
+
+## Этап 4: UI (презентационный слой) — 3 дня
+
+### День 7: TreeModel (только отображение)
+
+```python
+# ui/tree/tree_model.py
+from PySide6.QtCore import QAbstractItemModel, QModelIndex, Qt
+from PySide6.QtGui import QFont, QBrush
+
+class TreeModel(QAbstractItemModel):
+    def __init__(self, projection):
+        super().__init__()
+        self._projection = projection
+        self._root_nodes = []
+        
+        # Подписываемся на обновления проекции
+        projection._bus.subscribe('projection.tree_updated', self._on_tree_updated)
+    
+    def _on_tree_updated(self, event):
+        """Получает новое дерево от проекции"""
+        self.beginResetModel()
+        self._root_nodes = event['data']['tree']
+        self.endResetModel()
+    
+    # Стандартные методы Qt, делегирующие _root_nodes
+    def index(self, row, column, parent=QModelIndex()):
+        if not self.hasIndex(row, column, parent):
+            return QModelIndex()
+        
+        parent_node = self._get_node(parent)
+        if row >= len(parent_node.children):
+            return QModelIndex()
+        
+        child = parent_node.children[row]
+        return self.createIndex(row, column, child)
+    
+    def parent(self, index):
+        if not index.isValid():
+            return QModelIndex()
+        
+        node = index.internalPointer()
+        if not node.parent or node.parent == self._root_nodes:
+            return QModelIndex()
+        
+        return self.createIndex(node.parent.row(), 0, node.parent)
+    
+    def rowCount(self, parent=QModelIndex()):
+        node = self._get_node(parent)
+        return len(node.children)
+    
+    def columnCount(self, parent=QModelIndex()):
+        return 1
+    
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid():
+            return None
+        
+        node = index.internalPointer()
+        
+        if role == Qt.DisplayRole:
+            return node.data.display_name() if hasattr(node.data, 'display_name') else str(node.data)
+        elif role == Qt.FontRole:
+            return self._get_font(node)
+        elif role == Qt.ForegroundRole:
+            return self._get_color(node)
+        
+        return None
+    
+    def _get_node(self, index):
+        if index.isValid():
+            return index.internalPointer()
+        # Для корневого индекса возвращаем виртуальный корень
+        return type('Root', (), {'children': self._root_nodes, 'parent': None})
+```
+
+### День 8: TreeView (только события)
+
+```python
+# ui/tree/tree_view.py
+from PySide6.QtWidgets import QTreeView
+from PySide6.QtCore import Qt
+
+class TreeView(QTreeView):
+    def __init__(self, event_bus, parent=None):
+        super().__init__(parent)
+        self._bus = event_bus
+        self._source = 'tree_view'
+        
+        self.setHeaderHidden(True)
+        self.setAnimated(True)
+        
+        # Подключаем сигналы
+        self.expanded.connect(self._on_expanded)
+        self.collapsed.connect(self._on_collapsed)
+    
+    def _on_expanded(self, index):
+        """Пользователь раскрыл узел"""
+        node = index.internalPointer()
+        self._bus.emit('ui.node_expanded', {
+            'node_type': node.node_type.value,
+            'node_id': node.get_id()
+        }, source=self._source)
+    
+    def _on_collapsed(self, index):
+        """Пользователь свернул узел"""
+        node = index.internalPointer()
+        self._bus.emit('ui.node_collapsed', {
+            'node_type': node.node_type.value,
+            'node_id': node.get_id()
+        }, source=self._source)
+    
+    def selectionChanged(self, selected, deselected):
+        """Выделение изменилось"""
+        super().selectionChanged(selected, deselected)
+        
+        indexes = selected.indexes()
+        if indexes:
+            index = indexes[0]
+            node = index.internalPointer()
+            self._bus.emit('ui.node_selected', {
+                'node_type': node.node_type.value,
+                'node_id': node.get_id(),
+                'data': node.data
+            }, source=self._source)
+```
+
+### День 9: DetailsPanel (реактивная)
+
+```python
+# ui/details/details_panel.py
+from src.ui.details.base_panel import DetailsPanelBase
+from src.ui.details.display_handlers import DisplayHandlers
+
+class DetailsPanel(DetailsPanelBase):
+    def __init__(self, event_bus, parent=None):
+        super().__init__(parent)
+        self._bus = event_bus
+        
+        # Подписываемся на события с данными
+        self._bus.subscribe('sys.data_loaded', self._on_data_loaded)
+        self._bus.subscribe('ui.node_selected', self._on_node_selected)
+    
+    def _on_node_selected(self, event):
+        """Получили команду о выборе узла"""
+        data = event['data']
+        self.show_item_details(
+            data['node_type'],
+            data['node_id'],
+            data['data'],
+            {}  # контекст пока пустой
+        )
+    
+    def _on_data_loaded(self, event):
+        """Получили детальные данные"""
+        data = event['data']
+        if data.get('is_detail'):  # флаг, что это детальные данные
+            self.show_item_details(
+                data['node_type'],
+                data['node_id'],
+                data['data'],
+                data.get('context', {})
+            )
+```
+
+---
+
+## Этап 5: MainWindow и интеграция — 2 дня
+
+### День 10: MainWindow (композиционный корень)
+
+```python
+# ui/main_window/main_window.py
+from PySide6.QtWidgets import QMainWindow
+from src.core.event_bus import EventBus
+from src.data.entity_graph import EntityGraph
+from src.services.api_client import ApiClient
+from src.services.data_service import DataService
+from src.services.connection_service import ConnectionService
+from src.projections.tree_projection import TreeProjection
+from src.ui.tree.tree_model import TreeModel
+from src.ui.tree.tree_view import TreeView
+from src.ui.details.details_panel import DetailsPanel
+from src.ui.main_window.components import CentralWidget, Toolbar, StatusBar
+from src.ui.main_window.shortcuts import ShortcutManager
+from utils.logger import get_logger
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self._logger = get_logger(__name__)
+        
+        # 1. Ядро
+        self._bus = EventBus()
+        
+        # 2. Данные
+        self._graph = EntityGraph()
+        
+        # 3. Сервисы
+        self._api = ApiClient()
+        self._data_service = DataService(self._bus, self._api, self._graph)
+        self._connection_service = ConnectionService(self._bus, self._api)
+        
+        # 4. Проекции
+        self._tree_projection = TreeProjection(self._bus, self._graph)
+        
+        # 5. UI компоненты
+        self._setup_ui()
+        
+        # 6. Валидация подписок (debug)
+        self._validate_subscriptions()
+        
+        # 7. Старт
+        self._bus.emit('ui.refresh_requested', {'mode': 'full'})
+        
+        self._logger.success("MainWindow initialized")
+    
+    def _setup_ui(self):
+        """Создаёт все UI компоненты"""
+        # Модель и представление дерева
+        self._tree_model = TreeModel(self._tree_projection)
+        self._tree_view = TreeView(self._bus)
+        self._tree_view.setModel(self._tree_model)
+        
+        # Панель деталей
+        self._details_panel = DetailsPanel(self._bus)
+        
+        # Центральный виджет с разделителем
+        self._central = CentralWidget(self)
+        self._central.add_widgets(self._tree_view, self._details_panel)
+        
+        # Панель инструментов
+        self._toolbar = Toolbar(self)
+        self._toolbar.signals.refresh_current.connect(
+            lambda: self._bus.emit('ui.refresh_requested', {'mode': 'current'})
+        )
+        # ... аналогично для других режимов
+        
+        # Статус бар
+        self._status_bar = StatusBar(self)
+        
+        # Горячие клавиши
+        self._shortcuts = ShortcutManager(self)
+        self._shortcuts.signals.refresh_current.connect(
+            lambda: self._bus.emit('ui.refresh_requested', {'mode': 'current'})
+        )
+        # ... аналогично
+```
+
+### День 11: ConnectionService и финальная отладка
+
+```python
+# services/connection_service.py
+from PySide6.QtCore import QTimer, QObject
+
+class ConnectionService(QObject):
+    def __init__(self, event_bus, api_client, check_interval_ms=30000):
+        super().__init__()
+        self._bus = event_bus
+        self._api = api_client
+        self._is_online = None
+        
+        self._timer = QTimer()
+        self._timer.timeout.connect(self._check_connection)
+        self._timer.start(check_interval_ms)
+        
+        # Первая проверка
+        QTimer.singleShot(1000, self._check_connection)
+    
+    def _check_connection(self):
+        """Проверяет соединение и генерирует событие при изменении"""
+        try:
+            online = self._api.check_connection()
+            if online != self._is_online:
+                self._is_online = online
+                self._bus.emit('sys.connection_changed', {'is_online': online})
+        except Exception as e:
+            if self._is_online != False:
+                self._is_online = False
+                self._bus.emit('sys.connection_changed', {'is_online': False})
+```
+
+---
+
+## Этап 6: Очистка и тестирование — 2 дня
+
+### День 12: Удаление старого кода
+
+После того как новое приложение полностью работает, удаляем:
+
+```
+rm -rf client/src/ui/tree/ (старый)
+rm -rf client/src/ui/tree_model/ (весь)
+rm -rf client/src/ui/main_window/ (старый)
+rm -rf client/src/core/cache.py
+rm -rf client/src/core/api_client.py (перенесён в services/)
+```
+
+### День 13: Тестирование
+
+**Сценарии для проверки:**
+
+1. **Загрузка при старте:**
+   - Появляются ли комплексы?
+   - Правильно ли отображаются счётчики?
+
+2. **Раскрытие узлов:**
+   - При раскрытии комплекса появляются корпуса?
+   - При раскрытии корпуса появляются этажи?
+   - При раскрытии этажа появляются помещения?
+
+3. **Выбор элементов:**
+   - При выборе комплекса панель деталей показывает информацию?
+   - При выборе помещения видны детали (площадь, статус)?
+
+4. **Обновление:**
+   - F5 обновляет текущий узел?
+   - Ctrl+F5 обновляет все раскрытые?
+   - Ctrl+Shift+F5 делает полный ресет?
+
+5. **Соединение:**
+   - При отключении бэкенда индикаторы становятся красными?
+   - При восстановлении возвращаются в норму?
+
+6. **Производительность:**
+   - Быстрое раскрытие многих узлов не лагает?
+   - Панель деталей быстро реагирует на выбор?
+
+---
+
+## Итоговый календарь
+
+| День | Этап | Задача |
+|------|------|--------|
+| 1 | 0 | Подготовка, структура, архитектурный компас |
+| 2 | 1 | Event Bus |
+| 3 | 1 | Entity Graph |
+| 4 | 2 | API Client |
+| 5 | 2 | Data Service |
+| 6 | 3 | BaseProjection |
+| 7 | 3 | TreeProjection |
+| 8 | 4 | TreeModel |
+| 9 | 4 | TreeView |
+| 10 | 4 | DetailsPanel |
+| 11 | 5 | MainWindow (базовая интеграция) |
+| 12 | 5 | ConnectionService + финальная интеграция |
+| 13 | 6 | Очистка старого кода |
+| 14 | 6 | Полное тестирование |
+
+**ИТОГО: 14 дней**
+
+---
+
+## Критические моменты для контроля
+
+1. **День 5-6 (Data Service):** Проверить, что все типы загружаются правильно
+2. **День 8 (TreeModel):** Убедиться, что модель правильно строит индексы
+3. **День 11 (интеграция):** Проверить все потоки данных end-to-end
+

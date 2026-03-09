@@ -212,6 +212,16 @@ class Logger:
             module_name: Имя модуля (обычно __name__)
         """
         self._module_name = module_name
+
+        def exception(self, message: str) -> None:
+            """
+            Логирует ошибку с traceback (для отладки).
+            
+            Args:
+                message: Сообщение об ошибке
+            """
+            import traceback
+            self._log("ERROR", self.ERROR, f"{message}\n{traceback.format_exc()}")
     
     @classmethod
     def get_logger(cls, module_name: str) -> 'Logger':

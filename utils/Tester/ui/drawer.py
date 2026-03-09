@@ -125,14 +125,17 @@ class ScreenDrawer:
         print()
     
     def draw_control_panel(self, fail_fast: bool, timeout: int, log_level: str):
-        """Рисует панель управления"""
+        """Рисует панель управления с информацией о клавишах e w i d"""
         width, _ = get_terminal_size()
         
         ff_status = "✅" if fail_fast else "❌"
         
+        # Показываем доступные уровни логирования с текущим выделением
+        log_display = f"e:ERR w:WRN i:INF d:DBG [{log_level}]"
+        
         controls = [
             f"q:выход  r:перезагрузить  h:помощь  c:очистить",
-            f"f:fail-fast [{ff_status}]  t:таймаут [{timeout}s]  l:лог [{log_level}]",
+            f"f:fail-fast [{ff_status}]  t:таймаут [{timeout}s]  {log_display}",
             f"0:назад/все  n:след  p:пред"
         ]
         

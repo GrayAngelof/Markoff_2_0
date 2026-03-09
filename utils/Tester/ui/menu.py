@@ -20,7 +20,9 @@ from ..ui.navigation import NavigationStack, PaginatedList, FileTestsManager
 from ..utils.isolation import ShutdownHandler
 from ..utils.helpers import get_input_line, clear_screen
 
-logger = logging.getLogger(__name__)
+from utils.logger import Logger, get_logger 
+
+logger = get_logger(__name__)
 
 
 class TestMenu:
@@ -146,7 +148,7 @@ class TestMenu:
     
     def _get_log_level_char(self) -> str:
         """Возвращает символ уровня лога"""
-        level = logging.getLogger().getEffectiveLevel()
+        level = Logger.get_level()  # <-- используем класс Logger для статического метода
         for ch, lvl in CommandHandler.LOG_LEVELS.items():
             if lvl == level:
                 return ch

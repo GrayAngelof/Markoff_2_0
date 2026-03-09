@@ -8,22 +8,16 @@ import inspect
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
-import logging
-from dataclasses import dataclass  # <-- ЭТО БЫЛО ПРОПУЩЕНО
+from dataclasses import dataclass
+
+# Вместо import logging
+from utils.logger import get_logger
 
 from ..common.test_common import is_test_function, create_test_function
 from .models import TestNode, TestFunction
 
-# Импортируем утилиты
-from ..utils.helpers import (
-    is_test_file,
-    path_to_module,
-    find_files,
-    generate_test_id,
-    load_json_config
-)
-
-logger = logging.getLogger(__name__)
+# Создаем логгер для этого модуля
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -43,7 +37,7 @@ class LoadStats:
 
 class TestDiscovery:
     """
-    Обнаруживает и загружает тесты с использованием утилит.
+    Обнаруживает и загружает тесты из файловой системы.
     """
     
     def __init__(self, tests_root: Path, project_root: Optional[Path] = None):
@@ -61,16 +55,14 @@ class TestDiscovery:
         # Добавляем корень проекта в sys.path
         if str(self.project_root) not in sys.path:
             sys.path.insert(0, str(self.project_root))
-        
-        # Загружаем конфиг, если есть
-        self._config = load_json_config(self.project_root / "config" / "tester_config.json")
+            logger.debug(f"Добавлен {self.project_root} в sys.path")
     
     def scan(self) -> TestNode:
         """Сканирует файловую систему и строит дерево тестов."""
         if self._root_node is None:
             logger.info(f"Сканирование {self.tests_root}")
             self._root_node = self._build_node(self.tests_root)
-            logger.info(f"Найдено {self._count_nodes(self._root_node)} элементов")
+            logger.success(f"Найдено {self._count_nodes(self._root_node)} элементов")
         return self._root_node
     
     def _count_nodes(self, node: TestNode) -> int:
@@ -83,13 +75,13 @@ class TestDiscovery:
     def _build_node(self, path: Path) -> Optional[TestNode]:
         """Рекурсивно строит узел дерева."""
         if path.is_file():
-            if is_test_file(path):
+            if path.name.startswith('test_') and path.suffix == '.py' and path.name != '__init__.py':
                 logger.debug(f"Найден файл с тестами: {path.name}")
-                return TestNode(
+                from .models import create_file_node
+                return create_file_node(
                     name=path.stem,
                     path=path,
-                    node_type="file",
-                    tests=()  # тесты пока не загружаем
+                    tests=[]  # тесты пока не загружаем
                 )
             return None
         
@@ -106,15 +98,12 @@ class TestDiscovery:
         if not children:
             return None
         
-        node_type = "root" if path == self.tests_root else "directory"
-        node_name = "tests" if path == self.tests_root else path.name
+        from .models import create_directory_node, create_root_node
         
-        return TestNode(
-            name=node_name,
-            path=path,
-            node_type=node_type,
-            children=tuple(children)
-        )
+        if path == self.tests_root:
+            return create_root_node(path, children)
+        else:
+            return create_directory_node(path.name, path, children)
     
     def load_tests_from_node(self, node: TestNode, recursive: bool = False) -> Tuple[TestNode, LoadStats]:
         """
@@ -132,7 +121,7 @@ class TestDiscovery:
             else:
                 raise ValueError(f"Неизвестный тип узла: {node.node_type}")
         except Exception as e:
-            logger.error(f"Ошибка при загрузке узла {node.name}: {e}", exc_info=True)
+            logger.error(f"Ошибка при загрузке узла {node.name}: {e}")
             return node, LoadStats()
     
     def _load_tests_from_file(self, node: TestNode) -> Tuple[TestNode, LoadStats]:
@@ -148,15 +137,12 @@ class TestDiscovery:
         try:
             tests = self._extract_tests_from_file(node.path)
             
-            loaded_node = TestNode(
-                name=node.name,
-                path=node.path,
-                node_type="file",
-                tests=tuple(tests)
-            )
+            from .models import create_file_node
+            loaded_node = create_file_node(node.name, node.path, tests)
             
             if tests:
                 stats.loaded = 1
+                logger.success(f"Загружено {len(tests)} тестов из {node.path.name}")
                 self._failed_files.discard(node.path)
             else:
                 stats.empty = 1
@@ -171,12 +157,8 @@ class TestDiscovery:
             logger.error(f"Не удалось загрузить файл {node.path.name}: {e}")
             self._failed_files.add(node.path)
             
-            empty_node = TestNode(
-                name=node.name,
-                path=node.path,
-                node_type="file",
-                tests=()
-            )
+            from .models import create_file_node
+            empty_node = create_file_node(node.name, node.path, [])
             return empty_node, stats
     
     def _load_tests_from_directory(self, node: TestNode) -> Tuple[TestNode, LoadStats]:
@@ -199,28 +181,34 @@ class TestDiscovery:
                 logger.error(f"Ошибка при загрузке {child.path}: {e}")
                 total_stats.failed += 1
         
-        loaded_node = TestNode(
-            name=node.name,
-            path=node.path,
-            node_type=node.node_type,
-            children=tuple(loaded_children)
-        )
+        from .models import create_directory_node
+        loaded_node = create_directory_node(node.name, node.path, loaded_children)
+        
+        if total_stats.failed > 0:
+            logger.warning(f"Директория {node.name}: загружено {total_stats.loaded}, ошибок {total_stats.failed}")
+        else:
+            logger.success(f"Директория {node.name}: загружено {total_stats.loaded} файлов")
         
         return loaded_node, total_stats
     
     def _extract_tests_from_file(self, file_path: Path) -> List[TestFunction]:
         """Извлекает тесты из файла."""
+        from ..utils.helpers import path_to_module
+        
         module_name = path_to_module(file_path, self.project_root)
         
         try:
             if module_name in sys.modules:
+                logger.debug(f"Перезагрузка модуля {module_name}")
                 module = importlib.reload(sys.modules[module_name])
             else:
+                logger.debug(f"Импорт модуля {module_name}")
                 module = importlib.import_module(module_name)
             
             tests = []
             for name, obj in inspect.getmembers(module, is_test_function):
                 try:
+                    from ..common.test_common import create_test_function
                     test_func = create_test_function(obj)
                     tests.append(test_func)
                     logger.debug(f"Найден тест: {name}")
@@ -233,40 +221,17 @@ class TestDiscovery:
             logger.error(f"Ошибка при загрузке модуля {module_name}: {e}")
             return []
     
-    def get_test_by_id(self, test_id: str) -> Optional[TestFunction]:
-        """Находит тест по его ID."""
-        from ..utils.helpers import parse_test_id
-        
-        try:
-            module_path, test_name = parse_test_id(test_id)
-        except ValueError:
-            logger.error(f"Неверный формат test_id: {test_id}")
-            return None
-        
-        rel_path = module_path.replace('.', '/') + '.py'
-        file_path = self.project_root / rel_path
-        
-        if not file_path.exists():
-            logger.error(f"Файл не найден: {file_path}")
-            return None
-        
-        loaded_node = self._module_cache.get(file_path)
-        if not loaded_node:
-            # Пытаемся загрузить
-            temp_node = TestNode(
-                name=file_path.stem,
-                path=file_path,
-                node_type="file",
-                tests=()
-            )
-            loaded_node, _ = self._load_tests_from_file(temp_node)
-        
-        for test in loaded_node.tests:
-            if test.name == test_name:
-                return test
-        
-        logger.error(f"Тест {test_name} не найден в {module_path}")
-        return None
+    def get_cached_node(self, path: Path) -> Optional[TestNode]:
+        """Возвращает загруженный узел из кэша."""
+        return self._module_cache.get(path)
+    
+    def is_file_loaded(self, path: Path) -> bool:
+        """Проверяет, загружен ли файл в кэш."""
+        return path in self._module_cache
+    
+    def get_failed_files(self) -> List[Path]:
+        """Возвращает список файлов, которые не удалось загрузить."""
+        return list(self._failed_files)
     
     def get_statistics(self) -> dict:
         """Возвращает статистику по тестам."""
@@ -301,42 +266,10 @@ class TestDiscovery:
             'failed_files_list': list(self._failed_files)
         }
     
-    def reload(self):
+    def reload(self) -> None:
         """Полная перезагрузка."""
         logger.info("Перезагрузка всех тестов")
         self._module_cache.clear()
         self._failed_files.clear()
         self._root_node = self._build_node(self.tests_root)
-        
-    def get_cached_node(self, path: Path) -> Optional[TestNode]:
-        """
-        Публичный метод для получения загруженного узла из кэша.
-        
-        Args:
-            path: Путь к файлу
-        
-        Returns:
-            Optional[TestNode]: Загруженный узел или None
-        """
-        return self._module_cache.get(path)
-    
-    def is_file_loaded(self, path: Path) -> bool:
-        """
-        Проверяет, загружен ли файл в кэш.
-        
-        Args:
-            path: Путь к файлу
-        
-        Returns:
-            bool: True если файл загружен
-        """
-        return path in self._module_cache
-    
-    def get_failed_files(self) -> List[Path]:
-        """
-        Возвращает список файлов, которые не удалось загрузить.
-        
-        Returns:
-            List[Path]: Список проблемных файлов
-        """
-        return list(self._failed_files)
+        logger.success("Перезагрузка завершена")

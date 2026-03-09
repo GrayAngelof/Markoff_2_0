@@ -2,6 +2,5 @@
 """
 Утилиты для клиентского приложения
 """
-from src.utils.logger import Logger
 
 __all__ = ["Logger"]

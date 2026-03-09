@@ -1,4 +1,4 @@
-# client/src/utils/logger.py
+# utils/logger.py
 """
 Профессиональный, лёгкий и настраиваемый логгер для приложения Markoff.
 

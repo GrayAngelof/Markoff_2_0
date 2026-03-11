@@ -92,8 +92,16 @@ class TestExecutor:
         return session
     
     def run_all(self, tests: List[TestFunction]) -> Optional[TestSession]:
-        """Запускает все тесты"""
-        return self._run_loop(tests, "All Tests")
+        """Запускает все тесты с отображением прогресса"""
+        if not tests:
+            logger.warning("Нет тестов для запуска")
+            return None
+        
+        # Устанавливаем callback для прогресса, если его нет
+        if not self._progress_callback:
+            self.set_progress_callback(self._default_progress)
+        
+        return self._run_loop(tests, f"All Tests ({len(tests)})")
     
     def run_single(self, test: TestFunction) -> Optional[TestSession]:
         """Запускает один тест"""
@@ -102,3 +110,15 @@ class TestExecutor:
     def run_selected(self, tests: List[TestFunction], name: str = "Selected") -> Optional[TestSession]:
         """Запускает выбранные тесты"""
         return self._run_loop(tests, name)
+
+    def _default_progress(self, info: ProgressInfo):
+        """Стандартный вывод прогресса, если callback не установлен"""
+        status = "✓" if info.result.success else "✗"
+        duration = format_duration(info.result.duration)
+        print(f"\r[{info.current}/{info.total}] {status} {info.result.test.name} ({duration})", end='')
+        
+        if not info.result.success:
+            print(f"\n  → {info.result.error}")
+        
+        if info.current == info.total:
+            print()  # Новая строка после завершения

@@ -52,6 +52,7 @@ class CommandHandler:
                  on_exit: Callable[[], bool],
                  on_reload: Callable[[], None],
                  on_navigate: Callable[[int], None],
+                 on_run_all: Callable[[], None],      # <-- НОВЫЙ
                  on_run_test: Callable[[TestFunction], None]):
         """
         Инициализирует обработчик команд.
@@ -73,6 +74,7 @@ class CommandHandler:
         self.on_exit = on_exit
         self.on_reload = on_reload
         self.on_navigate = on_navigate
+        self.on_run_all = on_run_all
         self.on_run_test = on_run_test
         
         # Текущие настройки (синхронизируются с executor.runner)
@@ -120,8 +122,10 @@ class CommandHandler:
                 self._handle_next_page()
             elif key == 'p':
                 self._handle_prev_page()
+            elif key == 'b':  # <-- НОВАЯ КОМАНДА
+                self._handle_back()
             elif key == '0':
-                self._handle_zero()
+                self._handle_run_all()  # <-- ТЕПЕРЬ ТОЛЬКО ЗАПУСК
             elif key.isdigit():
                 # Однозначное число (1-9)
                 self._handle_number(int(key))
@@ -169,7 +173,8 @@ class CommandHandler:
         
         print(f"{Color.BOLD}Навигация:{Color.RESET}")
         print("  Числа       - перейти в директорию / открыть файл / запустить тест")
-        print("  0           - назад / запустить все тесты в текущей папке")
+        print("  b           - назад на уровень выше")
+        print("  0           - запустить все тесты в текущей папке")
         print("  n / p       - следующая/предыдущая страница")
         
         print(f"\n{Color.BOLD}Управление тестами:{Color.RESET}")
@@ -177,13 +182,9 @@ class CommandHandler:
         print("  s           - показать статистику")
         
         print(f"\n{Color.BOLD}Настройки:{Color.RESET}")
-        print("  f           - переключить fail-fast (остановка при первой ошибке)")
-        print("  t           - изменить таймаут (секунды)")
-        print("  e/w/i/d     - уровень логирования:")
-        print("      e - ERROR   (только ошибки)")
-        print("      w - WARNING (ошибки и предупреждения)")
-        print("      i - INFO    (основная информация) [по умолчанию]")
-        print("      d - DEBUG   (всё, включая отладку)")
+        print("  f           - переключить fail-fast")
+        print("  t           - изменить таймаут")
+        print("  e/w/i/d     - уровень логирования")
         
         print(f"\n{Color.BOLD}Системные:{Color.RESET}")
         print("  q           - выход")
@@ -277,13 +278,23 @@ class CommandHandler:
         
         print("\n\033[33mНет предыдущей страницы\033[0m")
         logger.debug("Попытка перехода на несуществующую страницу")
+
+    def _handle_back(self):
+        """Возврат на уровень выше"""
+        logger.debug("Команда b: назад")
+        self.on_navigate(0)  # Используем тот же callback с 0 для навигации
     
     # ========== Числовые команды ==========
     
-    def _handle_zero(self):
-        """Обрабатывает команду 0 (назад / запустить все)"""
-        logger.debug("Команда 0: назад / запустить все")
-        self.on_navigate(0)
+    def _handle_run_all(self):
+        """Запуск всех тестов в текущей папке"""
+        logger.debug("Команда 0: запустить все тесты")
+        
+        # Проверяем, есть ли тесты в текущем узле
+        current_node = self.nav_list  # но нам нужен текущий узел из menu
+        
+        # Вызываем callback из menu
+        self.on_run_all()
     
     def _handle_number(self, num: int):
         """Обрабатывает числовую команду"""

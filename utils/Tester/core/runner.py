@@ -8,26 +8,21 @@ import sys
 import traceback
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Optional, Callable, Any, Tuple, Dict
+from typing import List, Optional, Any, Tuple
 import logging
 import multiprocessing
+import queue
 
-from ..common.test_common import TestMarker
 from .models import TestFunction
-
-# Импортируем утилиты изоляции
-from ..utils.isolation import (
-    reset_environment, 
-    set_deterministic_mode,
-    capture_output,
-    run_with_timeout,
-    ShutdownHandler,
-    TimeoutError,
-    OutputCapture
-)
-from ..utils.helpers import format_duration, generate_test_id
+from ..utils.isolation import reset_environment, set_deterministic_mode
+from ..utils.helpers import format_duration
 
 logger = logging.getLogger(__name__)
+
+
+class TestTimeoutError(Exception):
+    """Исключение при превышении таймаута теста"""
+    pass
 
 
 @dataclass
@@ -113,81 +108,88 @@ class TestSession:
             return 0.0
         return (self.passed / self.total) * 100
     
+    @property
+    def total_time(self) -> float:
+        return sum(r.duration for r in self.results)
+    
     def get_failed_tests(self) -> List[TestResult]:
         return [r for r in self.results if not r.success]
 
 
-def run_test_in_process(test: TestFunction, timeout: int, seed: int) -> Tuple[bool, str, str, str, str, float]:
+# Глобальная функция для запуска в отдельном процессе
+def _run_test_in_process(test_func, test_module_path, test_name, queue):
     """
-    Запускает тест в отдельном процессе с использованием утилит изоляции.
-    """
-    start_time = time.time()
+    Запускает тест в отдельном процессе.
     
+    Args:
+        test_func: Сама тестовая функция (callable)
+        test_module_path: Путь к модулю для импорта
+        test_name: Имя теста для отладки
+        queue: Очередь для возврата результата
+    """
     try:
-        # Полная изоляция окружения
+        # Изоляция окружения
         reset_environment()
-        set_deterministic_mode(seed)
+        set_deterministic_mode(42)
         
-        # Перехватываем вывод
-        with capture_output() as (stdout, stderr):
-            test()
+        # Перехватываем stdout/stderr
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
         
-        duration = time.time() - start_time
-        return True, stdout.getvalue(), stderr.getvalue(), "", "", duration
+        stdout_capture = io.StringIO()
+        stderr_capture = io.StringIO()
         
-    except AssertionError as e:
-        duration = time.time() - start_time
-        return False, "", "", str(e), traceback.format_exc(), duration
+        start_time = time.time()
+        
+        try:
+            with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
+                test_func()
+            
+            duration = time.time() - start_time
+            queue.put(('success', stdout_capture.getvalue(), stderr_capture.getvalue(), duration))
+            
+        except AssertionError as e:
+            duration = time.time() - start_time
+            queue.put(('assertion', stdout_capture.getvalue(), stderr_capture.getvalue(), 
+                      str(e), traceback.format_exc(), duration))
+        except Exception as e:
+            duration = time.time() - start_time
+            queue.put(('error', stdout_capture.getvalue(), stderr_capture.getvalue(),
+                      f"{type(e).__name__}: {e}", traceback.format_exc(), duration))
+            
     except Exception as e:
-        duration = time.time() - start_time
-        return False, "", "", f"{type(e).__name__}: {e}", traceback.format_exc(), duration
+        # Ошибка на уровне самого процесса
+        queue.put(('process_error', '', '', f"Process error: {e}", traceback.format_exc(), 0.0))
 
 
 class TestRunner:
     """
-    Запускает тесты с использованием утилит изоляции.
+    Запускает тесты с использованием multiprocessing.
     """
     
     def __init__(self, timeout: int = 10, fail_fast: bool = False):
         self.default_timeout = timeout
         self.fail_fast = fail_fast
-        self._current_session: Optional[TestSession] = None
-        self._seed = 42
         self._active_processes: List[multiprocessing.Process] = []
-        
-        # Инициализируем обработчик сигналов для graceful shutdown
-        self._shutdown_handler = ShutdownHandler()
-        self._shutdown_handler.register()
     
     def run_test(self, test: TestFunction) -> TestResult:
-        """Запускает один тест в изолированном процессе."""
-        
-        # Проверяем, не получили ли сигнал остановки
-        if self._shutdown_handler.should_stop:
-            logger.warning("Пропуск теста из-за сигнала остановки")
-            return TestResult(
-                test=test,
-                success=False,
-                duration=0.0,
-                output=TestOutput(),
-                error="Test skipped due to shutdown signal"
-            )
-        
+        """
+        Запускает один тест в изолированном процессе.
+        """
         logger.debug(f"Запуск теста: {test.full_name}")
+        
         timeout = test.timeout if test.timeout is not None else self.default_timeout
         
-        # Создаем процесс для теста
+        # Создаем очередь для получения результата
         ctx = multiprocessing.get_context('spawn')
         queue = ctx.Queue()
         
-        def target():
-            try:
-                result = run_test_in_process(test, timeout, self._seed)
-                queue.put(result)
-            except Exception as e:
-                queue.put((False, "", "", f"Process error: {e}", traceback.format_exc(), 0.0))
+        # Передаем саму функцию и её имя
+        process = ctx.Process(
+            target=_run_test_in_process,
+            args=(test.func, test.module_path, test.name, queue)
+        )
         
-        process = ctx.Process(target=target)
         self._active_processes.append(process)
         start_time = time.time()
         process.start()
@@ -195,16 +197,10 @@ class TestRunner:
         # Ждем завершения с таймаутом
         process.join(timeout)
         
-        success = False
-        stdout = ""
-        stderr = ""
-        error_msg = None
-        traceback_str = None
-        duration = 0.0
-        
+        result = None
         if process.is_alive():
-            # Процесс все еще выполняется - убиваем
-            logger.warning(f"Тест {test.name} превысил таймаут {timeout}с, убиваем процесс")
+            # Процесс завис - убиваем
+            logger.warning(f"Тест {test.name} превысил таймаут {timeout}с")
             process.terminate()
             process.join(2)
             
@@ -213,104 +209,111 @@ class TestRunner:
                 process.join()
             
             duration = time.time() - start_time
-            error_msg = f"Timeout ({timeout}s)"
-            success = False
-            
+            result = TestResult(
+                test=test,
+                success=False,
+                duration=duration,
+                output=TestOutput(),
+                error=f"Timeout after {timeout}s"
+            )
         else:
-            # Процесс завершился, получаем результат
+            # Получаем результат из очереди
             try:
-                result = queue.get_nowait()
-                success, stdout, stderr, error_msg, traceback_str, duration = result
-            except Exception as e:
+                data = queue.get_nowait()
+                
+                if data[0] == 'success':
+                    _, stdout, stderr, duration = data
+                    result = TestResult(
+                        test=test,
+                        success=True,
+                        duration=duration,
+                        output=TestOutput(stdout=stdout, stderr=stderr)
+                    )
+                elif data[0] == 'assertion':
+                    _, stdout, stderr, error, tb, duration = data
+                    result = TestResult(
+                        test=test,
+                        success=False,
+                        duration=duration,
+                        output=TestOutput(stdout=stdout, stderr=stderr),
+                        error=error,
+                        traceback=tb
+                    )
+                elif data[0] == 'error':
+                    _, stdout, stderr, error, tb, duration = data
+                    result = TestResult(
+                        test=test,
+                        success=False,
+                        duration=duration,
+                        output=TestOutput(stdout=stdout, stderr=stderr),
+                        error=error,
+                        traceback=tb
+                    )
+                else:  # process_error
+                    _, stdout, stderr, error, tb, duration = data
+                    result = TestResult(
+                        test=test,
+                        success=False,
+                        duration=duration,
+                        output=TestOutput(stdout=stdout, stderr=stderr),
+                        error=error,
+                        traceback=tb
+                    )
+                    
+            except queue.Empty:
                 duration = time.time() - start_time
-                error_msg = f"Failed to get result: {e}"
-                traceback_str = traceback.format_exc()
+                result = TestResult(
+                    test=test,
+                    success=False,
+                    duration=duration,
+                    output=TestOutput(),
+                    error="No result from test process"
+                )
         
         # Очищаем процесс
         if process in self._active_processes:
             self._active_processes.remove(process)
         
-        # Обработка ожидаемых падений
+        # Обработка expected_failure
         if hasattr(test, 'expected_failure') and test.expected_failure:
-            if not success:
-                # Тест ожидаемо упал - считаем успехом
-                success = True
-                error_msg = f"[EXPECTED FAILURE] {error_msg}"
-            elif success:
-                # Тест ожидаемо падал, но прошел - это ошибка
-                success = False
-                error_msg = "Test was expected to fail but passed"
+            if not result.success:
+                # Ожидаемо упал - считаем успехом
+                result = TestResult(
+                    test=test,
+                    success=True,
+                    duration=result.duration,
+                    output=result.output,
+                    error=f"[EXPECTED FAILURE] {result.error}" if result.error else None
+                )
+            elif result.success:
+                # Ожидаемо падал, но прошел - ошибка
+                result = TestResult(
+                    test=test,
+                    success=False,
+                    duration=result.duration,
+                    output=result.output,
+                    error="Test was expected to fail but passed"
+                )
         
-        return TestResult(
-            test=test,
-            success=success,
-            duration=duration,
-            output=TestOutput(stdout=stdout, stderr=stderr),
-            error=error_msg,
-            traceback=traceback_str
-        )
+        return result
     
-    def run_tests(self, tests: List[TestFunction], session_name: str = "Test Session") -> TestSession:
-        """Запускает группу тестов с поддержкой graceful shutdown."""
+    def run_tests(self, tests: List[TestFunction]) -> TestSession:
+        """Запускает группу тестов"""
+        session = TestSession(name="Test Run")
         
-        # Проверяем флаг остановки перед началом
-        if self._shutdown_handler.should_stop:
-            logger.warning("Тестирование прервано пользователем")
-            empty_session = TestSession(name=session_name)
-            empty_session.finish()
-            return empty_session
+        for i, test in enumerate(tests, 1):
+            result = self.run_test(test)
+            session.add_result(result)
+            
+            if self.fail_fast and not result.success:
+                logger.info("Fail-fast: остановка после первого упавшего теста")
+                break
         
-        logger.info(f"Запуск сессии '{session_name}' с {len(tests)} тестами")
-        
-        session = TestSession(name=session_name)
-        self._current_session = session
-        
-        try:
-            for i, test in enumerate(tests, 1):
-                # Проверяем остановку перед каждым тестом
-                if self._shutdown_handler.should_stop:
-                    logger.warning("Получен сигнал остановки, завершаем сессию досрочно")
-                    break
-                
-                logger.debug(f"Тест {i}/{len(tests)}: {test.name}")
-                result = self.run_test(test)
-                session.add_result(result)
-                
-                # Проверяем fail-fast
-                if self.fail_fast and not result.success:
-                    logger.info(f"Fail-fast: остановка после первого упавшего теста")
-                    break
-                    
-        finally:
-            session.finish()
-            self._current_session = None
-            self.cleanup()
-        
-        logger.info(f"Сессия завершена: {session.passed}/{session.total} passed")
+        session.finish()
         return session
     
-    def run_selected(self, tests: List[TestFunction], markers: Optional[List[TestMarker]] = None) -> TestSession:
-        """Запускает выбранные тесты с фильтрацией по маркерам."""
-        if markers:
-            filtered = [t for t in tests if any(m in t.markers for m in markers)]
-            logger.info(f"Фильтрация по маркерам {markers}: {len(filtered)}/{len(tests)} тестов")
-            tests = filtered
-        
-        if not tests:
-            logger.warning("Нет тестов для запуска")
-            empty_session = TestSession(name="Empty Session")
-            empty_session.finish()
-            return empty_session
-        
-        return self.run_tests(tests, f"Selected Tests ({len(tests)})")
-    
-    def abort(self):
-        """Прерывает текущую сессию (вызывается из UI)"""
-        logger.warning("Прерывание текущей сессии по запросу пользователя")
-        self.cleanup()
-    
     def cleanup(self):
-        """Принудительно завершает все активные процессы"""
+        """Очищает все активные процессы"""
         for process in self._active_processes[:]:
             if process.is_alive():
                 logger.warning(f"Принудительное завершение процесса {process.pid}")
@@ -322,6 +325,4 @@ class TestRunner:
             self._active_processes.remove(process)
     
     def __del__(self):
-        """Деструктор для гарантированной очистки"""
         self.cleanup()
-        self._shutdown_handler.restore()

@@ -81,7 +81,11 @@ class TestMenu:
         print_progress(info.current, info.total, info.result, self.reporter)
     
     def _handle_navigation(self, index: int):
-        """Обработка навигации"""
+        """
+        Обработка навигации.
+        index=0 - назад
+        index>0 - переход к узлу
+        """
         if index == 0:
             # Назад
             if self.nav_stack.can_go_back():
@@ -89,37 +93,47 @@ class TestMenu:
                 self.tests_manager.clear()
                 self._update_navigation_list()
             else:
-                # Запуск всех тестов
-                self._run_all_tests()
+                # Уже в корне - ничего не делаем
+                logger.debug("Уже в корне, назад нельзя")
         else:
             # Переход к дочернему узлу
             node = self.nav_list.get_by_global_index(index)
             if node:
                 if node.node_type == "file":
                     # Открываем файл с тестами
-                    self.tests_manager.load_file(node)
-                # Переходим в директорию
+                    result = self.tests_manager.load_file(node)
+                    if result and result.error_message:
+                        logger.warning(result.error_message)
+                
+                # Переходим в директорию (или файл)
                 self.nav_stack.push(node)
                 self._update_navigation_list()
     
     def _run_all_tests(self):
-        """Запускает все тесты"""
-        all_tests = self.root_node.get_all_tests()
-        if not all_tests:
-            print("\n\033[33mНет тестов для запуска\033[0m")
+        """Запускает все тесты в текущей папке"""
+        print("\n🔍 ОТЛАДКА: _run_all_tests вызван")  # <-- временно
+        
+        current_node = self.nav_stack.current
+        print(f"🔍 Текущий узел: {current_node.name}")  # <-- временно
+        
+        tests = current_node.get_all_tests()
+        print(f"🔍 Найдено тестов: {len(tests)}")  # <-- временно
+        
+        if not tests:
+            print(f"\n\033[33mВ папке '{current_node.name}' нет тестов\033[0m")
+            input("\nНажмите Enter для продолжения...")
             return
         
-        print(f"\n\033[33mЗапуск {len(all_tests)} тестов...\033[0m")
+        print(f"\n\033[33mЗапуск {len(tests)} тестов в '{current_node.name}'...\033[0m")
         
-        # executor возвращает сессию
-        session = self.executor.run_all(all_tests)
+        # Запускаем тесты
+        session = self.executor.run_all(tests)
         
-        # reporter отображает результаты
         if session:
             print("\n")
             print(self.reporter.format_session(session))
-            print("\n\033[33mНажмите Enter для продолжения...\033[0m")
-            input()
+            self.executor.last_session = session
+            input("\nНажмите Enter для продолжения...")
     
     def _run_single_test(self, test):
         """Запускает один тест"""
@@ -164,7 +178,8 @@ class TestMenu:
             on_exit=lambda: self.running,
             on_reload=self._reload,
             on_navigate=self._handle_navigation,
-            on_run_test=self._run_single_test  # <-- Теперь метод существует
+            on_run_all=self._run_all_tests,
+            on_run_test=self._run_single_test
         )
     
     def draw(self):

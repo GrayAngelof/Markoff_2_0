@@ -1,4 +1,4 @@
-# client/src/core/event_bus.py (исправленная версия с правильными weakref)
+# client/src/core/event_bus.py
 """
 Центральная шина событий приложения.
 Обеспечивает слабосвязанную коммуникацию между компонентами через подписку и испускание событий.
@@ -84,43 +84,48 @@ class EventBus:
         
         return unsubscribe
     
-    def emit(self, event_type: str, data: Dict[str, Any] = None, source: str = None) -> None:
+    def emit(self, event_type: str, data: Optional[Dict[str, Any]] = None, source: Optional[str] = None) -> None:
         """
         Испускает событие, уведомляя всех подписчиков.
-        
+    
+        Args:
+            event_type: Тип события
+            data: Данные события (словарь) или None
+            source: Источник события или None
+    
         Важные моменты:
         1. Копируем список подписчиков перед итерацией
         2. При вызове ref() может вернуть None - значит объект/функция удалены
         3. Все ошибки в обработчиках логируются через log.error
         """
-        # Формируем событие
+        # Формируем событие с защитой от None
         event = {
             'type': event_type,
-            'data': data or {},
+            'data': data if data is not None else {},
             'source': source,
             'timestamp': time.time()
         }
-        
+    
         # Логируем emit при INFO и выше
         source_str = f" от {source}" if source else ""
         log.info(f"EMIT {event_type}{source_str}")
-        
+    
         # Получаем список подписчиков для этого типа
         subscribers = self._subscribers.get(event_type, [])
         if not subscribers:
             return
-        
+    
         # КРИТИЧЕСКИ ВАЖНО: копируем список, чтобы можно было менять оригинал
         # во время итерации (например, при отписке внутри обработчика)
         subscribers_copy = list(subscribers)
-        
+    
         # Собираем индексы мёртвых подписок для удаления
         dead_indices = []
-        
+    
         for i, ref in enumerate(subscribers_copy):
             # Пытаемся получить callable
             callback = ref()
-            
+    
             # Если callable умер (ref() вернул None) - помечаем для удаления
             if callback is None:
                 # Находим индекс в оригинальном списке
@@ -128,7 +133,7 @@ class EventBus:
                     if original_ref is ref:
                         dead_indices.append(j)
                 continue
-            
+    
             # Вызываем живой callable
             try:
                 callback(event)
@@ -136,21 +141,35 @@ class EventBus:
                 log.error(f"Ошибка в обработчике для {event_type}: {e}")
                 import traceback
                 traceback.print_exc()
-        
-        # Удаляем мёртвые подписки (в обратном порядке)
+    
+        # Удаляем мёртвые подписки (в обратном порядке) - ТОЛЬКО ОДИН РАЗ
         if dead_indices:
+            # Сортируем в обратном порядке, чтобы удаление с конца не влияло на индексы в начале
             for i in sorted(dead_indices, reverse=True):
-                self._subscribers[event_type].pop(i)
-            
+                # Проверяем, что индекс всё ещё существует (на случай, если список изменился)
+                if i < len(self._subscribers[event_type]):
+                    self._subscribers[event_type].pop(i)
+    
             if Logger.is_debug_enabled():
                 log.debug(f"Удалено {len(dead_indices)} мёртвых подписок из {event_type}")
     
-    def get_subscriber_count(self, event_type: str = None) -> Union[int, Dict[str, int]]:
-        """Возвращает количество живых подписчиков (для отладки)."""
-        if event_type:
+    def get_subscriber_count(self, event_type: Optional[str] = None) -> Union[int, Dict[str, int]]:
+        """
+        Возвращает количество живых подписчиков (для отладки).
+        
+        Args:
+            event_type: Тип события. Если None, возвращает словарь для всех типов.
+        
+        Returns:
+            Union[int, Dict[str, int]]: 
+                - Если указан event_type: количество подписчиков для этого типа
+                - Если event_type = None: словарь {тип_события: количество}
+        """
+        if event_type is not None:
             return self._cleanup_and_count(event_type)
         
         result = {}
+        # Используем копию ключей, чтобы избежать изменения словаря во время итерации
         for et in list(self._subscribers.keys()):
             count = self._cleanup_and_count(et)
             if count > 0 or et in self._subscribers:

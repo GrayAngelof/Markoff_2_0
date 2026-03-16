@@ -87,52 +87,42 @@ class TestReentrantEmit:
         event_bus = EventBus()
         depth_tracker = []
         
-        def create_handler2(level, max_depth):
-            def handler(event):
-                depth_tracker.append(f"enter_{level}")
-                if level < max_depth:
-                    event_bus.emit(f"event_{level + 1}")
-                depth_tracker.append(f"exit_{level}")
-            return handler
+        # Создаём обработчики для каждого уровня
+        def handler1(event):
+            depth_tracker.append("enter_1")
+            event_bus.emit("event_2")
+            depth_tracker.append("exit_1")
+        
+        def handler2(event):
+            depth_tracker.append("enter_2")
+            event_bus.emit("event_3")
+            depth_tracker.append("exit_2")
+        
+        def handler3(event):
+            depth_tracker.append("enter_3")
+            event_bus.emit("event_4")
+            depth_tracker.append("exit_3")
+        
+        def handler4(event):
+            depth_tracker.append("enter_4")
+            depth_tracker.append("exit_4")
         
         # Подписываем обработчики
-        event_bus.subscribe("event_1", create_handler2(1, 4))
-        event_bus.subscribe("event_2", create_handler2(2, 4))
-        event_bus.subscribe("event_3", create_handler2(3, 4))
-        event_bus.subscribe("event_4", create_handler2(4, 4))
+        event_bus.subscribe("event_1", handler1)
+        event_bus.subscribe("event_2", handler2)
+        event_bus.subscribe("event_3", handler3)
+        event_bus.subscribe("event_4", handler4)
         
         # Act
         event_bus.emit("event_1")
         
         # Assert
         expected = [
-            'enter_1', 'enter_2', 'enter_3', 'enter_4', 
+            'enter_1', 'enter_2', 'enter_3', 'enter_4',
             'exit_4', 'exit_3', 'exit_2', 'exit_1'
         ]
         assert depth_tracker == expected, \
             f"Глубокие вложенные emit должны работать корректно\nОжидалось: {expected}\nПолучено: {depth_tracker}"
-        
-        def create_handler(level, max_depth):
-            def handler(event):
-                depth_tracker.append(f"enter_{level}")
-                if level < max_depth:
-                    event_bus.emit(f"event_{level + 1}")
-                depth_tracker.append(f"exit_{level}")
-            return handler
-        
-        # Act
-        for i in range(1, 5):
-            event_bus.subscribe(f"event_{i}", create_handler(i, 4))
-        
-        event_bus.emit("event_1")
-        
-        # Assert
-        expected = [
-            'enter_1', 'enter_2', 'enter_3', 'enter_4', 
-            'exit_4', 'exit_3', 'exit_2', 'exit_1'
-        ]
-        assert depth_tracker == expected, \
-            f"Глубокие вложенные emit должны работать корректно"
 
     def test_reentrant_emit_preserves_subscriber_order(self):
         """Проверяет, что вложенные emit сохраняют порядок подписчиков."""
@@ -167,38 +157,71 @@ class TestReentrantEmit:
         assert order == expected, \
             f"Порядок выполнения должен сохраняться: {expected}"
 
-    def test_reentrant_emit_with_unsubscribe(self):
-        """Проверяет отписку во время вложенных emit."""
-        # Arrange
-        event_bus = EventBus()
-        order = []
-        unsub_outer2 = None
-        unsub_inner = None
-        
-        def outer1(event):
-            order.append('outer1')
-            # Отписываем outer2
-            if unsub_outer2:
-                unsub_outer2()
+        def test_reentrant_emit_with_unsubscribe(self):
+            """
+            Проверяет отписку во время вложенных emit.
+            """
+            # Arrange
+            event_bus = EventBus()
+            order = []
+            unsub_outer2 = None
+            unsub_inner = None
+            
+            def outer1(event):
+                order.append('outer1')
+                # Отписываем outer2
+                if unsub_outer2:
+                    unsub_outer2()
+                # Испускаем inner - это запустит вложенный emit немедленно
+                event_bus.emit('inner')
+            
+            def outer2(event):
+                order.append('outer2')  # Будет вызван после завершения вложенных emit
+            
+            def inner(event):
+                order.append('inner')
+                # Отписываем inner (самоотписка)
+                if unsub_inner:
+                    unsub_inner()
+            
+            # Act
+            event_bus.subscribe('outer', outer1)
+            unsub_outer2 = event_bus.subscribe('outer', outer2)
+            unsub_inner = event_bus.subscribe('inner', inner)
+            
+            # Первый emit
+            event_bus.emit('outer')
+            
+            # Второй emit - inner не должен вызываться (уже отписан)
             event_bus.emit('inner')
-        
-        def outer2(event):
-            order.append('outer2')  # Не должен вызываться после отписки
-        
-        def inner(event):
-            order.append('inner')
-            # Отписываем inner (самоотписка)
-            if unsub_inner:
-                unsub_inner()
-        
-        # Act
-        unsub_outer2 = event_bus.subscribe('outer', outer2)
-        event_bus.subscribe('outer', outer1)
-        unsub_inner = event_bus.subscribe('inner', inner)
-        
-        event_bus.emit('outer')
-        event_bus.emit('inner')  # Этот emit не должен ничего вызвать
-        
-        # Assert
-        assert order == ['outer1', 'inner'], \
-            "Должны выполниться только outer1 и inner"
+            
+            # Assert
+            # Ожидаемый порядок:
+            # 1. outer1 начинает выполнение
+            # 2. outer1 вызывает inner - inner выполняется немедленно
+            # 3. inner завершается, управление возвращается к outer1
+            # 4. outer1 завершается
+            # 5. outer2 выполняется (так как он был в копии списка подписчиков)
+            expected_order = ['outer1', 'inner', 'outer2']
+            assert order == expected_order, \
+                f"Ожидалось {expected_order}, получено {order}"
+            
+            # Проверяем, что второй emit inner ничего не вызывает
+            order_after = []
+            def tracker(event):
+                order_after.append('called')
+            
+            event_bus.subscribe('inner', tracker)
+            event_bus.emit('inner')
+            assert order_after == ['called'], \
+                "Новый обработчик должен вызываться, старый inner уже отписан"
+            
+            # Проверяем, что outer2 больше не вызывается
+            order_outer_after = []
+            def outer_tracker(event):
+                order_outer_after.append('outer_called')
+            
+            event_bus.subscribe('outer', outer_tracker)
+            event_bus.emit('outer')
+            assert order_outer_after == ['outer_called'], \
+                "Новый обработчик outer должен вызываться, outer2 уже отписан"

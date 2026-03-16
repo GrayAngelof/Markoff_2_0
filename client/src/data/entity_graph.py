@@ -49,13 +49,6 @@ class EntityGraph:
     def add_or_update(self, entity: Any) -> bool:
         """
         Добавляет или обновляет сущность.
-        
-        Алгоритм:
-        1. Проверяем тип по схеме
-        2. Проверяем изменения
-        3. Обновляем связи (если есть родитель)
-        4. Сохраняем в хранилище
-        5. Помечаем как валидную
         """
         with self._lock:
             log.debug(f"add_or_update: {type(entity).__name__}")
@@ -77,18 +70,25 @@ class EntityGraph:
             old = self._store.get(node_type, entity_id)
             if old and not self._has_changed(old, entity):
                 log.debug(f"{node_type}#{entity_id} не изменилась")
+                # ДАЖЕ ЕСЛИ НЕ ИЗМЕНИЛАСЬ, ОНА ДОЛЖНА БЫТЬ ВАЛИДНОЙ!
+                # Проверим, может быть дело в этом
+                self._validity.mark_valid(node_type, entity_id)
+                log.debug(f"Помечена как валидная (без изменений): {node_type}#{entity_id}")
                 return False
             
             # Обновление связей (если есть родитель)
             parent_id = get_parent_id(entity)
             if parent_id is not None:
                 parent_type = GraphSchema.get_parent_type(node_type)
-                if parent_type is not None:  # Проверка для Pylance
+                if parent_type is not None:
                     self._relations.link(node_type, entity_id, parent_type, parent_id)
             
             # Сохранение
             self._store.put(node_type, entity_id, entity)
+            
+            # ЯВНО ПОМЕЧАЕМ КАК ВАЛИДНУЮ
             self._validity.mark_valid(node_type, entity_id)
+            log.debug(f"Помечена как валидная: {node_type}#{entity_id}")
             
             log.info(f"Добавлена/обновлена: {node_type}#{entity_id}")
             return True
@@ -101,10 +101,16 @@ class EntityGraph:
     
     # ===== Навигация по графу =====
     
-    def get_children(self, node_type: NodeType, node_id: int) -> List[int]:
-        """Возвращает ID всех непосредственных детей."""
-        # node_type уже не Optional, так как параметр функции
-        return self._relations.get_children(node_type, node_id)
+    def get_children(self, node_type: NodeType, node_id: int, 
+                    ordered: bool = True) -> List[int]:
+        """
+        Возвращает ID всех непосредственных детей.
+        
+        Args:
+            ordered: если True - возвращает в порядке вставки,
+                    если False - быстрее, но без порядка
+        """
+        return self._relations.get_children(node_type, node_id, ordered)
     
     def get_parent(self, child_type: NodeType, child_id: int) -> Optional[ParentInfo]:
         """Возвращает родителя."""
@@ -188,13 +194,24 @@ class EntityGraph:
     
     def is_valid(self, node_type: NodeType, entity_id: int) -> bool:
         """Проверяет, валидны ли данные."""
-        # node_type уже не Optional, так как параметр функции
-        return self._validity.is_valid(node_type, entity_id)
+        with self._lock:
+            # Сущность должна существовать в хранилище
+            if not self._store.has(node_type, entity_id):
+                log.debug(f"is_valid: {node_type}#{entity_id} не существует в store")
+                return False
+            
+            # Проверяем статус валидности
+            valid = self._validity.is_valid(node_type, entity_id)
+            log.debug(f"is_valid: {node_type}#{entity_id} = {valid}")
+            return valid
     
     def invalidate(self, node_type: NodeType, entity_id: int) -> bool:
         """Помечает сущность как устаревшую."""
-        # node_type уже не Optional, так как параметр функции
-        return self._validity.mark_invalid(node_type, entity_id)
+        with self._lock:
+            log.debug(f"invalidate: {node_type}#{entity_id}")
+            result = self._validity.mark_invalid(node_type, entity_id)
+            log.debug(f"Результат инвалидации: {result}")
+            return result
     
     def invalidate_branch(self, node_type: NodeType, entity_id: int) -> int:
         """Рекурсивно инвалидирует ветку."""
@@ -204,9 +221,17 @@ class EntityGraph:
         )
     
     def validate(self, node_type: NodeType, entity_id: int) -> None:
-        """Помечает сущность как валидную."""
-        # node_type уже не Optional, так как параметр функции
-        self._validity.mark_valid(node_type, entity_id)
+        """
+        Помечает сущность как валидную.
+        Если сущности не существует в хранилище - ничего не делает.
+        """
+        with self._lock:
+            # Проверяем, что сущность существует в хранилище
+            if not self._store.has(node_type, entity_id):
+                log.warning(f"Попытка валидации несуществующей сущности: {node_type}#{entity_id}")
+                return
+            
+            self._validity.mark_valid(node_type, entity_id)
     
     # ===== Удаление =====
     
@@ -215,24 +240,40 @@ class EntityGraph:
         Удаляет сущность из графа.
         
         Args:
-            cascade: если True, удаляет всех потомков
+            cascade: если True, удаляет всех потомков рекурсивно
+                    если False, удаление разрешено только если нет детей
+        
+        Returns:
+            True если удаление выполнено, False если сущность не существует
+            или есть дети при cascade=False
         """
         with self._lock:
             if not self._store.has(node_type, entity_id):
+                log.debug(f"remove: {node_type}#{entity_id} не существует")
                 return False
             
-            if cascade:
-                # Получаем всех потомков и удаляем их
-                descendants = self.get_descendants(node_type, entity_id)
-                for child_type, child_ids in descendants.items():
-                    for child_id in child_ids:
-                        self.remove(child_type, child_id, cascade=False)
+            # Проверяем наличие детей, если не каскадное удаление
+            children = self._relations.get_children(node_type, entity_id, ordered=False)
+            
+            if not cascade:
+                if children:
+                    log.warning(f"Нельзя удалить {node_type}#{entity_id}: есть дети {children} (cascade=False)")
+                    return False
+            else:
+                # При каскадном удалении - рекурсивно удаляем всех детей ТОЖЕ С КАСКАДОМ
+                child_type = GraphSchema.get_child_type(node_type)
+                if child_type:
+                    for child_id in children:
+                        # ВАЖНО: удаляем детей ТОЖЕ С cascade=True
+                        self.remove(child_type, child_id, cascade=True)
             
             # Удаляем связи
             self._relations.remove_node(node_type, entity_id)
             
             # Удаляем из хранилища
             self._store.remove(node_type, entity_id)
+            
+            # Помечаем как невалидную
             self._validity.mark_invalid(node_type, entity_id)
             
             log.info(f"Удалена: {node_type}#{entity_id} (cascade={cascade})")

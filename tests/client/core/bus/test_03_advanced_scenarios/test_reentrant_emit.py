@@ -81,13 +81,13 @@ class TestReentrantEmit:
         assert execution_order == expected, \
             f"Ожидалось {expected}, получено {execution_order}"
 
-     def test_deeply_nested_emits(self):
+    def test_deeply_nested_emits(self):
         """Проверяет глубокую вложенность испусканий событий."""
         # Arrange
         event_bus = EventBus()
         depth_tracker = []
         
-        def create_handler(level, max_depth):
+        def create_handler2(level, max_depth):
             def handler(event):
                 depth_tracker.append(f"enter_{level}")
                 if level < max_depth:
@@ -96,10 +96,10 @@ class TestReentrantEmit:
             return handler
         
         # Подписываем обработчики
-        event_bus.subscribe("event_1", create_handler(1, 4))
-        event_bus.subscribe("event_2", create_handler(2, 4))
-        event_bus.subscribe("event_3", create_handler(3, 4))
-        event_bus.subscribe("event_4", create_handler(4, 4))
+        event_bus.subscribe("event_1", create_handler2(1, 4))
+        event_bus.subscribe("event_2", create_handler2(2, 4))
+        event_bus.subscribe("event_3", create_handler2(3, 4))
+        event_bus.subscribe("event_4", create_handler2(4, 4))
         
         # Act
         event_bus.emit("event_1")

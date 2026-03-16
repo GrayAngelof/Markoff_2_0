@@ -1,14 +1,12 @@
-# client/src/data/graph/schema.py (расширенная версия)
 """
 Схема графа - единственное место, где описана структура иерархии.
-Теперь содержит ВСЕ правила для автоматического построения индексов.
 """
 from typing import Dict, Optional, Any, Type, List, Callable
 from dataclasses import fields
 
 from src.data.entity_types import (
     NodeType, COMPLEX, BUILDING, FLOOR, ROOM,
-    MODEL_TO_NODETYPE, NODETYPE_TO_MODEL
+    MODEL_TO_NODETYPE, NODETYPE_TO_MODEL, CLASS_NAME_TO_NODETYPE
 )
 from src.models import Complex, Building, Floor, Room
 from utils.logger import get_logger
@@ -72,7 +70,7 @@ class GraphSchema:
     @classmethod
     def get_parent_id(cls, entity: Any) -> Optional[int]:
         """Извлекает ID родителя из сущности."""
-        node_type = MODEL_TO_NODETYPE.get(type(entity))
+        node_type = cls.get_node_type(entity)
         if not node_type:
             return None
         
@@ -84,8 +82,27 @@ class GraphSchema:
     
     @classmethod
     def get_node_type(cls, entity: Any) -> Optional[NodeType]:
-        """Определяет тип сущности."""
-        return MODEL_TO_NODETYPE.get(type(entity))
+        """
+        Определяет тип сущности.
+        Пытается определить разными способами для надёжности.
+        """
+        if entity is None:
+            return None
+        
+        # Прямой маппинг по классу
+        node_type = MODEL_TO_NODETYPE.get(type(entity))
+        if node_type:
+            return node_type
+        
+        # Маппинг по имени класса (на случай разных импортов)
+        class_name = entity.__class__.__name__
+        node_type = CLASS_NAME_TO_NODETYPE.get(class_name)
+        if node_type:
+            log.debug(f"Тип определён по имени класса: {class_name} -> {node_type}")
+            return node_type
+        
+        log.error(f"Неизвестный тип сущности: {type(entity)} (имя класса: {class_name})")
+        return None
     
     @classmethod
     def get_model_class(cls, node_type: NodeType) -> Optional[Type]:
@@ -130,7 +147,7 @@ class GraphSchema:
         """
         node_type = cls.get_node_type(entity)
         if not node_type:
-            log.error(f"Неизвестный тип сущности: {type(entity)}")
+            log.error(f"Сущность не прошла валидацию: неизвестный тип")
             return False
         
         # Проверяем наличие родительского ID если должен быть

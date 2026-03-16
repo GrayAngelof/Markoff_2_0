@@ -1,4 +1,3 @@
-# client/src/data/entity_types.py (оставляем как есть - это источник правды)
 """
 Типы сущностей в графе данных.
 Централизованное определение всех возможных типов узлов.
@@ -34,7 +33,8 @@ ROOM = NodeType.ROOM
 
 
 # Маппинг классов моделей на NodeType
-MODEL_TO_NODETYPE: Dict[Type, NodeType] = {
+# Используем строковые имена классов для надёжности
+MODEL_TO_NODETYPE = {
     Complex: COMPLEX,
     Building: BUILDING,
     Floor: FLOOR,
@@ -42,11 +42,19 @@ MODEL_TO_NODETYPE: Dict[Type, NodeType] = {
 }
 
 # Маппинг NodeType на классы моделей
-NODETYPE_TO_MODEL: Dict[NodeType, Type] = {
+NODETYPE_TO_MODEL = {
     COMPLEX: Complex,
     BUILDING: Building,
     FLOOR: Floor,
     ROOM: Room,
+}
+
+# Дополнительный маппинг по имени класса (на случай разных импортов)
+CLASS_NAME_TO_NODETYPE = {
+    'Complex': COMPLEX,
+    'Building': BUILDING,
+    'Floor': FLOOR,
+    'Room': ROOM,
 }
 
 log.debug(f"Entity types initialized: {[t.value for t in NodeType]}")

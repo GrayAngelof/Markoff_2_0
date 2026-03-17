@@ -3,10 +3,15 @@
 Модель Zone для таблицы physical.zones
 Представляет зону внутри помещения (для детальной планировки)
 """
+from __future__ import annotations  # <-- ДОБАВЛЕНО
+
 from sqlmodel import SQLModel, Field, Relationship
-from sqlalchemy import JSON  # Добавляем импорт JSON из SQLAlchemy
-from typing import Optional, Any
+from sqlalchemy import JSON
+from typing import Optional, Any, TYPE_CHECKING
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from .room import Room
 
 class Zone(SQLModel, table=True):
     """
@@ -16,9 +21,12 @@ class Zone(SQLModel, table=True):
     - Размещение датчиков
     - Планировка рабочих мест
     - Зоны ответственности
+    
+    Связи:
+    - belongs_to: Room (многие к одному)
     """
     
-    __tablename__ = "zones"
+    __tablename__ = "zones"  # type: ignore
     __table_args__ = {"schema": "physical"}
     
     # Первичный ключ
@@ -32,7 +40,6 @@ class Zone(SQLModel, table=True):
     description: Optional[str] = Field(default=None)
     
     # Координаты полигона на плане (JSON формат)
-    # Используем sa_type=JSON для указания типа колонки в БД
     polygon_coordinates: Optional[Any] = Field(default=None, sa_type=JSON)
     
     # Метаданные
@@ -44,5 +51,4 @@ class Zone(SQLModel, table=True):
     
     class Config:
         from_attributes = True
-        # Для работы с JSON полем
         arbitrary_types_allowed = True

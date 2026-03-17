@@ -3,19 +3,26 @@
 Модель Complex для таблицы physical.complexes
 Представляет комплекс зданий
 """
+from __future__ import annotations  # <-- ДОБАВЛЕНО
+
 from sqlmodel import SQLModel, Field, Relationship
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from .building import Building
+    from ..dictionary.counterparty import Counterparty
 
 class Complex(SQLModel, table=True):
     """
     Модель комплекса (таблица physical.complexes)
     
     Связи:
+    - belongs_to: Counterparty (как владелец)
     - has_many: Building (один ко многим)
     """
     
-    __tablename__ = "complexes"
+    __tablename__ = "complexes"  # type: ignore
     __table_args__ = {"schema": "physical"}
     
     # Первичный ключ
@@ -25,7 +32,9 @@ class Complex(SQLModel, table=True):
     name: str = Field(nullable=False, unique=True)
     description: Optional[str] = Field(default=None)
     address: Optional[str] = Field(default=None)
-    owner_id: Optional[int] = Field(default=None)
+    
+    # Владелец (ссылка на dictionary.counterparties)
+    owner_id: Optional[int] = Field(default=None, foreign_key="dictionary.counterparties.id")
     
     # Статус
     status_id: int = Field(nullable=False)
@@ -36,6 +45,7 @@ class Complex(SQLModel, table=True):
     
     # Relationships
     buildings: List["Building"] = Relationship(back_populates="complex")
+    owner: Optional["Counterparty"] = Relationship(back_populates="complexes")
     
     class Config:
         from_attributes = True

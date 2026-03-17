@@ -3,9 +3,16 @@
 Модель Building для таблицы physical.buildings
 Представляет корпус в составе комплекса
 """
+from __future__ import annotations  # <-- ДОБАВЛЕНО
+
 from sqlmodel import SQLModel, Field, Relationship
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from .complex import Complex
+    from .floor import Floor
+    from ..dictionary.counterparty import Counterparty
 
 class Building(SQLModel, table=True):
     """
@@ -13,10 +20,11 @@ class Building(SQLModel, table=True):
     
     Связи:
     - belongs_to: Complex (многие к одному)
+    - belongs_to: Counterparty (как владелец)
     - has_many: Floor (один ко многим)
     """
     
-    __tablename__ = "buildings"
+    __tablename__ = "buildings"  # type: ignore
     __table_args__ = {"schema": "physical"}
     
     # Первичный ключ
@@ -31,6 +39,9 @@ class Building(SQLModel, table=True):
     address: Optional[str] = Field(default=None)
     floors_count: int = Field(nullable=False)
     
+    # Владелец (ссылка на dictionary.counterparties)
+    owner_id: Optional[int] = Field(default=None, foreign_key="dictionary.counterparties.id")
+    
     # Статус
     status_id: int = Field(nullable=False)
     
@@ -40,6 +51,7 @@ class Building(SQLModel, table=True):
     
     # Relationships
     complex: Optional["Complex"] = Relationship(back_populates="buildings")
+    owner: Optional["Counterparty"] = Relationship(back_populates="buildings")
     floors: List["Floor"] = Relationship(back_populates="building")
     
     class Config:

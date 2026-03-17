@@ -3,9 +3,15 @@
 Модель Room для таблицы physical.rooms
 Представляет помещение на этаже
 """
+from __future__ import annotations  # <-- ДОБАВЛЕНО
+
 from sqlmodel import SQLModel, Field, Relationship
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from .floor import Floor
+    from .zone import Zone
 
 class Room(SQLModel, table=True):
     """
@@ -16,7 +22,7 @@ class Room(SQLModel, table=True):
     - has_many: Zone (один ко многим)
     """
     
-    __tablename__ = "rooms"
+    __tablename__ = "rooms"  # type: ignore
     __table_args__ = {"schema": "physical"}
     
     # Первичный ключ

@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .core.config import settings
-from .routers import physical_router
+from .routers import physical_router, dictionary_router
 
 # Создаем экземпляр FastAPI приложения
 app = FastAPI(

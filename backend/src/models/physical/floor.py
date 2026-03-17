@@ -3,9 +3,15 @@
 Модель Floor для таблицы physical.floors
 Представляет этаж в корпусе
 """
+from __future__ import annotations  # <-- ДОБАВЛЕНО
+
 from sqlmodel import SQLModel, Field, Relationship
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from .building import Building
+    from .room import Room
 
 class Floor(SQLModel, table=True):
     """
@@ -16,7 +22,7 @@ class Floor(SQLModel, table=True):
     - has_many: Room (один ко многим)
     """
     
-    __tablename__ = "floors"
+    __tablename__ = "floors"  # type: ignore
     __table_args__ = {"schema": "physical"}
     
     # Первичный ключ

@@ -3,9 +3,10 @@
 Pydantic схемы для ответов API
 Содержат как минимальные поля для дерева, так и детальные для просмотра
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional, List
+
 
 # ===== Базовые схемы (для дерева) =====
 
@@ -15,8 +16,7 @@ class ComplexTreeResponse(BaseModel):
     name: str
     buildings_count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BuildingTreeResponse(BaseModel):
@@ -25,9 +25,10 @@ class BuildingTreeResponse(BaseModel):
     name: str
     complex_id: int
     floors_count: int
+    owner_id: Optional[int] = None
+    owner: Optional[dict] = None  # для include_owner
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FloorTreeResponse(BaseModel):
@@ -37,8 +38,7 @@ class FloorTreeResponse(BaseModel):
     building_id: int
     rooms_count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RoomTreeResponse(BaseModel):
@@ -49,8 +49,7 @@ class RoomTreeResponse(BaseModel):
     area: Optional[float] = None
     status_code: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ===== Детальные схемы (для правой панели) =====
@@ -62,9 +61,9 @@ class ComplexDetailResponse(ComplexTreeResponse):
     owner_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
+    owner: Optional[dict] = None  # для include_owner
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BuildingDetailResponse(BuildingTreeResponse):
@@ -74,9 +73,9 @@ class BuildingDetailResponse(BuildingTreeResponse):
     status_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
+    owner: Optional[dict] = None  # для include_owner
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FloorDetailResponse(FloorTreeResponse):
@@ -88,8 +87,7 @@ class FloorDetailResponse(FloorTreeResponse):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RoomDetailResponse(RoomTreeResponse):
@@ -97,9 +95,7 @@ class RoomDetailResponse(RoomTreeResponse):
     description: Optional[str] = None
     physical_type_id: Optional[int] = None
     max_tenants: Optional[int] = None
-    status_code: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

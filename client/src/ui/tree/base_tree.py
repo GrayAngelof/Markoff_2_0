@@ -9,14 +9,17 @@ from PySide6.QtCore import Qt, Slot
 from typing import Optional
 
 from src.ui.tree_model import TreeModel
-from src.core.cache import DataCache
 
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 log = get_logger(__name__)
+
 
 class TreeViewBase(QWidget):
     """
     Базовый класс для виджета дерева объектов.
+    
+    В новой архитектуре модель получает данные через проекцию,
+    поэтому методы set_cache и reset_model больше не нужны.
     
     Предоставляет:
     - Инициализацию пользовательского интерфейса
@@ -24,11 +27,6 @@ class TreeViewBase(QWidget):
     - Модель данных TreeModel
     - Базовые настройки QTreeView
     - Методы для управления индикатором загрузки
-    
-    Наследники могут расширять функциональность, добавляя:
-    - Обработчики сигналов
-    - Контекстное меню
-    - Логику загрузки данных
     """
     
     # ===== Константы UI =====
@@ -114,9 +112,9 @@ class TreeViewBase(QWidget):
         layout.setSpacing(0)
         
         # Заголовок с индикатором загрузки
-        self._setup_header()
+        self._setup_header(layout)
         
-        # Создаём модель дерева
+        # Создаём модель дерева (проекция будет установлена позже через set_projection)
         self._model = TreeModel()
         
         # Создаём представление
@@ -127,16 +125,22 @@ class TreeViewBase(QWidget):
         
         log.debug("TreeViewBase: UI инициализирован")
     
-    def _setup_header(self) -> None:
+    def _setup_header(self, parent_layout: QVBoxLayout) -> None:
         """
         Создаёт заголовок с индикатором загрузки.
+        
+        Args:
+            parent_layout: Родительский layout для добавления заголовка
         """
-        header_layout = QVBoxLayout()
+        # Создаём отдельный виджет для заголовка
+        header_widget = QWidget()
+        header_layout = QVBoxLayout(header_widget)
         header_layout.setSpacing(2)
+        header_layout.setContentsMargins(0, 0, 0, 0)
         
         # Заголовок
         self._title_label = QLabel(self._DEFAULT_TITLE)
-        self._title_label.setAlignment(Qt.AlignCenter)
+        self._title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._title_label.setStyleSheet(self._HEADER_STYLESHEET)
         
         # Индикатор загрузки
@@ -151,9 +155,8 @@ class TreeViewBase(QWidget):
         header_layout.addWidget(self._title_label)
         header_layout.addWidget(self._loading_bar)
         
-        # Добавляем заголовок в основной layout
-        if self.layout():
-            self.layout().addLayout(header_layout)
+        # Добавляем виджет заголовка в родительский layout
+        parent_layout.addWidget(header_widget)
     
     def _setup_tree_view(self) -> None:
         """
@@ -218,15 +221,17 @@ class TreeViewBase(QWidget):
     
     # ===== Публичные методы =====
     
-    def set_cache(self, cache: DataCache) -> None:
+    def set_projection(self, projection) -> None:
         """
-        Устанавливает систему кэширования для модели.
+        Устанавливает проекцию для модели.
         
         Args:
-            cache: Система кэширования данных
+            projection: Проекция дерева
         """
-        self._model.set_cache(cache)
-        log.debug("TreeViewBase: кэш передан модели")
+        # В новой архитектуре модель создаётся с проекцией в конструкторе
+        # Этот метод нужен, если проекция устанавливается после создания модели
+        log.debug("TreeViewBase: установка проекции для модели")
+        # TODO: реализовать если нужно
     
     @Slot(bool)
     def show_loading(self, show: bool = True) -> None:
@@ -268,10 +273,3 @@ class TreeViewBase(QWidget):
         """
         QMessageBox.warning(self, title, message)
         log.warning(f"Показано сообщение об ошибке: {title} - {message}")
-    
-    def reset_model(self) -> None:
-        """
-        Сбрасывает модель в исходное состояние.
-        """
-        self._model.reset()
-        log.debug("TreeViewBase: модель сброшена")

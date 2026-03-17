@@ -1,125 +1,71 @@
 # client/src/ui/tree/tree_selection.py
 """
 Модуль для работы с выделением узлов и контекстом иерархии.
-Предоставляет методы для получения информации о выбранных узлах,
-восстановления выделения и сбора контекста из родительских элементов.
+В новой архитектуре предоставляет только утилитные функции.
 """
-from PySide6.QtCore import QModelIndex, Slot
-from typing import Optional, Dict, Any, Tuple, Union
+from typing import Optional, Dict, Any, Tuple
+from PySide6.QtCore import QModelIndex
 
-from src.ui.tree_model import NodeType, TreeNode
+from src.ui.tree_model.tree_node import TreeNode
+from src.ui.tree_model import NodeType
 
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 log = get_logger(__name__)
 
-class TreeSelectionMixin:
+
+class TreeSelectionUtils:
     """
-    Миксин для работы с выделением узлов и контекстом иерархии.
+    Утилиты для работы с выделением узлов дерева.
     
-    Предоставляет функциональность:
-    - Сбор контекста из родительских узлов
-    - Получение информации о выбранном узле
-    - Выбор узла по типу и идентификатору
-    - Безопасное восстановление выделения
-    - Восстановление родительского узла как запасной вариант
-    
-    Требует наличия в родительском классе:
-    - model: TreeModel - модель данных
-    - tree_view: QTreeView - виджет дерева
-    - item_selected: Signal - сигнал выбора элемента (опционально)
+    Предоставляет статические методы для:
+    - Получения информации о выделенном узле
+    - Сбора контекста из родительских узлов
     """
     
-    # ===== Публичные методы =====
-    
-    def get_selected_node_info(self) -> Optional[Tuple[str, int, Any]]:
+    @staticmethod
+    def get_selected_node_info(index: QModelIndex) -> Optional[Tuple[str, int, Any]]:
         """
-        Получает информацию о текущем выбранном узле.
+        Получает информацию о выбранном узле по индексу.
         
+        Args:
+            index: Индекс выбранного узла
+            
         Returns:
-            Кортеж (тип_узла, идентификатор, данные) или None, если ничего не выбрано
+            Кортеж (тип_узла, идентификатор, данные) или None
         """
-        # Проверяем наличие необходимых компонентов
-        if not hasattr(self, 'tree_view') or not hasattr(self, 'model'):
-            log.error("TreeSelection: отсутствуют tree_view или model")
+        if not index.isValid():
             return None
         
-        # Получаем индексы выбранных элементов
-        selected_indexes = self.tree_view.selectedIndexes()
-        if not selected_indexes:
-            return None
-        
-        # Берём первый выбранный индекс
-        index = selected_indexes[0]
-        node = self.model._get_node(index)
-        
-        if node is None:
+        node = index.internalPointer()
+        if not node or not isinstance(node, TreeNode):
             return None
         
         return (node.node_type.value, node.get_id(), node.data)
     
-    def select_node(self, node_type: Union[str, NodeType], node_id: int) -> bool:
-        """
-        Выбирает узел по типу и идентификатору.
-        
-        Args:
-            node_type: Тип узла (строка или NodeType)
-            node_id: Идентификатор узла
-            
-        Returns:
-            True, если узел найден и выбран, иначе False
-        """
-        # Проверяем наличие необходимых компонентов
-        if not hasattr(self, 'model') or not hasattr(self, 'tree_view'):
-            log.error("TreeSelection: отсутствуют model или tree_view")
-            return False
-        
-        # Преобразуем тип в NodeType при необходимости
-        if isinstance(node_type, str):
-            try:
-                node_type_enum = NodeType(node_type)
-            except ValueError:
-                log.error(f"TreeSelection: неверный тип узла '{node_type}'")
-                return False
-        else:
-            node_type_enum = node_type
-        
-        # Получаем индекс узла
-        index = self.model.get_index_by_id(node_type_enum, node_id)
-        
-        if index.isValid():
-            self.tree_view.setCurrentIndex(index)
-            log.debug(f"Узел {node_type} #{node_id} выбран")
-            return True
-        
-        log.warning(f"Узел {node_type} #{node_id} не найден")
-        return False
-    
-    # ===== Защищённые методы для работы с контекстом =====
-    
-    def _get_context_for_node(self, node: TreeNode) -> Dict[str, Any]:
+    @staticmethod
+    def get_context_for_node(node: TreeNode, graph=None, loader=None) -> Dict[str, Any]:
         """
         Собирает контекст из родительских узлов.
         
-        Проходит по цепочке родителей и собирает информацию:
-        - Имя комплекса
-        - Имя корпуса
-        - Номер этажа
-        
         Args:
             node: Узел, для которого собирается контекст
+            graph: Граф сущностей (опционально, для загрузки владельцев)
+            loader: Загрузчик данных (опционально, для загрузки владельцев)
             
         Returns:
             Словарь с контекстом:
             {
                 'complex_name': str или None,
                 'building_name': str или None,
-                'floor_num': int или None
+                'floor_num': int или None,
+                'owner_name': str или None
             }
         """
-        context = {
+        context: Dict[str, Any] = {
             'complex_name': None,
             'building_name': None,
-            'floor_num': None
+            'floor_num': None,
+            'owner_name': None
         }
         
         current_node = node
@@ -127,131 +73,69 @@ class TreeSelectionMixin:
             # Проверяем тип текущего узла и извлекаем соответствующую информацию
             if current_node.node_type == NodeType.COMPLEX and current_node.data:
                 context['complex_name'] = current_node.data.name
-                log.debug(f"Найден комплекс: {current_node.data.name}")
                 
             elif current_node.node_type == NodeType.BUILDING and current_node.data:
                 context['building_name'] = current_node.data.name
-                log.debug(f"Найден корпус: {current_node.data.name}")
                 
+                # Если есть graph и loader, можно загрузить владельца
+                if graph and loader and hasattr(current_node.data, 'owner_id'):
+                    owner_id = current_node.data.owner_id
+                    if owner_id:
+                        owner = loader.load_counterparty(owner_id)
+                        if owner:
+                            context['owner_name'] = owner.short_name
+                            
             elif current_node.node_type == NodeType.FLOOR and current_node.data:
                 context['floor_num'] = current_node.data.number
-                log.debug(f"Найден этаж: {current_node.data.number}")
             
             # Переходим к родителю
             current_node = current_node.parent
         
         return context
     
-    # ===== Приватные методы восстановления выделения =====
-    
-    @Slot(str, int, dict)
-    def _restore_selection_safe(self, node_type: str, node_id: int, 
-                                context: Optional[Dict] = None) -> None:
+    @staticmethod
+    def find_node_by_id(model, node_type: NodeType, node_id: int) -> Optional[QModelIndex]:
         """
-        Безопасно восстанавливает выделение узла по его идентификатору.
-        
-        Пытается найти узел по типу и ID. Если узел найден:
-        1. Устанавливает его как текущий
-        2. Испускает сигнал item_selected с правильным контекстом
-        
-        Если узел не найден, пробует восстановить родительский узел.
+        Находит индекс узла по типу и идентификатору.
         
         Args:
-            node_type: Тип искомого узла
-            node_id: Идентификатор искомого узла
-            context: Контекст для восстановления (если None, будет собран заново)
+            model: Модель дерева
+            node_type: Тип узла
+            node_id: Идентификатор узла
+            
+        Returns:
+            QModelIndex или None, если узел не найден
         """
-        try:
-            # Преобразуем тип в NodeType
-            try:
-                node_type_enum = NodeType(node_type)
-            except ValueError:
-                log.error(f"Неверный тип узла при восстановлении: '{node_type}'")
-                return
-            
-            # Получаем индекс узла
-            index = self.model.get_index_by_id(node_type_enum, node_id)
-            
-            if index.isValid():
-                node = self.model._get_node(index)
-                if node and node.get_id() == node_id:
-                    # Устанавливаем выделение
-                    self.tree_view.setCurrentIndex(index)
-                    
-                    # Подготавливаем контекст
-                    if context is None:
-                        context = self._get_context_for_node(node)
-                    
-                    # Испускаем сигнал, если он доступен
-                    if hasattr(self, 'item_selected'):
-                        self.item_selected.emit(node_type, node_id, node.data, context)
-                        log.info(f"Восстановлено выделение {node_type} #{node_id}")
-                    else:
-                        log.debug(f"Узел {node_type} #{node_id} найден, сигнал отсутствует")
-                    
-                    return
-            
-            # Узел не найден - пробуем восстановить родителя
-            log.warning(f"Узел {node_type} #{node_id} не найден, ищем родителя")
-            self._restore_parent_selection(node_type, node_id)
-            
-        except Exception as error:
-            log.error(f"Ошибка при восстановлении выделения: {error}")
-            import traceback
-            traceback.print_exc()
-    
-    @Slot(str, int)
-    def _restore_parent_selection(self, node_type: str, node_id: int) -> None:
-        """
-        Восстанавливает родительский узел, если целевой узел не найден.
+        if hasattr(model, 'get_index_by_id'):
+            return model.get_index_by_id(node_type, node_id)
         
-        Используется как запасной вариант при восстановлении выделения.
-        Определяет тип родителя и пытается выбрать первый доступный узел этого типа.
+        log.warning("Модель не поддерживает get_index_by_id")
+        return QModelIndex()
+    
+    @staticmethod
+    def collect_ancestors_info(node: TreeNode) -> Dict[str, Any]:
+        """
+        Собирает информацию о всех предках узла.
         
         Args:
-            node_type: Тип искомого узла (для определения родителя)
-            node_id: Идентификатор искомого узла (не используется, для совместимости)
+            node: Узел дерева
+            
+        Returns:
+            Словарь с информацией о предках
         """
-        try:
-            # Определяем тип родителя на основе типа искомого узла
-            parent_type_enum = None
-            
-            if node_type == NodeType.ROOM.value:
-                parent_type_enum = NodeType.FLOOR
-                log.debug("Ищем родительский этаж для комнаты")
-                
-            elif node_type == NodeType.FLOOR.value:
-                parent_type_enum = NodeType.BUILDING
-                log.debug("Ищем родительский корпус для этажа")
-                
-            elif node_type == NodeType.BUILDING.value:
-                parent_type_enum = NodeType.COMPLEX
-                log.debug("Ищем родительский комплекс для корпуса")
-                
-            else:
-                log.warning(f"Для типа {node_type} нет родительского типа")
-                return
-            
-            # Для комплекса выбираем первый в списке
-            if parent_type_enum == NodeType.COMPLEX:
-                index = self.model.index(0, 0)
-                if index.isValid():
-                    node = self.model._get_node(index)
-                    if node:
-                        self.tree_view.setCurrentIndex(index)
-                        
-                        # Собираем контекст
-                        context = self._get_context_for_node(node)
-                        
-                        # Испускаем сигнал
-                        if hasattr(self, 'item_selected'):
-                            self.item_selected.emit(
-                                NodeType.COMPLEX.value,
-                                node.get_id(),
-                                node.data,
-                                context
-                            )
-                            log.info(f"Выбран комплекс #{node.get_id()} как запасной вариант")
-                        
-        except Exception as error:
-            log.error(f"Ошибка при восстановлении родителя: {error}")
+        ancestors = []
+        current = node.parent
+        
+        while current:
+            ancestors.append({
+                'type': current.node_type.value,
+                'id': current.get_id(),
+                'name': str(current.data) if current.data else None
+            })
+            current = current.parent
+        
+        return {
+            'node_type': node.node_type.value,
+            'node_id': node.get_id(),
+            'ancestors': ancestors
+        }

@@ -6,7 +6,7 @@
 from PySide6.QtCore import QObject, Slot
 from PySide6.QtWidgets import QMessageBox
 
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 
 # Создаём логгер для этого модуля

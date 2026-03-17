@@ -10,7 +10,7 @@ from src.models.building import Building
 from src.models.floor import Floor
 from src.models.room import Room
 from src.ui.tree_model.node_types import NodeType
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 
 # Создаём логгер для этого модуля

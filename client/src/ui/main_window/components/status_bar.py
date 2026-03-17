@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QStatusBar, QLabel
 from PySide6.QtCore import QTimer
 from typing import Optional
 
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 
 # Создаём логгер для этого модуля
@@ -78,7 +78,8 @@ class StatusBar:
     def _create_connection_indicator(self) -> None:
         """Создаёт постоянный индикатор соединения."""
         self._connection_label = QLabel(self._CONNECTION_CHECKING)
-        self._status_bar.addPermanentWidget(self._connection_label)
+        if self._status_bar:
+            self._status_bar.addPermanentWidget(self._connection_label)
         
         log.debug("StatusBar: индикатор соединения создан")
     
@@ -92,7 +93,8 @@ class StatusBar:
     
     def _clear_temporary_message(self) -> None:
         """Очищает временное сообщение и возвращает стандартное."""
-        self._status_bar.showMessage(self._DEFAULT_MESSAGE)
+        if self._status_bar:
+            self._status_bar.showMessage(self._DEFAULT_MESSAGE)
         log.debug("StatusBar: временное сообщение очищено")
     
     # ===== Геттеры =====
@@ -100,11 +102,15 @@ class StatusBar:
     @property
     def status_bar(self) -> QStatusBar:
         """Возвращает виджет строки статуса."""
+        if self._status_bar is None:
+            raise ValueError("Status bar не инициализирован")
         return self._status_bar
     
     @property
     def connection_label(self) -> QLabel:
         """Возвращает метку индикатора соединения."""
+        if self._connection_label is None:
+            raise ValueError("Connection label не инициализирован")
         return self._connection_label
     
     # ===== Публичные методы =====
@@ -117,7 +123,8 @@ class StatusBar:
             message: Текст сообщения
             timeout: Время отображения в мс (0 - постоянно)
         """
-        self._status_bar.showMessage(message, timeout)
+        if self._status_bar:
+            self._status_bar.showMessage(message, timeout)
         log.debug(f"StatusBar: показано сообщение '{message}'")
     
     def show_temporary_message(self, message: str) -> None:
@@ -127,29 +134,34 @@ class StatusBar:
         Args:
             message: Текст сообщения
         """
-        self._status_bar.showMessage(message, self._MESSAGE_TIMEOUT_MS)
+        if self._status_bar:
+            self._status_bar.showMessage(message, self._MESSAGE_TIMEOUT_MS)
         log.debug(f"StatusBar: показано временное сообщение '{message}'")
     
     def set_connection_online(self) -> None:
         """Устанавливает индикатор соединения в состояние 'онлайн'."""
-        self._connection_label.setText(self._CONNECTION_ONLINE)
-        self._connection_label.setStyleSheet(self._ONLINE_STYLE)
+        if self._connection_label:
+            self._connection_label.setText(self._CONNECTION_ONLINE)
+            self._connection_label.setStyleSheet(self._ONLINE_STYLE)
         log.debug("StatusBar: соединение ONLINE")
     
     def set_connection_offline(self) -> None:
         """Устанавливает индикатор соединения в состояние 'офлайн'."""
-        self._connection_label.setText(self._CONNECTION_OFFLINE)
-        self._connection_label.setStyleSheet(self._OFFLINE_STYLE)
+        if self._connection_label:
+            self._connection_label.setText(self._CONNECTION_OFFLINE)
+            self._connection_label.setStyleSheet(self._OFFLINE_STYLE)
         log.debug("StatusBar: соединение OFFLINE")
     
     def set_connection_checking(self) -> None:
         """Устанавливает индикатор соединения в состояние 'проверка'."""
-        self._connection_label.setText(self._CONNECTION_CHECKING)
-        self._connection_label.setStyleSheet("")
+        if self._connection_label:
+            self._connection_label.setText(self._CONNECTION_CHECKING)
+            self._connection_label.setStyleSheet("")
         log.debug("StatusBar: проверка соединения")
     
     def clear(self) -> None:
         """Очищает строку статуса до состояния по умолчанию."""
-        self._status_bar.showMessage(self._DEFAULT_MESSAGE)
+        if self._status_bar:
+            self._status_bar.showMessage(self._DEFAULT_MESSAGE)
         self.set_connection_checking()
         log.debug("StatusBar: очищена")

@@ -12,7 +12,7 @@ from src.ui.details.header_widget import HeaderWidget
 from src.ui.details.placeholder import PlaceholderWidget
 from src.ui.details.info_grid import InfoGrid
 from src.ui.details.tabs import DetailsTabs
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 
 # Создаём логгер для этого модуля

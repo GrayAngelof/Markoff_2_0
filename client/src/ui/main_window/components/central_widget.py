@@ -3,11 +3,11 @@
 Модуль центрального виджета с разделителем.
 Создаёт область для размещения дерева и панели деталей.
 """
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QSplitter
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QSplitter, QMainWindow
 from PySide6.QtCore import Qt
 from typing import Optional
 
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 
 # Создаём логгер для этого модуля
@@ -41,12 +41,12 @@ class CentralWidget:
     _DEFAULT_SIZES = [300, 700]
     """Начальные размеры частей разделителя [левая, правая]"""
     
-    def __init__(self, parent: QWidget) -> None:
+    def __init__(self, parent: QMainWindow) -> None:
         """
         Инициализирует центральный виджет.
         
         Args:
-            parent: Родительский виджет (MainWindow)
+            parent: Родительское окно (MainWindow)
         """
         self._parent = parent
         self._central_widget: Optional[QWidget] = None
@@ -63,6 +63,7 @@ class CentralWidget:
         # Создаём центральный виджет
         self._central_widget = QWidget(self._parent)
         self._central_widget.setVisible(True)
+        # ИСПРАВЛЕНО: setCentralWidget вызывается у QMainWindow, а не у QWidget
         self._parent.setCentralWidget(self._central_widget)
         
         # Создаём layout
@@ -72,13 +73,15 @@ class CentralWidget:
         
         # Создаём разделитель
         self._create_splitter()
-        layout.addWidget(self._splitter)
+        if self._splitter:
+            layout.addWidget(self._splitter)
         
         log.debug("CentralWidget: центральный виджет создан")
     
     def _create_splitter(self) -> None:
         """Создаёт и настраивает разделитель."""
-        self._splitter = QSplitter(Qt.Horizontal)
+        # ИСПРАВЛЕНО: используем правильную константу Qt
+        self._splitter = QSplitter(Qt.Orientation.Horizontal)
         self._splitter.setHandleWidth(self._SPLITTER_HANDLE_WIDTH)
         self._splitter.setVisible(True)
         self._splitter.setStyleSheet(self._SPLITTER_STYLE)
@@ -94,7 +97,12 @@ class CentralWidget:
         
         Returns:
             QWidget: Центральный виджет
+        
+        Raises:
+            ValueError: Если центральный виджет не инициализирован
         """
+        if self._central_widget is None:
+            raise ValueError("Central widget не инициализирован")
         return self._central_widget
     
     @property
@@ -104,7 +112,12 @@ class CentralWidget:
         
         Returns:
             QSplitter: Разделитель
+        
+        Raises:
+            ValueError: Если разделитель не инициализирован
         """
+        if self._splitter is None:
+            raise ValueError("Splitter не инициализирован")
         return self._splitter
     
     # ===== Публичные методы =====
@@ -116,7 +129,13 @@ class CentralWidget:
         Args:
             left_widget: Левый виджет (дерево)
             right_widget: Правый виджет (панель деталей)
+        
+        Raises:
+            ValueError: Если разделитель не инициализирован
         """
+        if self._splitter is None:
+            raise ValueError("Невозможно добавить виджеты: разделитель не инициализирован")
+        
         self._splitter.addWidget(left_widget)
         self._splitter.addWidget(right_widget)
         self._splitter.setSizes(self._DEFAULT_SIZES)
@@ -131,5 +150,9 @@ class CentralWidget:
         Returns:
             bool: True если все компоненты видимы
         """
-        return (self._central_widget.isVisible() and 
-                self._splitter.isVisible())
+        return (
+            self._central_widget is not None and
+            self._splitter is not None and
+            self._central_widget.isVisible() and
+            self._splitter.isVisible()
+        )

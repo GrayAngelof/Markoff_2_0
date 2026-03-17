@@ -7,7 +7,7 @@ from PySide6.QtCore import QObject, Signal, Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMainWindow
 
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 
 # Создаём логгер для этого модуля
@@ -38,12 +38,13 @@ class ShortcutManager:
     """
     
     # ===== Константы =====
+    # ИСПРАВЛЕНО: создаём комбинации клавиш как строки
     _SHORTCUTS = {
-        'refresh_current': QKeySequence.Refresh,  # F5
-        'refresh_visible': QKeySequence(Qt.CTRL | Qt.Key_F5),
-        'full_reset': QKeySequence(Qt.CTRL | Qt.SHIFT | Qt.Key_F5),
+        'refresh_current': "F5",  # Простая строка
+        'refresh_visible': "Ctrl+F5",  # Строка с модификатором
+        'full_reset': "Ctrl+Shift+F5",  # Строка с двумя модификаторами
     }
-    """Словарь сочетаний клавиш"""
+    """Словарь сочетаний клавиш (в виде строк)"""
     
     def __init__(self, parent: QMainWindow) -> None:
         """
@@ -73,7 +74,7 @@ class ShortcutManager:
     def _create_refresh_current(self) -> None:
         """Создаёт горячую клавишу F5 (обновить текущий узел)."""
         action = QAction(self._parent)
-        action.setShortcut(self._SHORTCUTS['refresh_current'])
+        action.setShortcut(QKeySequence(self._SHORTCUTS['refresh_current']))
         action.triggered.connect(self.signals.refresh_current)
         self._parent.addAction(action)
         self._actions['refresh_current'] = action
@@ -83,7 +84,7 @@ class ShortcutManager:
     def _create_refresh_visible(self) -> None:
         """Создаёт горячую клавишу Ctrl+F5 (обновить все раскрытые)."""
         action = QAction(self._parent)
-        action.setShortcut(self._SHORTCUTS['refresh_visible'])
+        action.setShortcut(QKeySequence(self._SHORTCUTS['refresh_visible']))
         action.triggered.connect(self.signals.refresh_visible)
         self._parent.addAction(action)
         self._actions['refresh_visible'] = action
@@ -93,7 +94,7 @@ class ShortcutManager:
     def _create_full_reset(self) -> None:
         """Создаёт горячую клавишу Ctrl+Shift+F5 (полная перезагрузка)."""
         action = QAction(self._parent)
-        action.setShortcut(self._SHORTCUTS['full_reset'])
+        action.setShortcut(QKeySequence(self._SHORTCUTS['full_reset']))
         action.triggered.connect(self.signals.full_reset)
         self._parent.addAction(action)
         self._actions['full_reset'] = action

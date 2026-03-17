@@ -8,8 +8,8 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from src.ui.main_window import MainWindow
-from src.utils.logger import get_logger, Logger
+from src.ui.main_window.main_window import MainWindow
+from utils.logger import get_logger, Logger
 
 
 # Создаём логгер для этого модуля

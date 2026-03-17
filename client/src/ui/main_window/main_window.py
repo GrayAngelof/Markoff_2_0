@@ -1,203 +1,248 @@
 # client/src/ui/main_window/main_window.py
 """
-Главное окно приложения Markoff.
-Объединяет все компоненты и контроллеры для создания полноценного интерфейса
-с деревом объектов и панелью детальной информации.
+Главное окно приложения - композиционный корень.
 """
-from PySide6.QtWidgets import QMainWindow
-from PySide6.QtCore import Slot, QTimer
+from PySide6.QtWidgets import QMainWindow, QMessageBox
+from PySide6.QtCore import Slot
 
-from src.ui.tree import TreeView
-from src.ui.details import DetailsPanel
-from src.ui.main_window.components.central_widget import CentralWidget
-from src.ui.main_window.components.toolbar import Toolbar
-from src.ui.main_window.components.status_bar import StatusBar
+from src.core.event_bus import EventBus
+from src.core.events import UIEvents, SystemEvents, HotkeyEvents
+from src.data.entity_graph import EntityGraph
+from src.services.api_client import ApiClient
+from src.services.data_load import DataLoader
+from src.services.connection_service import ConnectionService
+from src.controllers.tree_controller import TreeController
+from src.controllers.details_controller import DetailsController
+from src.controllers.refresh_controller import RefreshController
+from src.controllers.connection_controller import ConnectionController
+from src.projections.tree_projection import TreeProjection
+
+# ИСПРАВЛЕНО: импортируем из правильного пакета
+from src.ui.tree_model.tree_model import TreeModel  # из tree_model, а не из tree
+from src.ui.tree.tree_view import TreeView
+from src.ui.details.details_panel import DetailsPanel
+from src.ui.main_window.components import CentralWidget, Toolbar, StatusBar
 from src.ui.main_window.shortcuts import ShortcutManager
-from src.ui.main_window.controllers.refresh_controller import RefreshController
-from src.ui.main_window.controllers.data_controller import DataController
-from src.ui.main_window.controllers.connection_controller import ConnectionController
-from src.utils.logger import get_logger
+
+from utils.logger import get_logger
 
 
-# Создаём логгер для этого модуля
 log = get_logger(__name__)
 
 
 class MainWindow(QMainWindow):
     """
     Главное окно приложения.
-    
-    Компоновка:
-    - Левая часть: дерево объектов (TreeView)
-    - Правая часть: информационная панель (DetailsPanel)
-    
-    Панель инструментов:
-    - Кнопка с меню для выбора типа обновления
-    - Индикатор статуса подключения
-    - Счётчик загруженных объектов
-    
-    Горячие клавиши:
-    - F5: обновить текущий узел
-    - Ctrl+F5: обновить все раскрытые узлы
-    - Ctrl+Shift+F5: полная перезагрузка
     """
-    
-    # ===== Константы =====
-    _WINDOW_TITLE = "Markoff - Управление помещениями"
-    """Заголовок окна"""
-    
-    _MINIMUM_WIDTH = 1000
-    """Минимальная ширина окна в пикселях"""
-    
-    _MINIMUM_HEIGHT = 700
-    """Минимальная высота окна в пикселях"""
     
     def __init__(self) -> None:
         """Инициализирует главное окно."""
         super().__init__()
         
-        # Настройка окна
-        self._setup_window()
+        self._init_architecture()
+        self._setup_ui()
+        self._connect_ui_signals()
+        self._setup_debug_subscriptions()
         
-        # Создание компонентов UI
-        self._create_components()
+        # Запускаем полную загрузку
+        self._bus.emit(UIEvents.REFRESH_REQUESTED, {'mode': 'full'})
         
-        # Создание контроллеров
-        self._create_controllers()
-        
-        # Подключение сигналов
-        self._connect_signals()
-        
-        log.success("MainWindow: создано")
+        log.success("MainWindow полностью инициализировано")
     
-    # ===== Приватные методы инициализации =====
+    def _init_architecture(self) -> None:
+        """Инициализирует архитектурные компоненты."""
+        log.info("Инициализация архитектурных компонентов...")
+        
+        # 1. Ядро
+        self._bus = EventBus()
+        self._bus.set_debug(True)  # <-- ТЕПЕРЬ РАБОТАЕТ
+        
+        # 2. Данные
+        self._graph = EntityGraph()
+        
+        # 3. Сервисы
+        self._api = ApiClient()
+        self._loader = DataLoader(self._bus, self._api, self._graph)
+        self._connection = ConnectionService(self._bus, self._api)
+        
+        # 4. Контроллеры
+        self._tree_controller = TreeController(self._bus, self._loader, self._graph)
+        self._details_controller = DetailsController(self._bus, self._loader)
+        self._refresh_controller = RefreshController(self._bus)
+        self._connection_controller = ConnectionController(self._bus)
+        
+        # 5. Проекции
+        self._tree_projection = TreeProjection(self._bus, self._graph)  # <-- ТЕПЕРЬ РАБОТАЕТ
+        
+        log.debug("Архитектурные компоненты инициализированы")
     
-    def _setup_window(self) -> None:
-        """Настраивает параметры главного окна."""
-        self.setWindowTitle(self._WINDOW_TITLE)
-        self.setMinimumSize(self._MINIMUM_WIDTH, self._MINIMUM_HEIGHT)
-        log.debug("MainWindow: параметры окна установлены")
-    
-    def _create_components(self) -> None:
-        """Создаёт все компоненты пользовательского интерфейса."""
-        # Создаём компоненты
+    def _setup_ui(self) -> None:
+        """Создаёт и настраивает UI компоненты."""
+        log.info("Инициализация UI компонентов...")
+        
+        # Модель и представление дерева
+        self._tree_model = TreeModel(self._tree_projection)  # передаём проекцию
         self._tree_view = TreeView(self)
+        self._tree_view.set_event_bus(self._bus)
+        self._tree_view.setModel(self._tree_model)  # используем стандартный setModel
+        
+        # Панель деталей
         self._details_panel = DetailsPanel(self)
         
-        # Создаём центральный виджет с разделителем
+        # Центральный виджет с разделителем
         self._central = CentralWidget(self)
         self._central.add_widgets(self._tree_view, self._details_panel)
         
-        # Создаём панель инструментов
+        # Панель инструментов
         self._toolbar = Toolbar(self)
+        self._setup_toolbar_connections()
         
-        # Создаём строку статуса
+        # Статус бар
         self._status_bar = StatusBar(self)
         
-        # Создаём менеджер горячих клавиш
+        # Горячие клавиши
         self._shortcuts = ShortcutManager(self)
+        self._setup_shortcut_connections()
         
-        log.debug("MainWindow: все компоненты созданы")
+        # Настройки окна
+        self.setWindowTitle("Markoff - Управление недвижимостью")
+        self.setMinimumSize(1200, 800)
+        
+        log.debug("UI компоненты созданы")
     
-    def _create_controllers(self) -> None:
-        """Создаёт все контроллеры для обработки логики."""
-        # Контроллер обновления
-        self._refresh_controller = RefreshController(
-            self._tree_view,
-            self._status_bar
-        )
-        
-        # Контроллер данных
-        self._data_controller = DataController(
-            self._tree_view,
-            self._status_bar,
-            self._toolbar.counter_action
-        )
-        
-        # Контроллер соединения
-        self._connection_controller = ConnectionController(
-            self._tree_view,
-            self._toolbar,
-            self._status_bar
-        )
-        
-        log.debug("MainWindow: все контроллеры созданы")
-    
-    def _connect_signals(self) -> None:
-        """Подключает все сигналы между компонентами."""
-        
-        # Сигнал выбора элемента в дереве -> панель деталей
-        self._tree_view.item_selected.connect(
-            self._details_panel.show_item_details
-        )
-        
-        # Сигналы загрузки данных -> контроллер данных
-        self._tree_view.data_loading.connect(
-            self._data_controller.on_data_loading
-        )
-        self._tree_view.data_loaded.connect(
-            self._data_controller.on_data_loaded
-        )
-        self._tree_view.data_error.connect(
-            self._data_controller.on_data_error
-        )
-        
-        # Сигналы от панели инструментов -> контроллер обновления
+    def _setup_toolbar_connections(self) -> None:
+        """Настраивает соединения панели инструментов."""
         self._toolbar.signals.refresh_current.connect(
-            self._refresh_controller.refresh_current
+            lambda: self._bus.emit(HotkeyEvents.REFRESH_CURRENT, {}, source='toolbar')
         )
         self._toolbar.signals.refresh_visible.connect(
-            self._refresh_controller.refresh_visible
+            lambda: self._bus.emit(HotkeyEvents.REFRESH_VISIBLE, {}, source='toolbar')
         )
         self._toolbar.signals.full_reset.connect(
-            self._refresh_controller.full_reset
+            lambda: self._bus.emit(HotkeyEvents.FULL_RESET, {}, source='toolbar')
         )
-        
-        # Сигналы от горячих клавиш -> контроллер обновления
+    
+    def _setup_shortcut_connections(self) -> None:
+        """Настраивает соединения горячих клавиш."""
         self._shortcuts.signals.refresh_current.connect(
-            self._refresh_controller.refresh_current
+            lambda: self._bus.emit(HotkeyEvents.REFRESH_CURRENT, {}, source='shortcut')
         )
         self._shortcuts.signals.refresh_visible.connect(
-            self._refresh_controller.refresh_visible
+            lambda: self._bus.emit(HotkeyEvents.REFRESH_VISIBLE, {}, source='shortcut')
         )
         self._shortcuts.signals.full_reset.connect(
-            self._refresh_controller.full_reset
+            lambda: self._bus.emit(HotkeyEvents.FULL_RESET, {}, source='shortcut')
+        )
+    
+    def _connect_ui_signals(self) -> None:
+        """Подключает сигналы между UI компонентами."""
+        # Выбор в дереве -> панель деталей
+        self._tree_view.item_selected.connect(self._details_panel.show_item_details)
+        
+        # Обновление владельца корпуса -> панель деталей
+        self._bus.subscribe('ui.building_owner_loaded', self._on_building_owner_loaded)
+        
+        # Статус соединения
+        self._bus.subscribe(SystemEvents.CONNECTION_CHANGED, self._on_connection_changed)
+        
+        # Ошибки
+        self._bus.subscribe('ui.show_error', self._on_show_error)
+        self._bus.subscribe('ui.show_confirmation', self._on_show_confirmation)
+        
+        log.debug("Сигналы UI подключены")
+    
+    def _setup_debug_subscriptions(self) -> None:
+        """Настраивает подписки для отладки."""
+        self._bus.subscribe(SystemEvents.DATA_LOADED, self._on_data_loaded)
+        self._bus.subscribe(SystemEvents.DATA_ERROR, self._on_data_error)
+    
+    # ===== Обработчики событий =====
+    
+    @Slot(dict)
+    def _on_building_owner_loaded(self, event: dict) -> None:
+        """Обрабатывает загрузку данных о владельце корпуса."""
+        data = event['data']
+        self._details_panel.update_owner_info(data)
+    
+    @Slot(dict)
+    def _on_connection_changed(self, event: dict) -> None:
+        """Обновляет индикаторы соединения в UI."""
+        is_online = event['data']['is_online']
+        
+        if is_online:
+            self._status_bar.set_connection_online()
+            self._toolbar.set_status_online()
+            self._status_bar.show_temporary_message("✅ Соединение с сервером восстановлено")
+        else:
+            self._status_bar.set_connection_offline()
+            self._toolbar.set_status_offline()
+            self._status_bar.show_temporary_message("❌ Сервер недоступен")
+    
+    @Slot(dict)
+    def _on_show_error(self, event: dict) -> None:
+        """Показывает диалог с ошибкой."""
+        data = event['data']
+        QMessageBox.warning(
+            self,
+            data.get('title', 'Ошибка'),
+            data.get('message', 'Произошла неизвестная ошибка')
+        )
+    
+    @Slot(dict)
+    def _on_show_confirmation(self, event: dict) -> None:
+        """Показывает диалог подтверждения."""
+        data = event['data']
+        reply = QMessageBox.question(
+            self,
+            data.get('title', 'Подтверждение'),
+            data.get('message', 'Вы уверены?'),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
         )
         
-        log.debug("MainWindow: все сигналы подключены")
+        if reply == QMessageBox.StandardButton.Yes and data.get('callback_event'):
+            self._bus.emit(
+                data['callback_event'],
+                data.get('callback_data', {}),
+                source='main_window'
+            )
     
-    # ===== Геттеры =====
+    @Slot(dict)
+    def _on_data_loaded(self, event: dict) -> None:
+        """Логирует загрузку данных."""
+        data = event['data']
+        node_type = data.get('node_type')
+        count = data.get('count', 1)
+        self._status_bar.show_temporary_message(f"✅ Загружено: {node_type} ({count})")
     
-    @property
-    def tree_view(self) -> TreeView:
-        """Возвращает виджет дерева."""
-        return self._tree_view
-    
-    @property
-    def details_panel(self) -> DetailsPanel:
-        """Возвращает панель деталей."""
-        return self._details_panel
-    
-    # ===== Обработчик закрытия =====
+    @Slot(dict)
+    def _on_data_error(self, event: dict) -> None:
+        """Логирует ошибки загрузки."""
+        data = event['data']
+        node_type = data.get('node_type')
+        error = data.get('error', 'Неизвестная ошибка')
+        log.error(f"Ошибка загрузки {node_type}: {error}")
+        self._status_bar.show_temporary_message(f"❌ Ошибка: {error[:50]}...")
     
     def closeEvent(self, event) -> None:
-        """
-        Обрабатывает закрытие окна.
-        Останавливает все контроллеры и очищает ресурсы.
+        """Обрабатывает закрытие окна."""
+        log.info("Завершение работы приложения...")
         
-        Args:
-            event: Событие закрытия
-        """
-        log.info("Завершение работы...")
+        # Останавливаем сервисы
+        self._connection.stop()
         
-        # Останавливаем проверку соединения
-        if hasattr(self, '_connection_controller'):
-            self._connection_controller.stop_checking()
+        # Очищаем контроллеры
+        self._tree_controller.cleanup()
+        self._details_controller.cleanup()
+        self._refresh_controller.cleanup()
+        self._connection_controller.cleanup()
         
-        # Очищаем кэш
-        if hasattr(self._tree_view, 'cache'):
-            self._tree_view.cache.clear()
-            log.debug("MainWindow: кэш очищен")
+        # Очищаем проекции
+        self._tree_projection.cleanup()
         
-        event.accept()
+        # Очищаем данные
+        self._loader.cleanup()
+        self._graph.clear()
+        
         log.success("Приложение завершено")
+        event.accept()

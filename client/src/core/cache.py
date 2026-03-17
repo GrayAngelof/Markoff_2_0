@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional, List, Set, Tuple
 from datetime import datetime
 import threading
 
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 
 # Создаём логгер для этого модуля

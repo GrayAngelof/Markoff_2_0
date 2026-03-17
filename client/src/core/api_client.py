@@ -22,7 +22,7 @@ from src.models.complex import Complex
 from src.models.building import Building
 from src.models.floor import Floor
 from src.models.room import Room
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 
 # Создаём логгер для этого модуля

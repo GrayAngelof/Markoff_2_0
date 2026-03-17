@@ -9,7 +9,7 @@
 from PySide6.QtWidgets import QMessageBox
 from PySide6.QtCore import QObject, Slot
 
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 
 # Создаём логгер для этого модуля
@@ -60,15 +60,16 @@ class RefreshController(QObject):
         Returns:
             bool: True если пользователь подтвердил
         """
+        # ИСПРАВЛЕНО: используем правильные константы QMessageBox
         reply = QMessageBox.question(
             self._tree_view,
             self._RESET_CONFIRMATION_TITLE,
             self._RESET_CONFIRMATION_TEXT,
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
         )
         
-        confirmed = reply == QMessageBox.Yes
+        confirmed = reply == QMessageBox.StandardButton.Yes
         log.debug(f"RefreshController: подтверждение перезагрузки: {confirmed}")
         
         return confirmed

@@ -3,17 +3,29 @@
 Миксин для работы с индексацией узлов дерева.
 Предоставляет быстрый доступ к узлам по их типу и идентификатору.
 """
-from typing import Optional, Dict
+from typing import Optional, Dict, Protocol, runtime_checkable, cast
 
 from PySide6.QtCore import QModelIndex
 
 from src.ui.tree_model.node_types import NodeType
 from src.ui.tree_model.tree_node import TreeNode
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 
 # Создаём логгер для этого модуля
 log = get_logger(__name__)
+
+
+@runtime_checkable
+class TreeModelIndexProtocol(Protocol):
+    """
+    Протокол, определяющий методы, которые должны быть в классе,
+    использующем TreeModelIndexMixin.
+    """
+    _root_node: TreeNode
+    _node_index: Dict[str, TreeNode]
+    
+    def _index_of_node(self, node: TreeNode) -> QModelIndex: ...
 
 
 class TreeModelIndexMixin:
@@ -31,6 +43,10 @@ class TreeModelIndexMixin:
     - _index_of_node: метод для получения индекса из узла
     """
     
+    # ===== Аннотации для атрибутов, которые будут в конечном классе =====
+    _root_node: TreeNode
+    _node_index: Dict[str, TreeNode]
+    
     def __init__(self, *args, **kwargs):
         """
         Инициализирует миксин индексации.
@@ -41,7 +57,21 @@ class TreeModelIndexMixin:
         # Словарь для быстрого доступа к узлам по ключу
         self._node_index: Dict[str, TreeNode] = {}
         
+        # Проверяем, что класс реализует необходимый протокол
+        if not isinstance(self, TreeModelIndexProtocol):
+            log.warning(f"{self.__class__.__name__} должен реализовывать TreeModelIndexProtocol")
+        
         log.debug("TreeModelIndexMixin: инициализирован")
+    
+    # ===== Вспомогательные методы для доступа к атрибутам =====
+    
+    def _get_root_node(self) -> TreeNode:
+        """Возвращает корневой узел."""
+        return cast(TreeNode, self._root_node)
+    
+    def _get_node_index(self) -> Dict[str, TreeNode]:
+        """Возвращает индекс узлов."""
+        return cast(Dict[str, TreeNode], self._node_index)
     
     # ===== Приватные методы =====
     
@@ -122,7 +152,11 @@ class TreeModelIndexMixin:
         """
         node = self.get_node_by_id(node_type, node_id)
         if node:
-            return self._index_of_node(node)
+            # Проверяем наличие метода _index_of_node
+            if hasattr(self, '_index_of_node'):
+                return self._index_of_node(node)  # type: ignore
+            else:
+                log.error("TreeModelIndexMixin: отсутствует метод _index_of_node")
         return QModelIndex()
     
     def has_node(self, node_type: NodeType, node_id: int) -> bool:

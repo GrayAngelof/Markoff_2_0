@@ -1,13 +1,15 @@
 # client/src/ui/details/field_manager.py
 """
 Менеджер для форматирования и обработки полей информации.
-Предоставляет статические методы для преобразования данных из БД
-в человекочитаемый формат для отображения в панели деталей.
+Все данные загружаются из БД, никаких заглушек.
 """
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, List
 from datetime import datetime
 
-from src.utils.logger import get_logger
+from src.models.counterparty import Counterparty
+from src.models.responsible_person import ResponsiblePerson
+
+from utils.logger import get_logger
 log = get_logger(__name__)
 
 
@@ -15,68 +17,41 @@ class FieldManager:
     """
     Управляет форматированием значений полей для отображения.
     
-    Содержит методы для форматирования:
-    - Статусов объектов
-    - Типов помещений
-    - Площади
-    - Информации о владельце
-    - Дат
-    
-    В будущем может быть расширен для получения данных из справочников БД.
+    Все справочники загружаются из БД через API.
     """
     
-    # ===== Константы =====
+    # ===== Константы для форматирования (не справочники!) =====
     
-    # Карта типов помещений (временная, потом будет из БД)
-    ROOM_TYPE_MAP: Dict[int, str] = {
-        1: "Офисное помещение",
-        2: "Архив",
-        3: "Склад",
-        4: "Техническое помещение",
-    }
-    """Словарь для преобразования ID типа помещения в текстовое описание"""
-    
-    # Карта статусов
+    # Карта статусов помещений (коды фиксированы в БД)
     STATUS_MAP: Dict[str, str] = {
         'free': 'СВОБОДНО',
         'occupied': 'ЗАНЯТО',
         'reserved': 'ЗАРЕЗЕРВИРОВАНО',
         'maintenance': 'РЕМОНТ'
     }
-    """Словарь для преобразования кода статуса в текстовое описание"""
     
-    # Значения по умолчанию
+    # Значения по умолчанию (только для случаев, когда данных нет)
     DEFAULT_UNKNOWN_STATUS = "НЕИЗВЕСТНО"
-    """Текст для неизвестного статуса"""
-    
     DEFAULT_UNKNOWN_TYPE = "Неизвестный тип"
-    """Текст для неизвестного типа помещения"""
-    
     DEFAULT_AREA_FORMAT = "Площадь: {area} м²"
-    """Шаблон для форматирования площади"""
-    
     DEFAULT_AREA_MISSING = "Площадь не указана"
-    """Текст при отсутствии информации о площади"""
-    
-    DEFAULT_OWNER_FORMAT = "ID владельца: {owner_id}"
-    """Шаблон для форматирования информации о владельце"""
-    
     DEFAULT_DATE_FORMAT = "%d.%m.%Y %H:%M"
-    """Формат для отображения дат"""
     
-    # ===== Публичные методы форматирования =====
+    # Категории контактов (фиксированные в БД)
+    CONTACT_CATEGORY_MAP: Dict[str, str] = {
+        'legal': 'Юридические вопросы',
+        'financial': 'Финансовые вопросы',
+        'technical': 'Технические вопросы',
+        'fire_safety': 'Пожарная безопасность',
+        'emergency': 'Аварийные ситуации',
+        'general': 'Общие вопросы',
+    }
+    
+    # ===== Методы форматирования =====
     
     @staticmethod
     def format_status(status_code: Optional[str]) -> str:
-        """
-        Форматирует код статуса в человекочитаемый текст.
-        
-        Args:
-            status_code: Код статуса ('free', 'occupied', и т.д.)
-            
-        Returns:
-            str: Текстовое представление статуса
-        """
+        """Форматирует код статуса в человекочитаемый текст."""
         if status_code is None:
             return FieldManager.DEFAULT_UNKNOWN_STATUS
         
@@ -89,38 +64,25 @@ class FieldManager:
         return formatted
     
     @staticmethod
-    def format_room_type(type_id: Optional[int]) -> str:
+    def format_room_type(type_id: Optional[int], type_name: Optional[str] = None) -> str:
         """
-        Форматирует ID типа помещения в текстовое описание.
+        Форматирует тип помещения.
         
         Args:
-            type_id: ID типа помещения из справочника
-            
-        Returns:
-            str: Название типа помещения
+            type_id: ID типа (для логирования)
+            type_name: Название типа из БД
         """
-        if type_id is None:
-            return FieldManager.DEFAULT_UNKNOWN_TYPE
+        if type_name:
+            return type_name
         
-        formatted = FieldManager.ROOM_TYPE_MAP.get(
-            type_id, 
-            f"{FieldManager.DEFAULT_UNKNOWN_TYPE} (ID: {type_id})"
-        )
+        if type_id:
+            return f"Тип #{type_id}"
         
-        log.debug(f"FieldManager: тип помещения {type_id} -> '{formatted}'")
-        return formatted
+        return FieldManager.DEFAULT_UNKNOWN_TYPE
     
     @staticmethod
     def format_area(area: Optional[float]) -> str:
-        """
-        Форматирует значение площади.
-        
-        Args:
-            area: Площадь в квадратных метрах
-            
-        Returns:
-            str: Отформатированная строка с площадью
-        """
+        """Форматирует значение площади."""
         if area is None:
             return FieldManager.DEFAULT_AREA_MISSING
         
@@ -129,174 +91,121 @@ class FieldManager:
         return formatted
     
     @staticmethod
-    def format_owner(owner_id: Optional[int]) -> Optional[str]:
+    def format_counterparty(counterparty: Optional[Counterparty]) -> str:
         """
-        Форматирует информацию о владельце.
+        Форматирует информацию о контрагенте.
         
         Args:
-            owner_id: ID владельца
-            
-        Returns:
-            Optional[str]: Строка с информацией о владельце или None
+            counterparty: Объект контрагента из БД
         """
-        if owner_id is None:
-            return None
+        if not counterparty:
+            return "Не указан"
         
-        formatted = FieldManager.DEFAULT_OWNER_FORMAT.format(owner_id=owner_id)
-        log.debug(f"FieldManager: владелец ID {owner_id}")
-        return formatted
+        if counterparty.tax_id:
+            return f"{counterparty.short_name} (ИНН {counterparty.tax_id})"
+        return counterparty.short_name
     
     @staticmethod
-    def format_datetime(dt: Optional[Union[str, datetime]]) -> Optional[str]:
+    def format_counterparty_details(counterparty: Counterparty) -> Dict[str, str]:
         """
-        Форматирует дату и время.
-        
-        Args:
-            dt: Дата и время (строка ISO или объект datetime)
-            
-        Returns:
-            Optional[str]: Отформатированная дата или None
+        Возвращает словарь с детальной информацией о контрагенте.
+        Все данные берутся из БД.
         """
-        if dt is None:
-            return None
+        result = {
+            'name': counterparty.short_name,
+            'full_name': counterparty.full_name or '',
+            'inn': f"ИНН {counterparty.tax_id}" if counterparty.tax_id else 'ИНН не указан',
+            'legal_address': counterparty.legal_address or 'Юр. адрес не указан',
+            'actual_address': counterparty.actual_address or 'Факт. адрес не указан',
+        }
         
-        try:
-            if isinstance(dt, str):
-                # Пробуем распарсить ISO формат
-                if 'T' in dt:
-                    # Берём только дату и время до минут
-                    date_part = dt.split('T')[0]
-                    time_part = dt.split('T')[1][:5]
-                    formatted = f"{date_part} {time_part}"
-                else:
-                    formatted = dt
-            elif hasattr(dt, 'strftime'):
-                formatted = dt.strftime(FieldManager.DEFAULT_DATE_FORMAT)
-            else:
-                formatted = str(dt)
+        if counterparty.bank_details:
+            bank = counterparty.bank_details
+            bank_info = []
+            if bank.get('bank_name'):
+                bank_info.append(f"🏦 {bank['bank_name']}")
+            if bank.get('account'):
+                bank_info.append(f"💰 р/с: {bank['account']}")
+            if bank.get('bik'):
+                bank_info.append(f"🔢 БИК: {bank['bik']}")
+            if bank.get('correspondent_account'):
+                bank_info.append(f"🔄 к/с: {bank['correspondent_account']}")
+            if bank.get('ogrn'):
+                bank_info.append(f"📋 ОГРН: {bank['ogrn']}")
+            if bank.get('okato'):
+                bank_info.append(f"📍 ОКАТО: {bank['okato']}")
             
-            log.debug(f"FieldManager: дата '{dt}' -> '{formatted}'")
-            return formatted
-            
-        except Exception as error:
-            log.error(f"FieldManager: ошибка форматирования даты '{dt}': {error}")
-            return str(dt)
-    
-    @staticmethod
-    def format_tenant(tenant_name: Optional[str], inn: Optional[str] = None) -> Optional[str]:
-        """
-        Форматирует информацию об арендаторе.
-        
-        Args:
-            tenant_name: Название организации-арендатора
-            inn: ИНН организации (опционально)
-            
-        Returns:
-            Optional[str]: Отформатированная строка с информацией об арендаторе
-        """
-        if not tenant_name:
-            return None
-        
-        if inn:
-            formatted = f"Арендатор: {tenant_name} (ИНН {inn})"
+            result['bank_details'] = '\n'.join(bank_info)
         else:
-            formatted = f"Арендатор: {tenant_name}"
+            result['bank_details'] = 'Банковские реквизиты не указаны'
         
-        log.debug(f"FieldManager: арендатор '{formatted}'")
-        return formatted
+        return result
     
     @staticmethod
-    def format_contract(contract_number: Optional[str], date_from: Optional[str] = None) -> Optional[str]:
+    def format_responsible_persons(persons: List[ResponsiblePerson]) -> Dict[str, List[str]]:
         """
-        Форматирует информацию о договоре.
+        Группирует ответственных лиц по категориям контактов.
         
         Args:
-            contract_number: Номер договора
-            date_from: Дата начала действия (опционально)
-            
-        Returns:
-            Optional[str]: Отформатированная строка с информацией о договоре
+            persons: Список ответственных лиц из БД
         """
-        if not contract_number:
-            return None
+        result = {}
         
-        if date_from:
-            formatted = f"Договор: №{contract_number} от {date_from}"
-        else:
-            formatted = f"Договор: №{contract_number}"
+        for person in persons:
+            if not person.is_active:
+                continue
+            
+            # Определяем основную категорию из массива categories
+            main_category = 'general'
+            if person.contact_categories and len(person.contact_categories) > 0:
+                main_category = person.contact_categories[0]
+            
+            category_name = FieldManager.CONTACT_CATEGORY_MAP.get(
+                main_category, 'Общие вопросы'
+            )
+            
+            if category_name not in result:
+                result[category_name] = []
+            
+            # Формируем строку с информацией о лице
+            info = f"{person.person_name}"
+            if person.position:
+                info += f", {person.position}"
+            
+            contacts = []
+            if person.phone:
+                contacts.append(f"тел: {person.phone}")
+            if person.email:
+                contacts.append(f"email: {person.email}")
+            
+            if contacts:
+                info += f" ({', '.join(contacts)})"
+            
+            if person.notes:
+                info += f"\n    ⚡ {person.notes}"
+            
+            result[category_name].append(info)
         
-        log.debug(f"FieldManager: договор '{formatted}'")
-        return formatted
+        return result
     
     @staticmethod
-    def format_valid_until(date_to: Optional[str]) -> Optional[str]:
-        """
-        Форматирует дату окончания действия договора.
-        
-        Args:
-            date_to: Дата окончания
-            
-        Returns:
-            Optional[str]: Отформатированная строка с датой
-        """
-        if not date_to:
-            return None
-        
-        formatted = f"Действует до: {date_to}"
-        log.debug(f"FieldManager: действует до '{formatted}'")
-        return formatted
+    def format_phone(phone: Optional[str]) -> str:
+        """Форматирует телефонный номер."""
+        if not phone:
+            return "—"
+        return phone
     
     @staticmethod
-    def format_rent(amount: Optional[float], currency: str = "₽", period: str = "мес") -> Optional[str]:
-        """
-        Форматирует информацию об арендной плате.
-        
-        Args:
-            amount: Сумма арендной платы
-            currency: Валюта (по умолчанию ₽)
-            period: Период (по умолчанию "мес")
-            
-        Returns:
-            Optional[str]: Отформатированная строка с арендной платой
-        """
-        if amount is None:
-            return None
-        
-        formatted = f"Арендная плата: {amount:,.0f} {currency}/{period}".replace(",", " ")
-        log.debug(f"FieldManager: арендная плата '{formatted}'")
-        return formatted
-    
-    # ===== Вспомогательные методы =====
-    
-    @staticmethod
-    def get_available_room_types() -> Dict[int, str]:
-        """
-        Возвращает словарь доступных типов помещений.
-        
-        Returns:
-            Dict[int, str]: Словарь {ID: название}
-        """
-        return FieldManager.ROOM_TYPE_MAP.copy()
+    def format_email(email: Optional[str]) -> str:
+        """Форматирует email."""
+        if not email:
+            return "—"
+        return email
     
     @staticmethod
     def get_available_statuses() -> Dict[str, str]:
         """
-        Возвращает словарь доступных статусов.
-        
-        Returns:
-            Dict[str, str]: Словарь {код: название}
+        Возвращает словарь доступных статусов помещений.
+        В будущем может загружаться из БД.
         """
         return FieldManager.STATUS_MAP.copy()
-    
-    @staticmethod
-    def is_valid_status(status_code: Optional[str]) -> bool:
-        """
-        Проверяет, является ли статус допустимым.
-        
-        Args:
-            status_code: Код статуса для проверки
-            
-        Returns:
-            bool: True если статус известен
-        """
-        return status_code in FieldManager.STATUS_MAP

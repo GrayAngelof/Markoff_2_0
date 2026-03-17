@@ -200,3 +200,13 @@ class EventBus:
         """Очищает все подписки."""
         self._subscribers.clear()
         log.info("EventBus: все подписки очищены")
+
+    def set_debug(self, enabled: bool = True) -> None:
+        """
+        Включает или выключает debug-режим.
+        
+        Args:
+            enabled: True для включения debug-логирования
+        """
+        self._debug = enabled
+        log.debug(f"EventBus debug режим: {'включен' if enabled else 'выключен'}")

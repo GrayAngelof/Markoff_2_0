@@ -5,7 +5,7 @@
 """
 from PySide6.QtCore import QObject, QTimer, Slot
 
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 
 # Создаём логгер для этого модуля

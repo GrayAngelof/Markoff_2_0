@@ -4,15 +4,38 @@
 Предоставляет методы для добавления, обновления и удаления узлов.
 """
 from PySide6.QtCore import QModelIndex, Qt
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Protocol, runtime_checkable, cast
 
 from src.ui.tree_model.node_types import NodeType
 from src.ui.tree_model.tree_node import TreeNode
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 
 # Создаём логгер для этого модуля
 log = get_logger(__name__)
+
+
+@runtime_checkable
+class TreeModelDataProtocol(Protocol):
+    """
+    Протокол, определяющий методы, которые должны быть в классе,
+    использующем TreeModelDataMixin.
+    """
+    _root_node: TreeNode
+    _node_index: Dict[str, TreeNode]
+    
+    def beginResetModel(self) -> None: ...
+    def endResetModel(self) -> None: ...
+    def beginInsertRows(self, parent: QModelIndex, first: int, last: int) -> None: ...
+    def endInsertRows(self) -> None: ...
+    def beginRemoveRows(self, parent: QModelIndex, first: int, last: int) -> None: ...
+    def endRemoveRows(self) -> None: ...
+    def dataChanged(self, topLeft: QModelIndex, bottomRight: QModelIndex, roles: List[int]) -> None: ...
+    def index(self, row: int, column: int, parent: QModelIndex = QModelIndex()) -> QModelIndex: ...
+    def _get_node(self, index: QModelIndex) -> TreeNode: ...
+    def _add_to_index(self, node: TreeNode) -> None: ...
+    def _remove_from_index(self, node: TreeNode) -> None: ...
+    def _clear_index(self) -> None: ...
 
 
 class TreeModelDataMixin:
@@ -25,16 +48,12 @@ class TreeModelDataMixin:
     - update_children: обновление дочерних узлов с сохранением существующих
     - reset: полный сброс модели
     
-    Требует наличия в классе:
-    - _root_node: TreeNode - корневой узел
-    - _node_index: Dict - индекс узлов
-    - _add_to_index: метод для добавления узла в индекс
-    - _remove_from_index: метод для удаления узла из индекса
-    - beginInsertRows/endInsertRows: методы Qt
-    - beginRemoveRows/endRemoveRows: методы Qt
-    - beginResetModel/endResetModel: методы Qt
-    - dataChanged: сигнал Qt
+    Требует наличия в классе методов, определённых в TreeModelDataProtocol.
     """
+    
+    # ===== Аннотации для атрибутов, которые будут в конечном классе =====
+    _root_node: TreeNode
+    _node_index: Dict[str, TreeNode]
     
     # ===== Константы =====
     _LOG_COMPLEXES_LOADED = "Загружено {count} комплексов"
@@ -54,7 +73,22 @@ class TreeModelDataMixin:
         Инициализирует миксин управления данными.
         """
         super().__init__(*args, **kwargs)
+        
+        # Проверяем, что класс реализует необходимый протокол
+        if not isinstance(self, TreeModelDataProtocol):
+            log.warning(f"{self.__class__.__name__} должен реализовывать TreeModelDataProtocol")
+        
         log.debug("TreeModelDataMixin: инициализирован")
+    
+    # ===== Вспомогательные методы для доступа к атрибутам =====
+    
+    def _get_root_node(self) -> TreeNode:
+        """Возвращает корневой узел."""
+        return cast(TreeNode, self._root_node)
+    
+    def _get_node_index(self) -> Dict[str, TreeNode]:
+        """Возвращает индекс узлов."""
+        return cast(Dict[str, TreeNode], self._node_index)
     
     # ===== Публичные методы =====
     
@@ -67,19 +101,28 @@ class TreeModelDataMixin:
         Args:
             complexes: Список объектов Complex
         """
-        self.beginResetModel()
+        # Проверяем наличие необходимых атрибутов
+        if not hasattr(self, '_root_node'):
+            log.error("TreeModelDataMixin: отсутствует атрибут _root_node")
+            return
+        
+        root_node = self._get_root_node()
+        
+        self.beginResetModel()  # type: ignore
         
         # Очищаем всё
-        self._root_node.remove_all_children()
-        self._clear_index()
+        root_node.remove_all_children()
+        if hasattr(self, '_clear_index'):
+            self._clear_index()  # type: ignore
         
         # Создаём узлы для комплексов
         for complex_data in complexes:
-            node = TreeNode(complex_data, NodeType.COMPLEX, self._root_node)
-            self._root_node.append_child(node)
-            self._add_to_index(node)
+            node = TreeNode(complex_data, NodeType.COMPLEX, root_node)
+            root_node.append_child(node)
+            if hasattr(self, '_add_to_index'):
+                self._add_to_index(node)  # type: ignore
         
-        self.endResetModel()
+        self.endResetModel()  # type: ignore
         
         log.success(self._LOG_COMPLEXES_LOADED.format(count=len(complexes)))
     
@@ -93,8 +136,14 @@ class TreeModelDataMixin:
             children_data: Список данных для дочерних узлов
             child_type: Тип дочерних узлов
         """
-        parent_node = self._get_node(parent_index)
-        if parent_node is None or parent_node == self._root_node:
+        # Проверяем наличие необходимых методов
+        if not hasattr(self, '_get_node') or not hasattr(self, '_root_node'):
+            log.error("TreeModelDataMixin: отсутствуют необходимые методы/атрибуты")
+            return
+        
+        root_node = self._get_root_node()
+        parent_node = self._get_node(parent_index)  # type: ignore
+        if parent_node is None or parent_node == root_node:
             log.error("Попытка добавить детей к несуществующему родителю")
             return
         
@@ -102,18 +151,19 @@ class TreeModelDataMixin:
         first_row = parent_node.child_count()
         last_row = first_row + len(children_data) - 1
         
-        self.beginInsertRows(parent_index, first_row, last_row)
+        self.beginInsertRows(parent_index, first_row, last_row)  # type: ignore
         
         # Создаём и добавляем дочерние узлы
         for data in children_data:
             child_node = TreeNode(data, child_type, parent_node)
             parent_node.append_child(child_node)
-            self._add_to_index(child_node)
+            if hasattr(self, '_add_to_index'):
+                self._add_to_index(child_node)  # type: ignore
         
         # Помечаем, что дети загружены
         parent_node.loaded = True
         
-        self.endInsertRows()
+        self.endInsertRows()  # type: ignore
         
         log.data(self._LOG_CHILDREN_ADDED.format(
             count=len(children_data),
@@ -132,8 +182,15 @@ class TreeModelDataMixin:
             children_data: Новые данные для дочерних узлов
             child_type: Тип дочерних узлов
         """
-        parent_node = self._get_node(parent_index)
-        if parent_node is None or parent_node == self._root_node:
+        # Проверяем наличие необходимых методов
+        if not hasattr(self, '_get_node') or not hasattr(self, '_root_node') or \
+           not hasattr(self, 'index') or not hasattr(self, 'dataChanged'):
+            log.error("TreeModelDataMixin: отсутствуют необходимые методы/атрибуты")
+            return
+        
+        root_node = self._get_root_node()
+        parent_node = self._get_node(parent_index)  # type: ignore
+        if parent_node is None or parent_node == root_node:
             log.error("Попытка обновить детей несуществующего родителя")
             return
         
@@ -153,20 +210,21 @@ class TreeModelDataMixin:
                 child_node.update_data(new_data_dict[child_id])
                 
                 # Сигнализируем об изменении данных
-                child_index = self.index(row, 0, parent_index)
-                self.dataChanged.emit(
+                child_index = self.index(row, 0, parent_index)  # type: ignore
+                self.dataChanged.emit(  # type: ignore
                     child_index, child_index, 
-                    [Qt.DisplayRole, Qt.ForegroundRole]
+                    [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ForegroundRole]
                 )
                 
                 # Удаляем из словаря новых, чтобы не создавать дубликат
                 del new_data_dict[child_id]
             else:
                 # Элемент удалён - убираем его
-                self.beginRemoveRows(parent_index, row, row)
+                self.beginRemoveRows(parent_index, row, row)  # type: ignore
                 parent_node.children.pop(row)
-                self._remove_from_index(child_node)
-                self.endRemoveRows()
+                if hasattr(self, '_remove_from_index'):
+                    self._remove_from_index(child_node)  # type: ignore
+                self.endRemoveRows()  # type: ignore
                 
                 # Перестраиваем словарь existing_children после удаления
                 existing_children = {
@@ -178,14 +236,15 @@ class TreeModelDataMixin:
         if new_data_dict:
             first_row = parent_node.child_count()
             last_row = first_row + len(new_data_dict) - 1
-            self.beginInsertRows(parent_index, first_row, last_row)
+            self.beginInsertRows(parent_index, first_row, last_row)  # type: ignore
             
             for data in new_data_dict.values():
                 child_node = TreeNode(data, child_type, parent_node)
                 parent_node.append_child(child_node)
-                self._add_to_index(child_node)
+                if hasattr(self, '_add_to_index'):
+                    self._add_to_index(child_node)  # type: ignore
             
-            self.endInsertRows()
+            self.endInsertRows()  # type: ignore
         
         # Помечаем, что дети загружены
         parent_node.loaded = True
@@ -200,9 +259,17 @@ class TreeModelDataMixin:
         Выполняет полный сброс модели.
         Очищает все узлы и индекс.
         """
-        self.beginResetModel()
-        self._root_node.remove_all_children()
-        self._clear_index()
-        self.endResetModel()
+        # Проверяем наличие необходимых атрибутов
+        if not hasattr(self, '_root_node'):
+            log.error("TreeModelDataMixin: отсутствует атрибут _root_node")
+            return
+        
+        root_node = self._get_root_node()
+        
+        self.beginResetModel()  # type: ignore
+        root_node.remove_all_children()
+        if hasattr(self, '_clear_index'):
+            self._clear_index()  # type: ignore
+        self.endResetModel()  # type: ignore
         
         log.debug(self._LOG_RESET)

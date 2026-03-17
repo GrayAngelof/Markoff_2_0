@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QTabWidget, QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt
 from typing import Optional, List, Tuple
 
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 log = get_logger(__name__)
 
 
@@ -119,7 +119,7 @@ class DetailsTabs(QTabWidget):
         
         # Создаём текст-заглушку
         label = QLabel(text)
-        label.setAlignment(Qt.AlignCenter)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setStyleSheet(self._PLACEHOLDER_STYLESHEET)
         
         # Добавляем в layout

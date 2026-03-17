@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt
 from typing import Optional
 
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 log = get_logger(__name__)
 
 
@@ -78,7 +78,8 @@ class PlaceholderWidget(QWidget):
         """
         # Создаём layout с центрированием
         layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignCenter)
+        # ИСПРАВЛЕНО: используем правильную константу Qt
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # Создаём текстовую метку
         self._message_label = self._create_message_label()
@@ -96,7 +97,8 @@ class PlaceholderWidget(QWidget):
             QLabel: Настроенная текстовая метка
         """
         label = QLabel(self._DEFAULT_TEXT)
-        label.setAlignment(Qt.AlignCenter)
+        # ИСПРАВЛЕНО: используем правильную константу Qt
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setWordWrap(True)  # Разрешаем перенос строк
         label.setStyleSheet(self._LABEL_STYLESHEET)
         

@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from typing import Optional, Dict
 
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 log = get_logger(__name__)
 
 
@@ -289,7 +289,12 @@ class HeaderWidget(QWidget):
         Args:
             status_code: Код статуса ('free', 'occupied', 'reserved', 'maintenance' или None)
         """
-        style = self._STATUS_STYLES.get(status_code, self._STATUS_DEFAULT_STYLE)
+        # ИСПРАВЛЕНО: безопасный вызов get с проверкой на None
+        if status_code is None:
+            style = self._STATUS_DEFAULT_STYLE
+        else:
+            style = self._STATUS_STYLES.get(status_code, self._STATUS_DEFAULT_STYLE)
+        
         self._status_label.setStyleSheet(style)
         
         status_text = status_code if status_code else "default"

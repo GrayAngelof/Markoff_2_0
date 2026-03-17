@@ -1,173 +1,101 @@
+# client/src/data/graph/schema.py
 """
 Схема графа - единственное место, где описана структура иерархии.
+Импортирует константы из entity_types.py
 """
-from typing import Dict, Optional, Any, Type, List, Callable
-from dataclasses import fields
+from typing import Dict, Optional, Any, Type
 
 from src.data.entity_types import (
     NodeType, COMPLEX, BUILDING, FLOOR, ROOM,
-    MODEL_TO_NODETYPE, NODETYPE_TO_MODEL, CLASS_NAME_TO_NODETYPE
+    COUNTERPARTY, RESPONSIBLE_PERSON,
+    MODEL_TO_NODETYPE, NODETYPE_TO_MODEL,
+    CLASS_NAME_TO_NODETYPE  # <-- ИСПРАВЛЕНО
 )
 from src.models import Complex, Building, Floor, Room
+from src.models.counterparty import Counterparty
+from src.models.responsible_person import ResponsiblePerson
 from utils.logger import get_logger
 
 
 log = get_logger(__name__)
 
 
-class GraphSchema:
+# Словарь для навигации по иерархии вниз
+CHILD_TYPE_MAP: Dict[NodeType, Optional[NodeType]] = {
+    COMPLEX: BUILDING,
+    BUILDING: FLOOR,
+    FLOOR: ROOM,
+    ROOM: None,  # лист
+    COUNTERPARTY: RESPONSIBLE_PERSON,  # контрагент может иметь ответственных лиц
+    RESPONSIBLE_PERSON: None,  # ответственное лицо - лист
+}
+
+# Словарь для навигации по иерархии вверх
+PARENT_TYPE_MAP: Dict[NodeType, Optional[NodeType]] = {
+    COMPLEX: None,  # корень
+    BUILDING: COMPLEX,
+    FLOOR: BUILDING,
+    ROOM: FLOOR,
+    COUNTERPARTY: None,  # контрагент может быть корнем (владелец)
+    RESPONSIBLE_PERSON: COUNTERPARTY,
+}
+
+# Поле, содержащее ID родителя для каждого типа
+PARENT_ID_FIELD: Dict[NodeType, Optional[str]] = {
+    COMPLEX: None,
+    BUILDING: "complex_id",
+    FLOOR: "building_id",
+    ROOM: "floor_id",
+    COUNTERPARTY: None,
+    RESPONSIBLE_PERSON: "counterparty_id",
+}
+
+
+def get_child_type(parent_type: NodeType) -> Optional[NodeType]:
+    """Возвращает тип дочернего элемента для данного родителя."""
+    return CHILD_TYPE_MAP.get(parent_type)
+
+
+def get_parent_type(child_type: NodeType) -> Optional[NodeType]:
+    """Возвращает тип родителя для данного дочернего элемента."""
+    return PARENT_TYPE_MAP.get(child_type)
+
+
+def get_parent_id(entity: Any) -> Optional[int]:
     """
-    Схема графа - описывает структуру иерархии декларативно.
-    Все правила в одном месте.
+    Извлекает ID родителя из сущности.
+    Универсальный метод, заменяющий кучу if-elif.
     """
-    
-    # Определение иерархии (кто чей родитель)
-    PARENT_OF: Dict[NodeType, Optional[NodeType]] = {
-        COMPLEX: None,      # комплекс - корень
-        BUILDING: COMPLEX,   # корпус принадлежит комплексу
-        FLOOR: BUILDING,     # этаж принадлежит корпусу
-        ROOM: FLOOR,         # комната принадлежит этажу
-    }
-    
-    # Поля, содержащие ID родителя
-    PARENT_ID_FIELD: Dict[NodeType, Optional[str]] = {
-        COMPLEX: None,
-        BUILDING: "complex_id",
-        FLOOR: "building_id",
-        ROOM: "floor_id",
-    }
-    
-    # Какие типы могут иметь детей (не листья)
-    CAN_HAVE_CHILDREN: Dict[NodeType, bool] = {
-        COMPLEX: True,
-        BUILDING: True,
-        FLOOR: True,
-        ROOM: False,
-    }
-    
-    # Порядок в иерархии (для обходов)
-    HIERARCHY_ORDER: List[NodeType] = [
-        COMPLEX,
-        BUILDING,
-        FLOOR,
-        ROOM,
-    ]
-    
-    @classmethod
-    def get_parent_type(cls, child_type: NodeType) -> Optional[NodeType]:
-        """Возвращает тип родителя."""
-        return cls.PARENT_OF.get(child_type)
-    
-    @classmethod
-    def get_child_type(cls, parent_type: NodeType) -> Optional[NodeType]:
-        """Возвращает тип дочернего элемента."""
-        # Инвертируем PARENT_OF
-        for child, parent in cls.PARENT_OF.items():
-            if parent == parent_type:
-                return child
-        return None
-    
-    @classmethod
-    def get_parent_id(cls, entity: Any) -> Optional[int]:
-        """Извлекает ID родителя из сущности."""
-        node_type = cls.get_node_type(entity)
-        if not node_type:
-            return None
-        
-        field_name = cls.PARENT_ID_FIELD.get(node_type)
-        if not field_name:
-            return None
-        
-        return getattr(entity, field_name, None)
-    
-    @classmethod
-    def get_node_type(cls, entity: Any) -> Optional[NodeType]:
-        """
-        Определяет тип сущности.
-        Пытается определить разными способами для надёжности.
-        """
-        if entity is None:
-            return None
-        
-        # Прямой маппинг по классу
-        node_type = MODEL_TO_NODETYPE.get(type(entity))
-        if node_type:
-            return node_type
-        
-        # Маппинг по имени класса (на случай разных импортов)
-        class_name = entity.__class__.__name__
+    # Получаем тип по классу
+    node_type = MODEL_TO_NODETYPE.get(type(entity))
+    if not node_type:
+        # Пробуем получить по имени класса
+        class_name = type(entity).__name__
         node_type = CLASS_NAME_TO_NODETYPE.get(class_name)
-        if node_type:
-            log.debug(f"Тип определён по имени класса: {class_name} -> {node_type}")
-            return node_type
-        
-        log.error(f"Неизвестный тип сущности: {type(entity)} (имя класса: {class_name})")
+        if not node_type:
+            return None
+    
+    field_name = PARENT_ID_FIELD.get(node_type)
+    if not field_name:
         return None
     
-    @classmethod
-    def get_model_class(cls, node_type: NodeType) -> Optional[Type]:
-        """Возвращает класс модели."""
-        return NODETYPE_TO_MODEL.get(node_type)
-    
-    @classmethod
-    def can_have_children(cls, node_type: NodeType) -> bool:
-        """Может ли узел иметь детей."""
-        return cls.CAN_HAVE_CHILDREN.get(node_type, False)
-    
-    @classmethod
-    def is_root(cls, node_type: NodeType) -> bool:
-        """Является ли узел корневым."""
-        return cls.PARENT_OF.get(node_type) is None
-    
-    @classmethod
-    def is_leaf(cls, node_type: NodeType) -> bool:
-        """Является ли узел листом."""
-        return not cls.can_have_children(node_type)
-    
-    @classmethod
-    def get_path_to_root(cls, node_type: NodeType) -> List[NodeType]:
-        """
-        Возвращает путь от узла до корня.
-        Например: ROOM -> [FLOOR, BUILDING, COMPLEX]
-        """
-        path = []
-        current = node_type
-        
-        while current is not None:
-            path.append(current)
-            current = cls.get_parent_type(current)
-        
-        return path[1:]  # исключаем сам узел
-    
-    @classmethod
-    def validate_entity(cls, entity: Any) -> bool:
-        """
-        Проверяет, соответствует ли сущность схеме.
-        Используется для отладки.
-        """
-        node_type = cls.get_node_type(entity)
-        if not node_type:
-            log.error(f"Сущность не прошла валидацию: неизвестный тип")
-            return False
-        
-        # Проверяем наличие родительского ID если должен быть
-        parent_field = cls.PARENT_ID_FIELD.get(node_type)
-        if parent_field and not hasattr(entity, parent_field):
-            log.error(f"Сущность {node_type} не имеет поля {parent_field}")
-            return False
-        
-        return True
+    return getattr(entity, field_name, None)
 
 
-# Для обратной совместимости экспортируем удобные функции
-get_parent_type = GraphSchema.get_parent_type
-get_child_type = GraphSchema.get_child_type
-get_parent_id = GraphSchema.get_parent_id
-get_node_type = GraphSchema.get_node_type
-get_model_class = GraphSchema.get_model_class
-can_have_children = GraphSchema.can_have_children
-is_root = GraphSchema.is_root
-is_leaf = GraphSchema.is_leaf
-get_path_to_root = GraphSchema.get_path_to_root
+def get_node_type(entity: Any) -> Optional[NodeType]:
+    """Определяет NodeType по классу сущности."""
+    node_type = MODEL_TO_NODETYPE.get(type(entity))
+    if node_type:
+        return node_type
+    
+    # Пробуем по имени класса
+    class_name = type(entity).__name__
+    return CLASS_NAME_TO_NODETYPE.get(class_name)
 
-log.debug("GraphSchema initialized")
+
+def get_model_class(node_type: NodeType) -> Optional[Type]:
+    """Возвращает класс модели для типа узла."""
+    return NODETYPE_TO_MODEL.get(node_type)
+
+
+log.debug("Graph schema initialized")

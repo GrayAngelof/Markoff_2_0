@@ -84,4 +84,7 @@ class Room:
             'reserved': 'Зарезервировано',
             'maintenance': 'На обслуживании',
         }
+        # ИСПРАВЛЕНО: проверяем на None
+        if self.status_code is None:
+            return 'Неизвестно'
         return status_map.get(self.status_code, self.status_code or 'Неизвестно')

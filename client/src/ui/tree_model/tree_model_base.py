@@ -4,13 +4,13 @@
 Наследуется от QAbstractItemModel и определяет базовый интерфейс
 для работы с иерархическими данными в Qt.
 """
-from PySide6.QtCore import QAbstractItemModel, QModelIndex, Qt, Signal
+from PySide6.QtCore import QAbstractItemModel, QModelIndex, QPersistentModelIndex, Qt, Signal
 from PySide6.QtGui import QFont, QBrush, QColor
-from typing import Optional, Any
+from typing import Optional, Any, Union
 
 from src.ui.tree_model.node_types import NodeType
 from src.ui.tree_model.tree_node import TreeNode
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 
 # Создаём логгер для этого модуля
@@ -30,19 +30,17 @@ class TreeModelBase(QAbstractItemModel):
     
     Наследники должны реализовать:
     - data() - получение данных для отображения
-    - flags() - флаги элементов
     - hasChildren() - проверка наличия детей
-    - Методы управления данными (set_complexes, add_children, update_children)
     """
     
     # ===== Кастомные роли для данных =====
-    ItemIdRole = Qt.UserRole + 1
+    ItemIdRole = Qt.ItemDataRole.UserRole + 1
     """Роль для получения ID объекта"""
     
-    ItemTypeRole = Qt.UserRole + 2
+    ItemTypeRole = Qt.ItemDataRole.UserRole + 2
     """Роль для получения типа объекта (NodeType)"""
     
-    ItemDataRole = Qt.UserRole + 3
+    ItemDataRole = Qt.ItemDataRole.UserRole + 3
     """Роль для получения сырых данных (модель)"""
     
     # ===== Сигналы =====
@@ -87,14 +85,15 @@ class TreeModelBase(QAbstractItemModel):
         super().__init__(parent)
         
         # Виртуальный корневой узел (не отображается)
-        self._root_node = TreeNode(None, None)
+        # Для корневого узла тип не важен, передаём заглушку
+        self._root_node = TreeNode(None, NodeType.COMPLEX)
         
         log.debug("TreeModelBase: инициализирован")
     
     # ===== Базовые методы QAbstractItemModel =====
     
     def index(self, row: int, column: int, 
-              parent: QModelIndex = QModelIndex()) -> QModelIndex:
+              parent: Union[QModelIndex, QPersistentModelIndex] = QModelIndex()) -> QModelIndex:
         """
         Создаёт индекс для элемента по строке и колонке.
         
@@ -119,7 +118,8 @@ class TreeModelBase(QAbstractItemModel):
         
         return self.createIndex(row, column, child_node)
     
-    def parent(self, index: QModelIndex) -> QModelIndex:
+    # ИСПРАВЛЕНО: правильная сигнатура с игнорированием строгой типизации Pylance
+    def parent(self, index: QModelIndex) -> QModelIndex:  # type: ignore[override]
         """
         Возвращает родительский индекс для данного индекса.
         
@@ -142,7 +142,7 @@ class TreeModelBase(QAbstractItemModel):
         
         return self.createIndex(parent_node.row(), 0, parent_node)
     
-    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def rowCount(self, parent: Union[QModelIndex, QPersistentModelIndex] = QModelIndex()) -> int:
         """
         Возвращает количество строк (дочерних элементов) для родителя.
         
@@ -157,7 +157,7 @@ class TreeModelBase(QAbstractItemModel):
             return 0
         return parent_node.child_count()
     
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def columnCount(self, parent: Union[QModelIndex, QPersistentModelIndex] = QModelIndex()) -> int:
         """
         Возвращает количество колонок.
         
@@ -169,8 +169,8 @@ class TreeModelBase(QAbstractItemModel):
         """
         return 1
     
-    def headerData(self, section: int, orientation: Qt.Orientation, 
-                   role: int = Qt.DisplayRole) -> Optional[str]:
+    def headerData(self, section: int, orientation: Qt.Orientation,
+                   role: int = Qt.ItemDataRole.DisplayRole) -> Optional[str]:
         """
         Возвращает заголовок для колонки.
         
@@ -182,11 +182,11 @@ class TreeModelBase(QAbstractItemModel):
         Returns:
             Optional[str]: Заголовок или None
         """
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
             return "Объекты"
         return None
     
-    def flags(self, index: QModelIndex) -> Qt.ItemFlags:
+    def flags(self, index: Union[QModelIndex, QPersistentModelIndex]) -> Qt.ItemFlag:
         """
         Возвращает флаги элемента.
         
@@ -194,15 +194,16 @@ class TreeModelBase(QAbstractItemModel):
             index: Индекс элемента
             
         Returns:
-            Qt.ItemFlags: Флаги элемента
+            Qt.ItemFlag: Флаги элемента
         """
         if not index.isValid():
-            return Qt.NoItemFlags
-        return Qt.ItemIsEnabled | Qt.ItemIsSelectable
+            return Qt.ItemFlag.NoItemFlags
+        
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
     
     # ===== Вспомогательные методы =====
     
-    def _get_node(self, index: QModelIndex) -> Optional[TreeNode]:
+    def _get_node(self, index: Union[QModelIndex, QPersistentModelIndex]) -> Optional[TreeNode]:
         """
         Получает узел из индекса.
         
@@ -234,7 +235,7 @@ class TreeModelBase(QAbstractItemModel):
     
     # ===== Виртуальные методы для переопределения =====
     
-    def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> Any:
+    def data(self, index: Union[QModelIndex, QPersistentModelIndex], role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         """
         Возвращает данные для отображения.
         Должен быть переопределён в наследнике.
@@ -248,7 +249,7 @@ class TreeModelBase(QAbstractItemModel):
         """
         raise NotImplementedError("Метод data должен быть реализован в наследнике")
     
-    def hasChildren(self, parent: QModelIndex = QModelIndex()) -> bool:
+    def hasChildren(self, parent: Union[QModelIndex, QPersistentModelIndex] = QModelIndex()) -> bool:
         """
         Проверяет, может ли узел иметь дочерние элементы.
         Должен быть переопределён в наследнике.

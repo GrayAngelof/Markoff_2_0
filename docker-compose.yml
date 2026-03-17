@@ -13,6 +13,7 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./backend/src:/app/src
+      - ./utils:/app/utils
     networks:
       - markoff-network
     extra_hosts:
@@ -33,6 +34,7 @@ services:
     volumes:
       - ./client/src:/app/src # Приложение
       - ./client/tests:/app/tests # Тесты
+      - ./utils:/app/utils
       # Для X11 forwarding через VcXsrv не нужен mount /tmp/.X11-unix на Windows
     networks:
       - markoff-network

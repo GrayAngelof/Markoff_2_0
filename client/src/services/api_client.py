@@ -179,6 +179,7 @@ class ApiClient:
             complex_id: ID комплекса
             include_owner: если True, включает данные о владельце
         """
+        log.info(f"🌐 API CALL: get_complex_detail id={complex_id}, include_owner={include_owner}")
         endpoint = self.ENDPOINT_COMPLEX_DETAIL.format(complex_id)
         params = {'include': 'owner'} if include_owner else None
         return self._make_request('GET', endpoint, params=params)

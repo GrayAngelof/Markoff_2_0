@@ -11,8 +11,7 @@
 """
 import weakref
 import time
-import gc
-from typing import Dict, List, Callable, Optional, Any, Union, Tuple
+from typing import Dict, List, Callable, Optional, Any, Union
 from collections import defaultdict
 from utils.logger import get_logger, Logger
 

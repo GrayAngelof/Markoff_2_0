@@ -10,6 +10,8 @@ from src.models.building import Building
 from src.models.floor import Floor
 from src.models.room import Room
 from src.ui.tree_model.node_types import NodeType
+from src.data.entity_graph import EntityGraph  # <-- ДОБАВЛЕНО для типизации
+
 from utils.logger import get_logger
 
 
@@ -27,17 +29,7 @@ class TreeNode:
         parent: Родительский узел (None для корневого узла)
         children: Список дочерних узлов
         loaded: Флаг, указывающий, загружены ли дочерние элементы
-        
-    Методы:
-        - append_child: Добавление дочернего узла
-        - remove_child: Удаление конкретного ребёнка
-        - remove_all_children: Удаление всех детей
-        - child_at: Получение ребёнка по индексу
-        - row: Получение индекса узла в родителе
-        - child_count: Количество детей
-        - get_display_text: Текст для отображения в дереве
-        - get_id: Получение идентификатора узла
-        - update_data: Обновление данных узла
+        _graph: Ссылка на граф сущностей (для проверки наличия детей)
     """
     
     # ===== Константы для форматирования текста =====
@@ -77,8 +69,14 @@ class TreeNode:
         self._parent = parent
         self._children: List['TreeNode'] = []
         self._loaded = False
+        self._graph: Optional[EntityGraph] = None  # <-- ДОБАВЛЕНО
         
         log.debug(f"TreeNode создан: {node_type} id={self.get_id()}")
+    
+    def set_graph(self, graph: EntityGraph) -> None:
+        """Устанавливает ссылку на граф сущностей."""
+        self._graph = graph
+        log.debug(f"Граф установлен для узла {self._node_type} #{self.get_id()}")
     
     # ===== Геттеры =====
     
@@ -197,31 +195,35 @@ class TreeNode:
     def get_display_text(self) -> str:
         """
         Возвращает текст для отображения в дереве.
-        
-        Для каждого типа узла применяется своё форматирование:
-        - Комплекс: название (количество корпусов)
-        - Корпус: название (количество этажей)
-        - Этаж: тип этажа (количество помещений)
-        - Помещение: номер
-        
-        Returns:
-            str: Отформатированный текст для отображения
         """
-        if self._node_type == NodeType.COMPLEX and isinstance(self._data, Complex):
+        # Определяем тип как строку
+        if isinstance(self._node_type, NodeType):
+            type_str = self._node_type.value
+            log.debug(f"get_display_text для enum: {type_str}")
+        else:
+            type_str = str(self._node_type)
+            log.debug(f"get_display_text для строки: {type_str}")
+        
+        # Форматируем в зависимости от типа
+        if type_str == 'complex':
             return self._format_complex_text()
-        
-        elif self._node_type == NodeType.BUILDING and isinstance(self._data, Building):
+        elif type_str == 'building':
             return self._format_building_text()
-        
-        elif self._node_type == NodeType.FLOOR and isinstance(self._data, Floor):
+        elif type_str == 'floor':
             return self._format_floor_text()
+        elif type_str == 'room':
+            return self._format_room_text()
         
-        elif self._node_type == NodeType.ROOM and isinstance(self._data, Room):
-            return self._data.number
-        
-        log.warning(f"Неизвестный тип узла для отображения: {self._node_type}")
-        return self._UNKNOWN_TEXT
+        log.warning(f"Неизвестный тип узла: {type_str}")
+        return str(self._data) if self._data else self._UNKNOWN_TEXT
     
+    def _format_room_text(self) -> str:
+        """Форматирует текст для помещения."""
+        data = self._data
+        if data is None:
+            return self._UNKNOWN_TEXT
+        return data.number
+
     def get_id(self) -> int:
         """
         Возвращает идентификатор узла.
@@ -229,8 +231,13 @@ class TreeNode:
         Returns:
             ID узла или -1, если идентификатор отсутствует
         """
+        # Для корневого узла data может быть None
+        if self._data is None:
+            return -1
+        
         if hasattr(self._data, 'id'):
             return self._data.id
+        
         log.warning(f"Узел {self._node_type} не имеет атрибута id")
         return -1
     
@@ -249,26 +256,49 @@ class TreeNode:
     def _format_complex_text(self) -> str:
         """Форматирует текст для комплекса."""
         data = self._data
-        if data.buildings_count > 0:
+        if data is None:
+            return self._UNKNOWN_TEXT
+        
+        # Пробуем получить buildings_count разными способами
+        buildings_count = getattr(data, 'buildings_count', 0)
+        
+        # Проверяем, есть ли уже загруженные корпуса в графе
+        # (для показа стрелочки даже если счётчик временно 0)
+        if self._graph:
+            from src.data.entity_types import COMPLEX
+            children = self._graph.get_children(COMPLEX, self.get_id())
+            if children:
+                return f"{data.name} ({len(children)})"
+        
+        # Если есть счётчик в данных - используем его
+        if buildings_count and buildings_count > 0:
             return self._DISPLAY_FORMAT_COMPLEX_WITH_COUNT.format(
                 name=data.name, 
-                count=data.buildings_count
+                count=buildings_count
             )
+        
+        # По умолчанию - просто название
         return data.name
     
     def _format_building_text(self) -> str:
         """Форматирует текст для корпуса."""
         data = self._data
-        if data.floors_count > 0:
+        if data is None:
+            return self._UNKNOWN_TEXT
+        
+        floors_count = getattr(data, 'floors_count', 0)
+        if floors_count > 0:
             return self._DISPLAY_FORMAT_BUILDING.format(
                 name=data.name, 
-                count=data.floors_count
+                count=floors_count
             )
         return data.name
     
     def _format_floor_text(self) -> str:
         """Форматирует текст для этажа."""
         data = self._data
+        if data is None:
+            return self._UNKNOWN_TEXT
         
         # Определяем текст этажа в зависимости от номера
         if data.number < 0:
@@ -279,10 +309,11 @@ class TreeNode:
             floor_text = self._FLOOR_TEXT_REGULAR.format(num=data.number)
         
         # Добавляем количество помещений, если есть
-        if data.rooms_count > 0:
+        rooms_count = getattr(data, 'rooms_count', 0)
+        if rooms_count > 0:
             return self._DISPLAY_FORMAT_FLOOR.format(
                 text=floor_text, 
-                count=data.rooms_count
+                count=rooms_count
             )
         return floor_text
     

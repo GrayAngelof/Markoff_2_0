@@ -32,6 +32,7 @@ if settings.BACKEND_CORS_ORIGINS:
 
 # Подключаем роутеры
 app.include_router(physical_router)
+app.include_router(dictionary_router)
 
 @app.get("/", tags=["root"])
 async def root():

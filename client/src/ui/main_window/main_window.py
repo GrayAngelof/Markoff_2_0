@@ -17,8 +17,7 @@ from src.controllers.refresh_controller import RefreshController
 from src.controllers.connection_controller import ConnectionController
 from src.projections.tree_projection import TreeProjection
 
-# ИСПРАВЛЕНО: импортируем из правильного пакета
-from src.ui.tree_model.tree_model import TreeModel  # из tree_model, а не из tree
+from src.ui.tree_model.tree_model import TreeModel
 from src.ui.tree.tree_view import TreeView
 from src.ui.details.details_panel import DetailsPanel
 from src.ui.main_window.components import CentralWidget, Toolbar, StatusBar
@@ -55,7 +54,7 @@ class MainWindow(QMainWindow):
         
         # 1. Ядро
         self._bus = EventBus()
-        self._bus.set_debug(True)  # <-- ТЕПЕРЬ РАБОТАЕТ
+        self._bus.set_debug(True)
         
         # 2. Данные
         self._graph = EntityGraph()
@@ -72,7 +71,7 @@ class MainWindow(QMainWindow):
         self._connection_controller = ConnectionController(self._bus)
         
         # 5. Проекции
-        self._tree_projection = TreeProjection(self._bus, self._graph)  # <-- ТЕПЕРЬ РАБОТАЕТ
+        self._tree_projection = TreeProjection(self._bus, self._graph)
         
         log.debug("Архитектурные компоненты инициализированы")
     
@@ -81,13 +80,15 @@ class MainWindow(QMainWindow):
         log.info("Инициализация UI компонентов...")
         
         # Модель и представление дерева
-        self._tree_model = TreeModel(self._tree_projection)  # передаём проекцию
+        self._tree_model = TreeModel(self._tree_projection)
         self._tree_view = TreeView(self)
-        self._tree_view.set_event_bus(self._bus)
-        self._tree_view.setModel(self._tree_model)  # используем стандартный setModel
+        self._tree_view.set_event_bus(self._bus)  # передаём шину в TreeView
+        self._tree_view.setModel(self._tree_model)
         
         # Панель деталей
         self._details_panel = DetailsPanel(self)
+        log.debug(f"🔍 Устанавливаем шину событий для DetailsPanel: {self._bus}")
+        self._details_panel.set_event_bus(self._bus)
         
         # Центральный виджет с разделителем
         self._central = CentralWidget(self)
@@ -136,8 +137,8 @@ class MainWindow(QMainWindow):
     
     def _connect_ui_signals(self) -> None:
         """Подключает сигналы между UI компонентами."""
-        # Выбор в дереве -> панель деталей
-        self._tree_view.item_selected.connect(self._details_panel.show_item_details)
+        # ИСПРАВЛЕНО: теперь панель деталей подписывается на события через шину
+        # self._tree_view.item_selected больше не используется
         
         # Обновление владельца корпуса -> панель деталей
         self._bus.subscribe('ui.building_owner_loaded', self._on_building_owner_loaded)

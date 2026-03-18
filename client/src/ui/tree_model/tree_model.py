@@ -16,6 +16,8 @@ from src.ui.tree_model.tree_node import TreeNode
 from src.ui.tree_model.tree_model_base import TreeModelBase
 from src.ui.tree_model.tree_model_index import TreeModelIndexMixin
 from src.models.room import Room
+from src.data.entity_types import COMPLEX, BUILDING, FLOOR  # <-- ДОБАВЛЕНО
+from src.data.entity_graph import EntityGraph  # <-- ДОБАВЛЕНО для типизации
 from utils.logger import get_logger
 
 
@@ -61,12 +63,18 @@ class TreeModel(
         
         self._projection = projection
         self._subscriptions = []
+        self._graph: Optional[EntityGraph] = None  # <-- ДОБАВЛЕНО для доступа к графу
         
         # Если есть проекция, подписываемся на её обновления
         if projection:
             self._subscribe_to_projection()
         
         log.debug("TreeModel: инициализирована (реактивная версия)")
+    
+    def set_graph(self, graph: EntityGraph) -> None:
+        """Устанавливает граф сущностей для проверки наличия детей."""
+        self._graph = graph
+        log.debug("TreeModel: граф установлен")
     
     def _subscribe_to_projection(self) -> None:
         """Подписывается на обновления проекции."""
@@ -83,14 +91,6 @@ class TreeModel(
     def _on_tree_updated(self, event: dict) -> None:
         """
         Получает новое дерево от проекции и обновляет модель.
-        
-        Args:
-            event: Событие с данными:
-                {
-                    'data': {
-                        'tree': List[TreeNode] - корневые узлы дерева
-                    }
-                }
         """
         log.debug("TreeModel: получено обновление от проекции")
         
@@ -105,6 +105,8 @@ class TreeModel(
         
         # Добавляем их как детей корневого узла модели
         for node in root_nodes:
+            # Не логируем ID корневого узла, так как у него его нет
+            log.debug(f"Добавление корневого узла типа {node.node_type} с ID {node.get_id() if node._data else 'None'}")
             self._root_node.append_child(node)
             self._add_to_index(node)
         
@@ -174,10 +176,51 @@ class TreeModel(
         
         # Корневой узел
         if parent_node is None or parent_node == self._root_node:
-            return self._root_node.child_count() > 0
+            result = self._root_node.child_count() > 0
+            log.debug(f"hasChildren(root) = {result}")
+            return result
         
-        # Проверяем наличие детей у узла
-        return parent_node.child_count() > 0
+        # Комнаты никогда не имеют детей
+        if parent_node.node_type == NodeType.ROOM:
+            log.debug(f"hasChildren(room#{parent_node.get_id()}) = False")
+            return False
+        
+        # Для остальных типов проверяем наличие детей в графе
+        if self._graph is not None:
+            try:
+                if parent_node.node_type == NodeType.COMPLEX:
+                    children_ids = self._graph.get_children(COMPLEX, parent_node.get_id())
+                    result = len(children_ids) > 0
+                    log.debug(f"hasChildren(complex#{parent_node.get_id()}) через граф = {result} (найдено {len(children_ids)} детей)")
+                    return result
+                
+                elif parent_node.node_type == NodeType.BUILDING:
+                    children_ids = self._graph.get_children(BUILDING, parent_node.get_id())
+                    result = len(children_ids) > 0
+                    log.debug(f"hasChildren(building#{parent_node.get_id()}) через граф = {result} (найдено {len(children_ids)} детей)")
+                    return result
+                
+                elif parent_node.node_type == NodeType.FLOOR:
+                    children_ids = self._graph.get_children(FLOOR, parent_node.get_id())
+                    result = len(children_ids) > 0
+                    log.debug(f"hasChildren(floor#{parent_node.get_id()}) через граф = {result} (найдено {len(children_ids)} детей)")
+                    return result
+                    
+            except Exception as e:
+                log.error(f"Ошибка при проверке детей через граф: {e}")
+        
+        # Запасной вариант - проверяем через данные узла
+        if hasattr(parent_node.data, 'buildings_count') and parent_node.data.buildings_count > 0:
+            return True
+        if hasattr(parent_node.data, 'floors_count') and parent_node.data.floors_count > 0:
+            return True
+        if hasattr(parent_node.data, 'rooms_count') and parent_node.data.rooms_count > 0:
+            return True
+        
+        # Проверяем наличие детей в самом узле
+        result = parent_node.child_count() > 0
+        log.debug(f"hasChildren({parent_node.node_type.value}#{parent_node.get_id()}) через child_count = {result}")
+        return result
     
     def flags(self, index: Union[QModelIndex, QPersistentModelIndex]) -> Qt.ItemFlag:
         """
@@ -260,27 +303,3 @@ class TreeModel(
             return QBrush(QColor(128, 128, 128))  # серый для ремонта
         
         return QBrush(self._COLOR_DEFAULT)
-    
-    # ===== Методы для обратной совместимости (deprecated) =====
-    
-    def set_complexes(self, complexes: list) -> None:
-        """
-        Устаревший метод. В новой архитектуре данные приходят через проекцию.
-        
-        Args:
-            complexes: Список комплексов (игнорируется)
-        """
-        log.warning("TreeModel.set_complexes() устарел. Данные должны приходить через проекцию.")
-        # Ничего не делаем, просто логируем предупреждение
-    
-    def add_children(self, parent_index, children_data, child_type) -> None:
-        """
-        Устаревший метод. В новой архитектуре данные приходят через проекцию.
-        """
-        log.warning("TreeModel.add_children() устарел. Данные должны приходить через проекцию.")
-    
-    def update_children(self, parent_index, children_data, child_type) -> None:
-        """
-        Устаревший метод. В новой архитектуре данные приходят через проекцию.
-        """
-        log.warning("TreeModel.update_children() устарел. Данные должны приходить через проекцию.")

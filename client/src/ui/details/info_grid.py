@@ -115,16 +115,15 @@ class InfoGrid(QWidget):
     def set_field(self, key: str, value: Optional[str]) -> None:
         """
         Устанавливает значение для указанного поля.
-        
-        Args:
-            key: Ключ поля
-            value: Новое значение (None или пустая строка заменяются на заполнитель)
         """
         if key not in self._value_widgets:
-            # Если поля нет, создаём его автоматически с лейблом из ключа
+            # Если поля нет, создаём его автоматически
             label_text = key.replace('_', ' ').title() + ":"
             self.add_field(key, label_text, value)
             return
+        
+        # ДОБАВИТЬ ЛОГ
+        log.debug(f"set_field: key={key}, value={value}")
         
         if value is None or value.strip() == "":
             self._value_widgets[key].setText("—")

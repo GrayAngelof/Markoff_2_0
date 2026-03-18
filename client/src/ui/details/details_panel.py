@@ -51,11 +51,69 @@ class DetailsPanel(DetailsPanelBase):
         bank_layout.addStretch()
         self.tabs.addTab(self._bank_widget, "💰 Банк")
         
+        self._bus = None  # будет установлен извне
         self._current_owner: Optional[Counterparty] = None
         self._current_persons: List[ResponsiblePerson] = []
         self._current_context: Dict[str, Any] = {}
         
         log.success("DetailsPanel: создана (расширенная версия)")
+    
+    def set_event_bus(self, bus):
+        """Устанавливает шину событий и подписывается."""
+        log.debug(f"🔍 DetailsPanel.set_event_bus вызван с bus={bus}")
+        self._bus = bus
+        log.debug("🔍 DetailsPanel: Подписываемся на ui.node_selected")
+        self._bus.subscribe('ui.node_selected', self._on_node_selected_event)
+        log.debug("🔍 Подписываемся на ui.node_details_loaded")
+        self._bus.subscribe('ui.node_details_loaded', self._on_details_loaded_event)
+        log.debug(f"DetailsPanel: подписана на события (подписок: ui.node_selected, ui.node_details_loaded)")
+        log.debug(f"DetailsPanel: self._bus = {self._bus}")
+    
+    def _on_node_selected_event(self, event: dict) -> None:
+        """
+        Обрабатывает событие выбора узла через EventBus.
+        Сразу устанавливает текущий узел и показывает имеющиеся данные.
+        """
+        data = event['data']
+        node_type_obj = data['node_type']
+        node_id = data['node_id']
+        node_data = data.get('data')
+        
+        # Преобразуем node_type в строку если это NodeType
+        if hasattr(node_type_obj, 'value'):
+            node_type_str = node_type_obj.value
+        else:
+            node_type_str = str(node_type_obj)
+        
+        # ИСПРАВЛЕНО: СРАЗУ устанавливаем текущий узел ДО вызова show_item_details
+        self._current_type = node_type_str
+        self._current_id = node_id
+        self._current_data = node_data
+        
+        log.debug(f"🔥 Установлен текущий узел: {node_type_str}#{node_id}")
+        
+        # Вызываем существующий метод с текущими данными (могут быть неполными)
+        self.show_item_details(node_type_str, node_id, node_data, {})
+    
+    def _on_details_loaded_event(self, event: dict) -> None:
+        """
+        Обрабатывает событие загрузки деталей узла.
+        Обновляет отображение, если это текущий узел.
+        """
+        data = event['data']
+        node_type = data['node_type']
+        node_id = data['node_id']
+        node_data = data['data']
+        context = data.get('context', {})
+        
+        log.debug(f"🔥 Получены детали для {node_type}#{node_id}")
+        
+        # ИСПРАВЛЕНО: всегда обновляем, если это текущий узел
+        if node_type == self._current_type and node_id == self._current_id:
+            log.info(f"🔥 Обновление панели деталями для {node_type}#{node_id}")
+            self.show_item_details(node_type, node_id, node_data, context)
+        else:
+            log.debug(f"🔥 Детали для другого узла: текущий {self._current_type}#{self._current_id}, получен {node_type}#{node_id}")
     
     # ===== Публичные методы =====
     
@@ -152,9 +210,9 @@ class DetailsPanel(DetailsPanelBase):
             
         else:
             log.warning(f"DetailsPanel: неизвестный тип объекта '{item_type}'")
-            self._reset_panel()  # <-- ИСПРАВЛЕНО: используем другой метод
+            self._reset_panel()
     
-    def _reset_panel(self) -> None:  # <-- ИСПРАВЛЕНО: новое имя
+    def _reset_panel(self) -> None:
         """Сбрасывает панель в исходное состояние."""
         # Вызываем метод базового класса для очистки (если он есть)
         if hasattr(super(), 'clear'):
@@ -168,7 +226,6 @@ class DetailsPanel(DetailsPanelBase):
         
         log.debug("DetailsPanel: сброшена")
     
-    # ИСПРАВЛЕНО: переопределяем метод из DetailsPanelBase, если он есть
     def clear(self) -> None:
         """Переопределяем метод clear из базового класса."""
         self._reset_panel()

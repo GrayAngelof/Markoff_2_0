@@ -103,6 +103,8 @@ class DataLoader:
             Optional[Any]: Детальная информация
         """
         log.debug(f"DataLoader.load_details делегировано NodeLoader: {node_type}#{node_id}")
+        result = self._loader.load_details(node_type, node_id)
+        log.debug((f"📦 DataLoader.load_details результат: {result}"))
         return self._loader.load_details(node_type, node_id)
     
     # ===== НОВЫЕ МЕТОДЫ для работы с контрагентами =====

@@ -9,7 +9,7 @@ from typing import List, Dict, Any
 from src.core.events import SystemEvents
 from src.data.entity_types import NodeType, COMPLEX, BUILDING, FLOOR, ROOM
 from src.projections.base_projection import BaseProjection
-from src.ui.tree_model.tree_node import TreeNode  # используем существующий TreeNode
+from src.ui.tree_model.tree_node import TreeNode
 
 from utils.logger import get_logger
 
@@ -53,6 +53,7 @@ class TreeProjection(BaseProjection):
         root_nodes = []
         
         for complex_data in complexes:
+            log.debug(f"Complex {complex_data.id} has {complex_data.buildings_count} buildings")
             complex_node = self._get_or_create_node(complex_data, NodeType.COMPLEX)
             
             # Добавляем корпуса
@@ -82,13 +83,13 @@ class TreeProjection(BaseProjection):
                                         room_data, NodeType.ROOM, floor_node
                                     )
                                     if room_node not in floor_node.children:
-                                        floor_node.append_child(room_node)  # <-- ИСПРАВЛЕНО: append_child
+                                        floor_node.append_child(room_node)
                             
                             if floor_node not in building_node.children:
-                                building_node.append_child(floor_node)  # <-- ИСПРАВЛЕНО: append_child
+                                building_node.append_child(floor_node)
                     
                     if building_node not in complex_node.children:
-                        complex_node.append_child(building_node)  # <-- ИСПРАВЛЕНО: append_child
+                        complex_node.append_child(building_node)
             
             root_nodes.append(complex_node)
         
@@ -99,33 +100,27 @@ class TreeProjection(BaseProjection):
         self._bus.emit('projection.tree_updated', {'tree': root_nodes})
     
     def _get_or_create_node(self, data, node_type, parent=None):
-        """
-        Получает существующий узел или создаёт новый.
+        """Получает существующий узел или создаёт новый."""
+        log.debug(f"Создание узла: type={node_type}, value={node_type.value}")
         
-        Args:
-            data: Данные узла
-            node_type: Тип узла (NodeType)
-            parent: Родительский узел (опционально)
-        
-        Returns:
-            TreeNode: Узел дерева
-        """
         key = f"{node_type.value}:{data.id}"
         
         if key in self._node_index:
             node = self._node_index[key]
-            # Обновляем данные
+            # Обновляем данные узла (ВАЖНО для ленивой загрузки)
             node.update_data(data)
             if parent and node.parent != parent:
-                # Перемещаем в нового родителя
                 if node.parent:
                     node.parent.remove_child(node)
-                node._parent = parent  # используем protected доступ для установки
-                parent.append_child(node)  # <-- ИСПРАВЛЕНО: append_child
+                node._parent = parent
+                parent.append_child(node)
             return node
         
+        # Создаём новый узел
         node = TreeNode(data, node_type, parent)
+        # Устанавливаем ссылку на граф для доступа к данным
+        node.set_graph(self._graph)
         if parent:
-            parent.append_child(node)  # <-- ИСПРАВЛЕНО: append_child
+            parent.append_child(node)
         self._node_index[key] = node
         return node

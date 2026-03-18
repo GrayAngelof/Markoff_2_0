@@ -3,11 +3,11 @@
 Роутер для работы со словарями
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select
+from sqlmodel import Session
 from typing import List, Optional
 
 from ..core.deps import get_db
-from ..models.dictionary import Counterparty, ResponsiblePerson
+from ..services.dictionary_service import DictionaryService
 from ..schemas.dictionary import CounterpartyDetail, ResponsiblePersonDetail
 
 from utils.logger import get_logger
@@ -26,14 +26,8 @@ async def read_counterparties(
 ):
     """Получить список контрагентов"""
     try:
-        query = select(Counterparty)
-        if type_id:
-            query = query.where(Counterparty.type_id == type_id)
-        query = query.order_by(Counterparty.short_name)
-        
-        result = db.exec(query)
-        counterparties = result.all()
-        
+        # Используем класс напрямую
+        counterparties = DictionaryService.get_counterparties(db, type_id)
         log.info(f"Загружено {len(counterparties)} контрагентов")
         return counterparties
         
@@ -51,7 +45,7 @@ async def read_counterparty(
 ):
     """Получить детальную информацию о контрагенте"""
     try:
-        counterparty = db.get(Counterparty, counterparty_id)
+        counterparty = DictionaryService.get_counterparty_detail(db, counterparty_id)
         if not counterparty:
             raise HTTPException(status_code=404, detail="Counterparty not found")
         
@@ -74,13 +68,7 @@ async def read_responsible_persons(
 ):
     """Получить список ответственных лиц для контрагента"""
     try:
-        query = select(ResponsiblePerson).where(
-            ResponsiblePerson.counterparty_id == counterparty_id
-        ).order_by(ResponsiblePerson.person_name)
-        
-        result = db.exec(query)
-        persons = result.all()
-        
+        persons = DictionaryService.get_responsible_persons(db, counterparty_id)
         log.info(f"Загружено {len(persons)} ответственных лиц для контрагента {counterparty_id}")
         return persons
         

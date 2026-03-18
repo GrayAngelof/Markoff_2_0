@@ -1,8 +1,8 @@
 # backend/src/services/__init__.py
 """
 Инициализатор пакета сервисов
-Экспортирует сервисы для удобного импорта
 """
-from .physical import get_all_complexes
+from .physical_service import PhysicalService
+from .dictionary_service import DictionaryService
 
-__all__ = ["get_all_complexes"]
+__all__ = ["PhysicalService", "DictionaryService"]

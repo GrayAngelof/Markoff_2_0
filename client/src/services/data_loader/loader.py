@@ -4,7 +4,7 @@
 Теперь поддерживает загрузку владельцев и контрагентов.
 """
 from typing import Optional, List, Dict, Any, Type
-from src.data.entity_types import NodeType, COMPLEX, BUILDING, FLOOR, ROOM
+from src.data.entity_types import NodeType, COMPLEX, BUILDING, FLOOR, ROOM, COUNTERPARTY, RESPONSIBLE_PERSON
 from src.data.graph.schema import get_child_type
 from src.data.entity_graph import EntityGraph
 from src.services.api_client import ApiClient
@@ -16,11 +16,6 @@ from utils.logger import get_logger
 
 
 log = get_logger(__name__)
-
-
-# Временные типы для контрагентов (пока не добавлены в NodeType)
-COUNTERPARTY_TYPE = "counterparty"
-RESPONSIBLE_PERSON_TYPE = "responsible_person"
 
 
 class NodeLoader:
@@ -187,60 +182,87 @@ class NodeLoader:
     def load_details(self, node_type: NodeType, node_id: int) -> Optional[Any]:
         """
         Загружает детальную информацию об объекте.
-        Для помещений может загружать данные об арендаторе.
-        
-        Args:
-            node_type: Тип узла
-            node_id: ID узла
+        Ленивая загрузка: загружает только если детальных полей ещё нет.
         """
-        log.debug(f"load_details: {node_type}#{node_id}")
+        log.info(f"🔍 NodeLoader.load_details НАЧАЛО: {node_type}#{node_id}")
         
-        # Проверяем кэш
+        # Получаем текущие данные из графа
         existing = self._graph.get(node_type, node_id)
+        log.info(f"🔍 Данные из графа: {existing}")
+        
+        # Проверяем, есть ли уже детальные данные (ленивая загрузка)
         if existing and self._graph.is_valid(node_type, node_id):
-            if self._has_details(existing, node_type):
+            log.info(f"🔍 Проверка _has_details для {node_type}#{node_id}")
+            has_details = self._has_details(existing, node_type)
+            log.info(f"🔍 _has_details = {has_details}")
+            
+            if has_details:
                 self._stats['cache_hits'] += 1
-                log.cache(f"Детали для {node_type}#{node_id} в кэше")
+                log.info(f"✅ Детали для {node_type}#{node_id} уже в кэше, возвращаем из кэша")
                 return existing
+            else:
+                log.info(f"⚠️ Данные в кэше есть, но неполные, загружаем с сервера")
+        
+        log.info(f"📡 Данных нет в кэше или они неполные, идём в API")
         
         # Загружаем с API
         api_method = self._DETAIL_API_MAP.get(node_type)
         if not api_method:
+            log.error(f"❌ Детальная загрузка не поддерживается для {node_type}")
             raise ValueError(f"Детальная загрузка не поддерживается для {node_type}")
         
         model_class = self._MODEL_CLASS_MAP.get(node_type)
         if not model_class:
+            log.error(f"❌ Неизвестный класс модели для типа {node_type}")
             raise ValueError(f"Неизвестный класс модели для типа {node_type}")
 
         self._stats['api_calls'] += 1
 
         try:
-            # Для помещений загружаем с включением данных об арендаторе
-            if node_type == ROOM:
+            # Для комплексов и корпусов загружаем с включением данных о владельце
+            log.info(f"📡 Вызов API для {node_type}#{node_id}")
+            
+            if node_type == COMPLEX:
+                log.info(f"📡 COMPLEX: вызываем get_complex_detail с include_owner=True")
+                data = api_method(self._api, node_id, include_owner=True)
+            elif node_type == BUILDING:
+                log.info(f"📡 BUILDING: вызываем get_building_detail с include_owner=True")
+                data = api_method(self._api, node_id, include_owner=True)
+            elif node_type == ROOM:
+                log.info(f"📡 ROOM: вызываем get_room_detail с include_tenant=True")
                 data = api_method(self._api, node_id, include_tenant=True)
             else:
+                log.info(f"📡 {node_type}: вызываем обычный метод")
                 data = api_method(self._api, node_id)
             
+            log.info(f"📡 API ответ: {data}")
+            
             if not data:
-                log.warning(f"API вернул пустые данные для {node_type}#{node_id}")
+                log.warning(f"⚠️ API вернул пустые данные для {node_type}#{node_id}")
                 return None
             
             detailed = model_class.from_dict(data)
+            log.info(f"✅ Создана модель: {detailed}")
             
             # Сохраняем в граф
             self._graph.add_or_update(detailed)
+            log.info(f"✅ Модель сохранена в граф")
             
-            # Если это корпус и у него есть владелец, загружаем данные владельца
-            if node_type == BUILDING and isinstance(detailed, Building) and detailed.owner_id:
+            # Если это комплекс или корпус и у него есть владелец, загружаем данные владельца
+            if node_type == COMPLEX and isinstance(detailed, Complex) and detailed.owner_id:
+                log.info(f"👤 Комплекс имеет владельца {detailed.owner_id}, загружаем")
+                self._load_owner_if_needed(detailed.owner_id)
+            elif node_type == BUILDING and isinstance(detailed, Building) and detailed.owner_id:
+                log.info(f"👤 Корпус имеет владельца {detailed.owner_id}, загружаем")
                 self._load_owner_if_needed(detailed.owner_id)
             
             self._stats['details_loaded'] += 1
-            log.info(f"Загружены детали для {node_type}#{node_id}")
+            log.info(f"✅ Загружены детали для {node_type}#{node_id}")
             
             return detailed
             
         except Exception as e:
-            log.error(f"Ошибка загрузки деталей {node_type}#{node_id}: {e}")
+            log.error(f"❌ Ошибка загрузки деталей {node_type}#{node_id}: {e}")
             raise
     
     # ===== Методы для загрузки связанных данных =====
@@ -384,7 +406,9 @@ class NodeLoader:
     def _has_details(self, entity: Any, node_type: NodeType) -> bool:
         """Проверяет, загружены ли детальные поля."""
         if node_type == COMPLEX and isinstance(entity, Complex):
-            return entity.description is not None or entity.address is not None
+            return (entity.description is not None or 
+                    entity.address is not None or 
+                    entity.owner_id is not None)
             
         elif node_type == BUILDING and isinstance(entity, Building):
             return (entity.description is not None or 

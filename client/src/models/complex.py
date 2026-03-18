@@ -27,7 +27,7 @@ class Complex:
     
     id: int
     name: str
-    buildings_count: int
+    buildings_count: int = 0
     
     # Дополнительные поля (могут отсутствовать)
     description: Optional[str] = None

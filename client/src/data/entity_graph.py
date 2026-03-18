@@ -58,7 +58,8 @@ class EntityGraph:
         """
         with self._lock:
             log.debug(f"add_or_update: {type(entity).__name__}")
-            
+            log.info(f"📊 ENTITY_GRAPH: add_or_update {type(entity).__name__} id={entity.id if hasattr(entity, 'id') else 'unknown'}")
+
             # Определяем тип и ID
             node_type = get_node_type(entity)
             if not node_type:

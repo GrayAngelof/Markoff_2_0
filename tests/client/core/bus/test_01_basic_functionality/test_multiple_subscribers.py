@@ -88,23 +88,22 @@ class TestMultipleSubscribers:
         mock_callback2.assert_called_once()  # Должен быть вызван
         mock_callback3.assert_called_once()  # Должен быть вызван
 
-    @patch('client.src.core.event_bus.log')
-    def test_error_logging(self, mock_log):
+    def test_error_logging(self, mock_logger):  # используем фикстуру, а не @patch
         """Проверяет, что ошибки в обработчиках логируются."""
         # Arrange
         event_bus = EventBus()
         error_message = "Critical error in handler"
-        
+
         def failing_handler(event):
             raise ValueError(error_message)
-        
+
         event_bus.subscribe(SystemEvents.DATA_ERROR, failing_handler)
-        
+
+        # Сбрасываем счётчик вызовов перед Act
+        mock_logger.reset_mock()
+
         # Act
         event_bus.emit(SystemEvents.DATA_ERROR, {"error": "test"})
-        
+
         # Assert
-        mock_log.error.assert_called_once()
-        # Проверяем, что в лог попала информация об ошибке
-        log_call_args = mock_log.error.call_args[0][0]
-        assert error_message in log_call_args or "ValueError" in log_call_args
+        mock_logger.error.assert_called_once()

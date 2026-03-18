@@ -10,8 +10,7 @@ from client.src.core.events import UIEvents, SystemEvents
 class TestErrorLogging:
     """Тестирует логирование ошибок в обработчиках событий."""
 
-    @patch('client.src.core.event_bus.log')
-    def test_error_is_logged(self, mock_log):
+    def test_error_is_logged(self, mock_logger):
         """Проверяет, что ошибка логируется."""
         # Arrange
         event_bus = EventBus()
@@ -22,19 +21,18 @@ class TestErrorLogging:
         event_bus.subscribe('log_test', failing_handler)
         
         # Сбрасываем счётчик вызовов перед Act
-        mock_log.reset_mock()
+        mock_logger.reset_mock()
         
         # Act
         event_bus.emit('log_test')
         
         # Assert
-        mock_log.error.assert_called_once()
-        error_message = mock_log.error.call_args[0][0]
+        mock_logger.error.assert_called_once()
+        error_message = mock_logger.error.call_args[0][0]
         assert "Ошибка в обработчике для log_test" in error_message
         assert "ValueError" in error_message or "Тестовая ошибка" in error_message
 
-    @patch('client.src.core.event_bus.log')
-    def test_multiple_errors_are_logged(self, mock_log):
+    def test_multiple_errors_are_logged(self, mock_logger):
         """Проверяет логирование нескольких ошибок."""
         # Arrange
         event_bus = EventBus()
@@ -53,16 +51,16 @@ class TestErrorLogging:
         event_bus.subscribe('multi_log', normal_handler)
         
         # Сбрасываем счётчик вызовов перед Act
-        mock_log.reset_mock()
+        mock_logger.reset_mock()
         
         # Act
         event_bus.emit('multi_log')
         
         # Assert
-        assert mock_log.error.call_count == 2, f"Ожидалось 2 вызова error, получено {mock_log.error.call_count}"
+        assert mock_logger.error.call_count == 2, f"Ожидалось 2 вызова error, получено {mock_logger.error.call_count}"
         
         # Получаем все сообщения об ошибках
-        error_messages = [call_args[0][0] for call_args in mock_log.error.call_args_list]
+        error_messages = [call_args[0][0] for call_args in mock_logger.error.call_args_list]
         
         # Выводим отладочную информацию
         print(f"\nЗалогированные сообщения: {error_messages}")
@@ -80,8 +78,7 @@ class TestErrorLogging:
         assert value_error_found, f"ValueError/Ошибка 1 не найдены в сообщениях: {error_messages}"
         assert runtime_error_found, f"RuntimeError/Ошибка 2 не найдены в сообщениях: {error_messages}"
 
-    @patch('client.src.core.event_bus.log')
-    def test_error_logging_with_different_exception_types(self, mock_log):
+    def test_error_logging_with_different_exception_types(self, mock_logger):
         """Проверяет логирование разных типов исключений."""
         # Arrange
         event_bus = EventBus()
@@ -100,16 +97,16 @@ class TestErrorLogging:
         event_bus.subscribe('type_test', key_error_handler)
         
         # Сбрасываем счётчик вызовов перед Act
-        mock_log.reset_mock()
+        mock_logger.reset_mock()
         
         # Act
         event_bus.emit('type_test')
         
         # Assert
-        assert mock_log.error.call_count == 3, f"Ожидалось 3 вызова error, получено {mock_log.error.call_count}"
+        assert mock_logger.error.call_count == 3, f"Ожидалось 3 вызова error, получено {mock_logger.error.call_count}"
         
         # Получаем все сообщения об ошибках
-        error_messages = [call_args[0][0] for call_args in mock_log.error.call_args_list]
+        error_messages = [call_args[0][0] for call_args in mock_logger.error.call_args_list]
         
         # Выводим отладочную информацию
         print(f"\nЗалогированные сообщения: {error_messages}")
@@ -131,8 +128,7 @@ class TestErrorLogging:
         assert type_error_found, f"TypeError не найден в сообщениях: {error_messages}"
         assert key_error_found, f"KeyError не найден в сообщениях: {error_messages}"
 
-    @patch('client.src.core.event_bus.log')
-    def test_error_logging_preserves_event_type_info(self, mock_log):
+    def test_error_logging_preserves_event_type_info(self, mock_logger):
         """Проверяет, что в лог попадает информация о типе события."""
         # Arrange
         event_bus = EventBus()
@@ -144,18 +140,17 @@ class TestErrorLogging:
         event_bus.subscribe(event_type, failing_handler)
         
         # Сбрасываем счётчик вызовов перед Act
-        mock_log.reset_mock()
+        mock_logger.reset_mock()
         
         # Act
         event_bus.emit(event_type, {"test": "data"})
         
         # Assert
-        mock_log.error.assert_called_once()
-        error_message = mock_log.error.call_args[0][0]
+        mock_logger.error.assert_called_once()
+        error_message = mock_logger.error.call_args[0][0]
         assert event_type in error_message, f"Тип события {event_type} должен быть в сообщении об ошибке: {error_message}"
 
-    @patch('client.src.core.event_bus.log')
-    def test_no_logging_when_no_errors(self, mock_log):
+    def test_no_logging_when_no_errors(self, mock_logger):
         """Проверяет, что при отсутствии ошибок логи не пишутся."""
         # Arrange
         event_bus = EventBus()
@@ -166,17 +161,18 @@ class TestErrorLogging:
         event_bus.subscribe('no_error', normal_handler)
         
         # Сбрасываем счётчик вызовов перед Act
-        mock_log.reset_mock()
+        mock_logger.reset_mock()
         
         # Act
         event_bus.emit('no_error')
         
         # Assert
-        mock_log.error.assert_not_called()
+        mock_logger.error.assert_not_called()
 
-    @patch('client.src.core.event_bus.log')
-    def test_debug_logging_for_dead_subscribers(self, mock_log):
-        """Проверяет debug-логирование при очистке мёртвых подписчиков."""
+    def test_debug_logging_for_dead_subscribers(self, mock_logger):
+        """
+        Проверяет debug-логирование при очистке мёртвых подписчиков.
+        """
         # Arrange
         event_bus = EventBus()
         
@@ -193,30 +189,26 @@ class TestErrorLogging:
         import gc
         gc.collect()
         
-        # Настраиваем мок для debug-лога
-        from client.src.core.event_bus import Logger
+        # Act
+        event_bus.emit('cleanup_test')
         
-        # Сбрасываем счётчик вызовов перед Act
-        mock_log.reset_mock()
+        # Assert - проверяем, что были debug-логи об очистке
+        assert mock_logger.debug.called, "Должен быть debug-лог об очистке мёртвых подписчиков"
         
-        with patch.object(Logger, 'is_debug_enabled', return_value=True):
-            # Act
-            event_bus.emit('cleanup_test')
-            
-            # Assert
-            # Должен быть хотя бы один вызов debug
-            assert mock_log.debug.called, "Должен быть debug-лог об очистке"
-            
-            # Проверяем, что сообщение содержит информацию об очистке
-            if mock_log.debug.call_args_list:
-                debug_messages = [call_args[0][0] for call_args in mock_log.debug.call_args_list]
-                print(f"\nDebug сообщения: {debug_messages}")
-                
-                cleanup_found = any(
-                    "удалено" in msg.lower() or 
-                    "dead" in msg.lower() or 
-                    "мёртв" in msg.lower() or
-                    "очистк" in msg.lower()
-                    for msg in debug_messages
-                )
-                assert cleanup_found, f"Должно быть сообщение об удалении мёртвых подписчиков: {debug_messages}"
+        # Проверяем, что в логах есть упоминание о мёртвых подписках
+        debug_calls = [args[0] for args, _ in mock_logger.debug.call_args_list]
+        
+        # Более гибкая проверка - ищем любое упоминание очистки/мёртвых подписок
+        found = False
+        expected_phrases = ["мёртвых подписок", "удалено", "dead", "очистк", "мертв", "dead_subscribers"]
+        
+        for call in debug_calls:
+            call_str = str(call)
+            for phrase in expected_phrases:
+                if phrase in call_str.lower():
+                    found = True
+                    break
+            if found:
+                break
+        
+        assert found, f"Не найдено упоминание об очистке мёртвых подписчиков в логах: {debug_calls}"

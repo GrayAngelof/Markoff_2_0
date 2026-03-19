@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock, patch
 
 from client.src.core.event_bus import EventBus
-from client.src.core.events import SystemEvents, UIEvents
+from client.src.core.event_constants import SystemEvents, UIEvents
 
 
 class TestMultipleSubscribers:

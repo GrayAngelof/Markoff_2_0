@@ -5,7 +5,7 @@ import time
 from unittest.mock import Mock, MagicMock
 
 from client.src.core.event_bus import EventBus
-from client.src.core.events import UIEvents, SystemEvents
+from client.src.core.event_constants import SystemEvents, UIEvents
 
 
 class TestBasicSubscriptionAndEmit:

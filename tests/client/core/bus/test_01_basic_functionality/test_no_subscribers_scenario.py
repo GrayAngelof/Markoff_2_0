@@ -5,7 +5,7 @@ import gc
 from unittest.mock import Mock, patch
 
 from client.src.core.event_bus import EventBus
-from client.src.core.events import UIEvents, SystemEvents
+from client.src.core.event_constants import UIEvents, SystemEvents
 
 
 class TestNoSubscribersScenario:

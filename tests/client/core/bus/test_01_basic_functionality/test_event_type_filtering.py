@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock
 
 from client.src.core.event_bus import EventBus
-from client.src.core.events import UIEvents, SystemEvents, HotkeyEvents, ProjectionEvents
+from client.src.core.event_constants import UIEvents, SystemEvents, HotkeyEvents, ProjectionEvents
 
 
 class TestEventTypeFiltering:

@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock
 
 from client.src.core.event_bus import EventBus
-from client.src.core.events import SystemEvents
+from client.src.core.event_constants import SystemEvents
 
 
 class TestDuplicateSubscription:

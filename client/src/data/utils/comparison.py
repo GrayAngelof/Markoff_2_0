@@ -1,9 +1,8 @@
-# client/src/core/utils/comparison.py
+# client/src/data/utils/comparison.py
 """
 Утилиты для сравнения объектов.
 
 Содержит функции для проверки изменений в данных.
-Используется в EntityGraph и других компонентах для оптимизации.
 """
 from typing import Any
 

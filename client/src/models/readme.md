@@ -1,276 +1,250 @@
-## 🎯 **Ты абсолютно прав! Это справка, а не документация кода!**
+# ============================================
+# СПЕЦИФИКАЦИЯ: MODELS (DTO СЛОЙ)
+# ============================================
 
-Прости, я увлекся и начал описывать реализацию, а нужно было **чисто инструкцию по использованию**. Исправляюсь!
+## 1. НАЗНАЧЕНИЕ
+Модели — это слой, определяющий структуру данных, которыми оперирует приложение. Они являются единственным источником правды о том, как выглядят сущности предметной области (комплексы, корпуса, контрагенты) на стороне клиента. Модели обеспечивают типобезопасность и изолируют остальной код от изменений в API бекенда.
 
----
+## 2. ГДЕ ЛЕЖИТ
+`client/src/models/`
 
-## 📚 **СПРАВКА ПО МОДЕЛЯМ (MODELS) — версия 1.0**
+## 3. ЗА ЧТО ОТВЕЧАЕТ
+✅ **Отвечает за:**
+- Определение структуры всех сущностей приложения
+- Типизацию полей (int, str, Optional, datetime)
+- Десериализацию из JSON (метод `from_dict`)
+- Иммутабельность данных (защита от случайных изменений)
+- Базовую валидацию обязательных полей
+- Работу с датами (парсинг ISO строк в datetime)
 
-### 🎯 **Назначение моделей**
+❌ **НЕ отвечает за:**
+- Бизнес-логику (это `services`)
+- Форматирование для UI (это `ui/formatters`)
+- Загрузку/сохранение данных (это `data`)
+- Связи между сущностями (только через ID)
+- Сериализацию в JSON (это задача API клиента)
 
-Модели — это **единственный источник правды** о том, как выглядят данные, которые приходят с бекенда. Если ты работаешь с комплексом, корпусом или контрагентом — ты работаешь через эти классы.
+## 4. КТО ИСПОЛЬЗУЕТ
+- **Потребители:** Все слои приложения (`data`, `services`, `controllers`, `ui`)
+- **Зависимости:** 
+  - Core (базовые типы, `NodeType`)
+  - Shared (утилиты для парсинга дат)
+  - Никаких зависимостей от `data`, `services`, `ui`
 
-**Главное правило:** Модели только хранят данные. Вся логика — в других местах.
+## 5. КЛЮЧЕВЫЕ ПОНЯТИЯ
+- **DTO (Data Transfer Object)** — объект только для переноса данных
+- **Иммутабельность** — невозможность изменить объект после создания
+- **from_dict()** — единый метод создания из ответа API
+- **BaseDTO** — корневой класс для всех моделей
+- **DateTimeMixin** — примесь для работы с датами
+- **Связи через ID** — модель хранит только идентификаторы, не объекты
 
----
+## 6. ОГРАНИЧЕНИЯ (ВАЖНО!)
+⛔ **НЕЛЬЗЯ:**
+- Добавлять методы с бизнес-логикой
+- Хранить связанные объекты (только ID)
+- Использовать `from_dict` не по назначению
+- Изменять поля после создания
+- Создавать циклические зависимости между моделями
+- Добавлять зависимости от других слоёв
+- Использовать магические строки/числа
 
-## 📦 **Где лежат модели**
+✅ **МОЖНО:**
+- Добавлять новые модели
+- Расширять существующие новыми полями
+- Добавлять новые миксины (если нужно)
+- Наследоваться от BaseDTO
 
-```
-src/models/
-```
-
-Все модели импортируются напрямую из пакета:
-
+## 7. ПРИМЕРЫ (только концептуально)
 ```python
-from src.models import Complex, Building, Counterparty
-```
+# Как это будет использоваться (не реализация!)
+from src.models import Complex, Building
 
-Не нужно лезть в отдельные файлы — достаточно этого импорта.
-
----
-
-## 🏗️ **Список моделей**
-
-| Модель | Что описывает | Когда использовать |
-|--------|---------------|-------------------|
-| `Complex` | Комплекс зданий | Работа с комплексами |
-| `Building` | Корпус | Работа с корпусами |
-| `Floor` | Этаж | Работа с этажами |
-| `Room` | Помещение | Работа с помещениями |
-| `Counterparty` | Контрагент (юр. лицо) | Работа с владельцами, арендаторами |
-| `ResponsiblePerson` | Ответственное лицо | Контактные лица контрагентов |
-
----
-
-## 🎯 **Как создать модель из API**
-
-У каждой модели есть метод `from_dict()`. **Только так** нужно создавать модели из ответов бекенда:
-
-```python
-# Получили данные от API
-api_response = {
-    "id": 1,
-    "name": "Фабрика Веретено",
-    "buildings_count": 2,
-    "description": "Историческое здание",
-    "created_at": "2024-01-15T14:30:45Z"
-}
-
-# Создаём модель
+# Создание из API ответа
 complex = Complex.from_dict(api_response)
-```
 
-**Важно:** 
-- Все обязательные поля должны быть в словаре
-- Если поля нет — метод упадет с ошибкой (так и задумано)
-- Даты автоматически превращаются в `datetime`
+# Только чтение данных
+name = complex.name
+created = complex.created_at
 
----
+# Нельзя изменить!
+# complex.name = "Новое"  # ❌ Ошибка!
 
-## 📋 **Что есть в каждой модели**
+# Связи только через ID
+building = Building.from_dict(data)
+owner_id = building.owner_id  # ✅ правильно
+# owner = building.owner      # ❌ нельзя!
+8. РИСКИ
+🔴 Критические:
 
-### **Complex**
-```python
+Нарушение иммутабельности → случайные изменения данных в кэше
+
+Добавление логики в модели → разрастание ответственности
+
+Хранение связанных объектов → дублирование данных, проблемы консистентности
+
+🟡 Средние:
+
+Неполная типизация (использование Any) → потеря преимуществ IDE
+
+Игнорирование Optional для необязательных полей → ошибки при отсутствии данных
+
+🟢 Контролируемые:
+
+Рост числа моделей при сохранении чистоты не влияет на стабильность
+
+============================================
+КОНЕЦ СПЕЦИФИКАЦИИ
+============================================
+
+## Описание реализации и структуры
+
+В соответствии со спецификацией, слой моделей реализован как набор иммутабельных DTO, обеспечивающих типобезопасность и единообразие работы с данными от API бекенда. Код организован в следующую структуру каталогов, где каждый модуль отвечает за свою группу сущностей:
+models/
+├── init.py # Публичное API (витрина)
+├── base.py # BaseDTO, DateTimeMixin
+├── complex.py # Модель комплекса
+├── building.py # Модель корпуса
+├── floor.py # Модель этажа
+├── room.py # Модель помещения
+├── counterparty.py # Модель контрагента
+└── responsible_person.py # Модель ответственного лица
+
+Публичное API (что можно импортировать из models)
+python
+from src.models import (
+    # Основные модели
+    Complex,
+    Building,
+    Floor,
+    Room,
+    Counterparty,
+    ResponsiblePerson
+)
+🔹 Complex
+python
 complex.id               # int
 complex.name             # str
-complex.buildings_count  # int (сколько корпусов, для дерева)
+complex.buildings_count  # int (сколько корпусов)
 complex.description      # Optional[str]
 complex.address          # Optional[str]
 complex.owner_id         # Optional[int]
 complex.created_at       # Optional[datetime]
 complex.updated_at       # Optional[datetime]
-```
-
-### **Building**
-```python
+🔹 Building
+python
 building.id              # int
 building.name            # str
-building.complex_id      # int (чей это корпус)
-building.floors_count    # int (сколько этажей, для дерева)
+building.complex_id      # int
+building.floors_count    # int (сколько этажей)
 building.description     # Optional[str]
 building.address         # Optional[str]
 building.status_id       # Optional[int]
-building.owner_id        # Optional[int] (кто владелец)
+building.owner_id        # Optional[int]
 building.created_at      # Optional[datetime]
 building.updated_at      # Optional[datetime]
-```
-
-### **Floor**
-```python
+🔹 Floor
+python
 floor.id                 # int
-floor.number             # int (может быть отрицательным: -1, -2)
-floor.building_id        # int (чей это этаж)
-floor.rooms_count        # int (сколько помещений, для дерева)
+floor.number             # int (может быть отрицательным)
+floor.building_id        # int
+floor.rooms_count        # int (сколько помещений)
 floor.description        # Optional[str]
 floor.physical_type_id   # Optional[int]
 floor.status_id          # Optional[int]
 floor.plan_image_url     # Optional[str]
 floor.created_at         # Optional[datetime]
 floor.updated_at         # Optional[datetime]
-```
-
-### **Room**
-```python
+🔹 Room
+python
 room.id                  # int
-room.number              # str ("101", "101А", "Б12")
-room.floor_id            # int (чей это этаж)
-room.area                # Optional[float] (площадь)
-room.status_code         # Optional[str] ('free', 'occupied', ...)
+room.number              # str ("101", "101А")
+room.floor_id            # int
+room.area                # Optional[float]
+room.status_code         # Optional[str] ('free', 'occupied')
 room.description         # Optional[str]
 room.physical_type_id    # Optional[int]
 room.max_tenants         # Optional[int]
 room.created_at          # Optional[datetime]
 room.updated_at          # Optional[datetime]
-```
-
-### **Counterparty**
-```python
+🔹 Counterparty
+python
 counterparty.id              # int
-counterparty.short_name      # str (для отображения)
-counterparty.full_name       # Optional[str] (полное юр. название)
+counterparty.short_name      # str
+counterparty.status_code     # str ('active', 'suspended')
+counterparty.full_name       # Optional[str]
 counterparty.type_id         # Optional[int]
 counterparty.tax_id          # Optional[str] (ИНН)
 counterparty.legal_address   # Optional[str]
 counterparty.actual_address  # Optional[str]
-counterparty.bank_details    # Optional[Dict] (JSON с реквизитами)
-counterparty.status_code     # str ('active', 'suspended', ...)
+counterparty.bank_details    # Optional[Dict]
 counterparty.notes           # Optional[str]
 counterparty.created_at      # Optional[datetime]
 counterparty.updated_at      # Optional[datetime]
-```
-
-### **ResponsiblePerson**
-```python
+🔹 ResponsiblePerson
+python
 person.id                    # int
-person.counterparty_id       # int (чей это контакт)
-person.person_name           # str (ФИО)
-person.position              # Optional[str] (должность)
+person.counterparty_id       # int
+person.person_name           # str
+person.is_public_contact     # bool
+person.is_active             # bool
+person.position              # Optional[str]
 person.role_code             # Optional[str]
 person.phone                 # Optional[str]
 person.email                 # Optional[str]
-person.contact_categories    # Optional[str] ("legal,financial")
-person.is_public_contact     # bool (публичный ли)
-person.is_active             # bool (активен ли)
+person.contact_categories    # Optional[str]
 person.notes                 # Optional[str]
 person.created_at            # Optional[datetime]
 person.updated_at            # Optional[datetime]
-```
+🎯 Правила использования
+✅ Правильно
+python
+# Создание из API
+complex = Complex.from_dict(api_data)
 
----
+# Только чтение данных
+name = complex.name
+building_count = complex.buildings_count
 
-## 💡 **Важные особенности**
-
-### 1. **Модели неизменяемы (immutable)**
-```python
-complex.name = "Новое название"  # ❌ ОШИБКА! Нельзя изменить
-```
-Если нужно изменить данные — создавай новую модель из обновленного словаря.
-
-### 2. **Все связи — через ID**
-```python
-building.complex_id  # есть
-building.owner_id    # есть
-# Но самого объекта владельца в модели НЕТ
-```
-Владельца нужно получать отдельно через `CounterpartyRepository`.
-
-### 3. **Статусы — это коды**
-```python
-room.status_code = 'occupied'      # код
-# Не текст! "ЗАНЯТО" — это работа форматтера
-```
-
-### 4. **Даты — это datetime**
-```python
-complex.created_at.year        # можно
-complex.created_at.strftime()  # можно
-# Это уже объект datetime, не строка!
-```
-
----
-
-## 🎯 **Где использовать модели**
-
-### ✅ **В API клиенте**
-```python
-data = api_client.get_complexes()
-complexes = [Complex.from_dict(item) for item in data]
-return complexes
-```
-
-### ✅ **В репозиториях**
-```python
-def get_by_id(self, id: int) -> Optional[Building]:
-    return self._graph.get(NodeType.BUILDING, id)
-```
-
-### ✅ **В контроллерах**
-```python
-def _on_building_selected(self, building: Building):
-    self._loader.load_building_details(building.id)
-```
-
-### ❌ **НЕ в UI напрямую**
-Модели не должны знать про отображение. Для UI есть отдельные форматтеры:
-```python
-# НЕ ДЕЛАЙ ТАК:
-label.setText(building.name)  # можно, но лучше через форматтер
-
-# ДЕЛАЙ ТАК:
-from ui.formatters import building_formatter
-label.setText(building_formatter.format_building_title(building))
-```
-
----
-
-## 📋 **Частые вопросы**
-
-**Вопрос:** А где методы типа `get_owner_display`?  
-**Ответ:** Их нет. Это UI-логика, она в `ui/formatters/`.
-
-**Вопрос:** А как получить владельца корпуса?  
-**Ответ:** 
-```python
+# Доступ к связанным данным через ID
 owner_id = building.owner_id
 if owner_id:
     owner = counterparty_repo.get(owner_id)
-```
 
-**Вопрос:** А что, если в API нет поля?  
-**Ответ:** Метод `from_dict` упадет с ошибкой. Это правильно — мы должны знать, если API изменился.
+# Использование в UI через форматтеры
+from ui.formatters import building_formatter
+label.setText(building_formatter.format_title(building))
+❌ Неправильно
+python
+# Попытка изменить
+complex.name = "Новое"  # ❌ Ошибка!
 
-**Вопрос:** А можно создать модель без API, руками?  
-**Ответ:** Да:
-```python
-building = Building(
-    id=1,
-    name="Тестовый корпус",
-    complex_id=42,
-    floors_count=5
-)
-```
+# Хранение связанных объектов
+class Building:
+    complex: Complex  # ❌ Нельзя!
+    owner: Counterparty  # ❌ Нельзя!
 
----
+# Логика в модели
+class Room:
+    def is_available(self):  # ❌ Нельзя!
+        return self.status_code == 'free'
 
-## 🚫 **Чего НЕТ в моделях (и не ищи)**
+# Форматирование в модели
+class Building:
+    def display_name(self):  # ❌ Нельзя!
+        return f"{self.name} (ID: {self.id})"
 
-- ❌ Нет методов `display_name()`
-- ❌ Нет `get_status_display()`
-- ❌ Нет вложенных объектов (owner, responsible_persons)
-- ❌ Нет бизнес-логики
-- ❌ Нет валидации кроме обязательных полей
-
----
-
-## ✅ **Резюме**
-
-1. **Модели = данные с бекенда**
-2. **Создаём только через `from_dict`**
-3. **Не изменяем после создания**
-4. **Связи только через ID**
-5. **Статусы — коды, не текст**
-6. **Даты — `datetime`, не строки**
-7. **Вся логика — в других местах**
-
-**Это всё, что нужно знать про модели, чтобы правильно их использовать.** 🚀
+Чек-лист: что есть в models
+Модель	Обязательные поля	Опциональные поля	Готово
+Complex	id, name, buildings_count	5 полей	✅
+Building	id, name, complex_id, floors_count	6 полей	✅
+Floor	id, number, building_id, rooms_count	6 полей	✅
+Room	id, number, floor_id	6 полей	✅
+Counterparty	id, short_name, status_code	8 полей	✅
+ResponsiblePerson	id, counterparty_id, person_name, is_public_contact, is_active	7 полей	✅
+💡 Итог
+Модели — это контракт между бекендом и клиентом:
+Только данные, никакой логики
+Только чтение, никаких изменений
+Только ID, никаких объектов
+Только коды, никакого текста

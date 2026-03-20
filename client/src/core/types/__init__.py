@@ -16,6 +16,7 @@ from .exceptions import (
     SerializationError, ValidationError, NotFoundError,
     DuplicateError
 )
+from .protocols import HasNodeType
 
 __all__ = [
     # Типы узлов
@@ -24,6 +25,7 @@ __all__ = [
     'NodeKey',
     'ParentInfo',
     'NodeIdentifier',
+    "HasNodeType",
     
     # Структуры событий
     'EventData',

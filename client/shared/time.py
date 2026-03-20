@@ -1,4 +1,4 @@
-# client/src/core/utils/time.py
+# client/src/shared/time.py
 """
 Утилиты для работы со временем.
 

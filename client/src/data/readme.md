@@ -200,7 +200,9 @@ if invalid_ids:
 
 Data слой — это **единый источник правды** для всех данных в приложении. Он отвечает за хранение, кэширование, индексацию связей и отслеживание валидности всех загруженных сущностей.
 
-**Главная идея:** Все данные загружаются один раз, сохраняются в граф, и далее используются из кэша. При изменении данных на сервере происходит инвалидация, и данные перезагружаются. Data слой также генерирует события (`DataInvalidated`) при изменении статуса валидности, что позволяет другим слоям (UI, контроллеры) реагировать на изменения.
+**Главная идея:** Все данные загружаются один раз, сохраняются в граф, и далее используются из кэша. При изменении данных на сервере происходит инвалидация, и данные перезагружаются. Data слой также генерирует события (`DataInvalidated`) при изменении статуса валидности, что позволяет другим слоям (контроллеры, UI) реагировать на изменения.
+
+**Важное уточнение:** Data слой **не содержит бизнес-логики** — только хранение, навигацию и отслеживание валидности. Бизнес-правила (например, "если у корпуса есть владелец, загрузить его") находятся в `services` слое.
 
 ---
 
@@ -287,6 +289,8 @@ graph = EntityGraph(bus)
 | `get_children(parent_type, parent_id)` | ID всех детей | `List[int]` |
 | `get_parent(child_type, child_id)` | Родитель | `Optional[NodeIdentifier]` |
 | `get_ancestors(node_type, node_id)` | Все предки | `List[NodeIdentifier]` |
+| `get_cached_children(parent_type, parent_id, child_type)` | Получить детей из кэша, если все есть | `Optional[List[Any]]` |
+| `get_if_full(node_type, node_id)` | Получить сущность, если данные полные | `Optional[Any]` |
 
 #### **Управление валидностью (с эмиссией событий)**
 
@@ -395,89 +399,93 @@ repo.get_by_counterparty(counterparty_id)   # ID всех ответственн
 
 ---
 
-## 🔄 **Типичный сценарий использования**
+## 🔄 **Типичный сценарий использования (с контроллерами)**
 
 ### **Сценарий 1: Загрузка данных из API (через репозиторий)**
 
 ```python
 from core import EventBus
 from data import EntityGraph, ComplexRepository
-from services import ApiClient
+from services import ApiClient, DataLoader
 
 bus = EventBus()
 graph = EntityGraph(bus)
 complex_repo = ComplexRepository(graph)
+loader = DataLoader(bus, api, graph)
 
-# Загрузка из API
-api = ApiClient()
-complexes = api.get_complexes()
-
-# Сохранение в кэш (граф сгенерирует события при инвалидации)
-for complex_obj in complexes:
-    complex_repo.add(complex_obj)
-
-# Проверка — теперь данные в кэше
-cached = complex_repo.get(42)  # вернёт Complex или NotFoundError
+# Контроллер вызывает DataLoader
+def load_complexes(self):
+    complexes = self._loader.load_complexes()  # DataLoader проверяет кэш
+    for complex_obj in complexes:
+        complex_repo.add(complex_obj)  # сохраняем в граф
 ```
 
-### **Сценарий 2: Раскрытие узла в дереве (навигация)**
+### **Сценарий 2: Раскрытие узла в дереве (навигация через DataLoader)**
 
 ```python
-# В TreeController при раскрытии комплекса
-def on_node_expanded(self, node_type, node_id):
-    if node_type == NodeType.COMPLEX:
-        # Получаем ID корпусов (только ID, не объекты — ленивая загрузка)
-        building_ids = complex_repo.get_building_ids(node_id)
-        
-        if not building_ids:
-            # Нет в кэше — грузим через сервис
-            buildings = loader.load_buildings(node_id)
-            for building in buildings:
-                building_repo.add(building)
-        else:
-            # Есть в кэше — используем
-            log.cache(f"Найдено {len(building_ids)} корпусов в кэше")
+# В TreeController
+def _on_node_expanded(self, event: Event[NodeExpanded]) -> None:
+    node = event.data.node
+    
+    # DataLoader проверяет кэш через EntityGraph.get_cached_children()
+    children = self._loader.load_children(
+        node.node_type, node.node_id, child_type
+    )
+    
+    # children уже загружены из кэша или из API
+    for child in children:
+        # данные уже в графе
+        pass
 ```
 
 ### **Сценарий 3: Обновление данных (F5) с эмиссией событий**
 
 ```python
 # В RefreshController
-def refresh_current(self, node_type, node_id):
-    # Инвалидируем всю ветку (граф сгенерирует DataInvalidated событие)
-    count = graph.invalidate_branch(node_type, node_id)
-    log.info(f"Инвалидировано {count} сущностей")
-    
-    # Перезагружаем через сервис
-    if node_type == NodeType.COMPLEX:
-        complexes = loader.load_complexes()
-        for complex_obj in complexes:
-            complex_repo.add(complex_obj)
-    else:
-        details = loader.load_details(node_type, node_id)
-        if details:
-            complex_repo.add(details)
+def _handle_current_refresh(self, node: NodeIdentifier) -> None:
+    # DataLoader инвалидирует в графе
+    self._loader.reload_node(node.node_type, node.node_id)
+    # граф генерирует DataInvalidated событие
+    # DataLoader эмитит DataLoaded после перезагрузки
 ```
 
-### **Сценарий 4: Получение контекста для UI (навигация)**
+### **Сценарий 4: Получение контекста для UI (навигация через EntityGraph)**
 
 ```python
-# В TreeController для отображения иерархии
-def get_selected_node_context(self, node_type, node_id):
+# В ContextService
+def get_context(self, node: NodeIdentifier) -> Dict[str, Optional[str]]:
     context = {}
     
-    # Получаем всех предков
-    ancestors = graph.get_ancestors(node_type, node_id)
+    # Получаем всех предков через EntityGraph
+    ancestors = self._loader.get_ancestors(node.node_type, node.node_id)
     
     for anc in ancestors:
         if anc.node_type == NodeType.COMPLEX:
-            complex_obj = complex_repo.get(anc.node_id)
+            complex_obj = self._complex_repo.get(anc.node_id)
             context['complex_name'] = complex_obj.name
         elif anc.node_type == NodeType.BUILDING:
-            building_obj = building_repo.get(anc.node_id)
+            building_obj = self._building_repo.get(anc.node_id)
             context['building_name'] = building_obj.name
     
     return context
+```
+
+### **Сценарий 5: Загрузка корпуса с владельцем (через DataLoader)**
+
+```python
+# В DetailsController
+def _load_building_details(self, building_id: int) -> None:
+    # DataLoader загружает корпус + владельца + контакты
+    # Использует EntityGraph для проверки кэша
+    result = self._loader.load_building_with_owner(building_id)
+    
+    if result:
+        # result — типизированный BuildingWithOwnerResult (dataclass)
+        self._bus.emit(BuildingDetailsLoaded(
+            building=result.building,
+            owner=result.owner,
+            responsible_persons=result.responsible_persons
+        ))
 ```
 
 ---
@@ -517,7 +525,7 @@ if not result['consistent']:
 
 ### **3. Репозитории содержат только доступ и навигацию**
 - ❌ Нет бизнес-логики (фильтрация, сортировка, поиск)
-- ✅ Бизнес-логика в сервисах (`services/`)
+- ✅ Бизнес-логика в сервисах (`services/`) и контроллерах
 
 ### **4. Навигация возвращает ID, а не объекты**
 - ❌ `get_by_complex()` не возвращает `List[Building]`
@@ -526,11 +534,16 @@ if not result['consistent']:
 ### **5. Валидность с эмиссией событий**
 - При `invalidate()` генерируется `DataInvalidated`
 - При `invalidate_branch()` — одно событие на ветку
-- При `mark_invalid_bulk()` — событие на каждый узел
+- Контроллеры могут подписываться на эти события
 
 ### **6. Потокобезопасность**
 - Все операции под `RLock`
 - Можно вызывать из любых потоков
+
+### **7. DataLoader использует EntityGraph для проверки кэша**
+- `load_details()` → `graph.get_if_full()`
+- `load_children()` → `graph.get_cached_children()`
+- `load_complexes()` → `graph.get_all()`
 
 ---
 
@@ -544,6 +557,9 @@ if not result['consistent']:
 | `ValidityIndex` — валидность + эмиссия событий | ✅ |
 | `ConsistencyChecker` — проверка консистентности | ✅ |
 | `validate_ids` — декоратор валидации | ✅ |
+| `get_cached_children()` — проверка наличия всех детей | ✅ |
+| `get_if_full()` — проверка полноты данных | ✅ |
+| `get_ancestors()` — получение всех предков | ✅ |
 | `ComplexRepository` | ✅ (только базовые операции + навигация) |
 | `BuildingRepository` | ✅ (только базовые операции + навигация) |
 | `FloorRepository` | ✅ (только базовые операции + навигация) |
@@ -558,3 +574,44 @@ if not result['consistent']:
 | Потокобезопасность | ✅ |
 | Логирование | ✅ |
 | Эмиссия событий | ✅ |
+
+---
+
+## 🔄 **Взаимодействие с другими слоями (актуальное)**
+
+```
+controllers (координация)
+    ↓ вызывает
+services/DataLoader (бизнес-логика загрузки)
+    ↓ вызывает
+data/EntityGraph (хранение, навигация, валидность)
+    ↓ использует
+core (типы, события, исключения)
+```
+
+**Data слой не знает о:**
+- `controllers` — не вызывает контроллеры
+- `ui` — не знает о виджетах
+- `services` — не знает о DataLoader (только наоборот)
+
+---
+
+## 💡 **Итог**
+
+Data слой — это **фундамент хранения и навигации**, который:
+
+- **Хранит все данные** в едином месте (EntityGraph)
+- **Обеспечивает быстрый доступ** через индексы (O(1) по ID)
+- **Отслеживает валидность** данных и генерирует события
+- **Предоставляет репозитории** как единственный способ доступа
+- **Не содержит бизнес-логики** — только хранение и навигация
+- **Потокобезопасен** — все операции под RLock
+
+**Любой слой может получить данные через репозитории:**
+```python
+from data import BuildingRepository
+
+building_repo = BuildingRepository(graph)
+building = building_repo.get(101)  # Building или NotFoundError
+floor_ids = building_repo.get_floor_ids(101)  # ленивая загрузка
+```

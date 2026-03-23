@@ -14,7 +14,8 @@ DataLoader — фасад загрузки данных.
 - Бизнес-логику (это контроллеры)
 """
 
-from typing import List, Optional, Any, Callable
+from typing import List, Optional, Any, Callable, Dict
+from dataclasses import dataclass, field
 
 from core import EventBus, NodeType, NodeIdentifier
 from core.types.nodes import NodeID 
@@ -32,6 +33,26 @@ from services.loading.utils import LoaderUtils
 from utils.logger import get_logger
 
 log = get_logger(__name__)
+
+
+# ===== ТИПИЗИРОВАННЫЕ РЕЗУЛЬТАТЫ =====
+
+@dataclass(frozen=True, slots=True)
+class BuildingWithOwnerResult:
+    """
+    Типизированный результат загрузки корпуса с владельцем.
+    
+    Все поля, кроме building, имеют значения по умолчанию,
+    чтобы упростить создание результата.
+    
+    Attributes:
+        building: Загруженный корпус (обязательный)
+        owner: Владелец корпуса (если есть)
+        responsible_persons: Список ответственных лиц владельца
+    """
+    building: Building
+    owner: Optional[Counterparty] = None
+    responsible_persons: List[ResponsiblePerson] = field(default_factory=list)
 
 
 class DataLoader:
@@ -266,6 +287,97 @@ class DataLoader:
             counterparty_id
         )
     
+    # ===== Загрузка корпуса с владельцем =====
+    
+    def load_building_with_owner(
+        self,
+        building_id: NodeID
+    ) -> Optional[BuildingWithOwnerResult]:
+        """
+        Загружает корпус с его владельцем и ответственными лицами.
+        
+        DataLoader сам решает, что загружать:
+        1. Проверяет кэш корпуса
+        2. Если есть и полный — использует
+        3. Если нет — загружает детали корпуса
+        4. Если у корпуса есть owner_id — загружает владельца
+        5. Если владелец загружен — загружает ответственных лиц
+        
+        Args:
+            building_id: ID корпуса
+            
+        Returns:
+            Optional[BuildingWithOwnerResult]: Результат загрузки или None
+        """
+        log.info(f"Loading building {building_id} with owner")
+        
+        # 1. Загружаем детали корпуса (с проверкой кэша)
+        building = self.load_details(NodeType.BUILDING, building_id)
+        if building is None:
+            log.warning(f"Building {building_id} not found")
+            return None
+        
+        # 2. Создаем результат с корпусом (остальные поля — по умолчанию)
+        result = BuildingWithOwnerResult(building=building)
+        
+        # 3. Если есть владелец — загружаем
+        if building.owner_id:
+            log.debug(f"Building {building_id} has owner {building.owner_id}")
+            owner = self.load_counterparty(building.owner_id)
+            
+            if owner:
+                # Обновляем результат с владельцем
+                result = BuildingWithOwnerResult(
+                    building=building,
+                    owner=owner,
+                    responsible_persons=result.responsible_persons
+                )
+                
+                # 4. Загружаем ответственных лиц
+                persons = self.load_responsible_persons(owner.id)
+                if persons:
+                    result = BuildingWithOwnerResult(
+                        building=building,
+                        owner=owner,
+                        responsible_persons=persons
+                    )
+                log.info(
+                    f"Loaded {len(persons)} responsible persons "
+                    f"for owner {owner.id} ({owner.short_name})"
+                )
+            else:
+                log.warning(
+                    f"Building {building_id} has owner_id={building.owner_id}, "
+                    f"but owner could not be loaded. Check API or database."
+                )
+        else:
+            log.debug(f"Building {building_id} has no owner")
+        
+        log.info(
+            f"Building {building_id} loaded: "
+            f"owner={result.owner is not None}, "
+            f"persons={len(result.responsible_persons)}"
+        )
+        
+        return result
+    
+    # ===== Получение предков узла =====
+    
+    def get_ancestors(self, node_type: NodeType, node_id: NodeID) -> List[NodeIdentifier]:
+        """
+        Возвращает всех предков узла (родитель, дедушка и т.д.).
+        
+        Делегирует в EntityGraph.
+        
+        Args:
+            node_type: Тип узла
+            node_id: ID узла
+            
+        Returns:
+            List[NodeIdentifier]: Список предков от ближайшего к дальнему
+        """
+        return self._graph.get_ancestors(node_type, node_id)
+    
     # ===== Перезагрузка данных =====
     
     def reload_node(self, node_type: NodeType, node_id: NodeID) -> None:
@@ -308,7 +420,7 @@ class DataLoader:
         self._utils.clear_cache()
         log.debug("DataLoader cache cleared")
     
-    def get_stats(self) -> dict:
+    def get_stats(self) -> Dict[str, Any]:
         """Возвращает статистику работы загрузчика."""
         return {
             'loader': self._node_loader.get_stats() if hasattr(self._node_loader, 'get_stats') else {},

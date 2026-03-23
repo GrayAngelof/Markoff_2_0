@@ -9,11 +9,14 @@
 Для передачи данных разного типа используйте Generic[T].
 """
 
-from dataclasses import dataclass
-from typing import Generic, TypeVar, Optional
+from dataclasses import dataclass, field
+from typing import Generic, TypeVar, Optional, List, Set, Any
 from .types.nodes import NodeType
 from core.types import NodeIdentifier
 from core.types.event_structures import EventData
+
+# Импорты моделей для типизации событий
+from models import Building, Counterparty, ResponsiblePerson
 
 T = TypeVar('T')
 
@@ -37,11 +40,53 @@ class NodeCollapsed(EventData):
     """Узел свёрнут."""
     node: NodeIdentifier
 
+@dataclass(frozen=True, slots=True)
+class NodeCollapsedChanged(EventData):
+    """Узел свёрнут (событие изменения состояния)."""
+    node: NodeIdentifier
+
 
 @dataclass(frozen=True, slots=True)
 class TabChanged(EventData):
     """Переключена вкладка."""
     tab_index: int
+
+
+# === СОБЫТИЯ СОСТОЯНИЯ (для контроллеров) ===
+@dataclass(frozen=True, slots=True)
+class CurrentSelectionChanged(EventData):
+    """Изменился текущий выбранный узел."""
+    selection: Optional[NodeIdentifier]
+
+
+@dataclass(frozen=True, slots=True)
+class ExpandedNodesChanged(EventData):
+    """Изменился список раскрытых узлов."""
+    expanded_nodes: Set[NodeIdentifier]
+
+
+# === СОБЫТИЯ ДЕТАЛЕЙ ===
+@dataclass(frozen=True, slots=True)
+class NodeDetailsLoaded(EventData, Generic[T]):
+    """Детальная информация о узле загружена."""
+    node: NodeIdentifier
+    payload: T
+    context: dict  # имена родителей
+
+
+@dataclass(frozen=True, slots=True)
+class ChildrenLoaded(EventData, Generic[T]):
+    """Дети узла загружены."""
+    parent: NodeIdentifier
+    children: List[T]
+
+
+@dataclass(frozen=True, slots=True)
+class BuildingDetailsLoaded(EventData):
+    """Загружены детали корпуса с владельцем и контактами."""
+    building: Building
+    owner: Optional[Counterparty] = None
+    responsible_persons: List[ResponsiblePerson] = field(default_factory=list)
 
 
 # === СИСТЕМНЫЕ ФАКТЫ ===
@@ -61,6 +106,7 @@ class DataLoaded(EventData, Generic[T]):
     node_id: int
     payload: T
     count: int = 1
+
 
 @dataclass(frozen=True, slots=True)
 class DataInvalidated(EventData):
@@ -83,6 +129,38 @@ class DataError(EventData):
 class ConnectionChanged(EventData):
     """Изменился статус соединения."""
     is_online: bool
+
+
+# === СОБЫТИЯ ОБНОВЛЕНИЯ ===
+@dataclass(frozen=True, slots=True)
+class NodeReloaded(EventData):
+    """Узел перезагружен."""
+    node: NodeIdentifier
+
+
+@dataclass(frozen=True, slots=True)
+class VisibleNodesReloaded(EventData):
+    """Все раскрытые узлы перезагружены."""
+    count: int
+
+
+@dataclass(frozen=True, slots=True)
+class FullReloadCompleted(EventData):
+    """Полная перезагрузка завершена."""
+    count: int  # количество загруженных комплексов
+
+
+# === СОБЫТИЯ СОЕДИНЕНИЯ ===
+@dataclass(frozen=True, slots=True)
+class NetworkActionsEnabled(EventData):
+    """Сетевые действия разрешены (онлайн)."""
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class NetworkActionsDisabled(EventData):
+    """Сетевые действия запрещены (офлайн)."""
+    pass
 
 
 # === КОМАНДЫ (запросы на действие) ===

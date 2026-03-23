@@ -4,16 +4,25 @@
 
 Базовые классы для всех событий в системе.
 Обеспечивают типовую безопасность и единый формат.
+
+КЛЮЧЕВЫЕ ПРИНЦИПЫ:
+- EventData = факт (то, что произошло)
+- Event = транспорт (конверт с метаданными)
+- Нет наследования событий (каждый тип уникален)
+- Нет Any, нет Optional без причины
 """
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Generic, TypeVar, Optional
 from datetime import datetime
 
 
-@dataclass
+T = TypeVar('T')
+
+
+@dataclass(frozen=True, slots=True)
 class EventData:
     """
-    Базовый класс для всех данных событий.
+    Базовый класс для всех данных событий (ФАКТ).
     
     Все события в системе должны передавать данные,
     наследующиеся от этого класса. Это обеспечивает:
@@ -21,42 +30,41 @@ class EventData:
     - Единый интерфейс
     - Возможность расширения
     
+    Правила:
+        - События не наследуются (каждый тип уникален)
+        - Все поля должны быть типизированы
+        - Нет Any без крайней необходимости
+    
     Пример:
-        @dataclass
-        class NodeSelectedEvent(EventData):
-            node_type: NodeType
-            node_id: int
-            context: Optional[Dict] = None
+        @dataclass(frozen=True, slots=True)
+        class NodeSelected(EventData):
+            node: NodeIdentifier
+            payload: Optional[Building] = None
     """
     pass
 
 
-@dataclass
-class Event:
+@dataclass(frozen=True, slots=True)
+class Event(Generic[T]):
     """
-    Конверт события (envelope), которым оборачиваются все данные.
+    Конверт события (envelope) — транспортный объект.
     
-    Этот класс используется внутри EventBus для передачи событий.
-    Содержит метаданные о событии: тип, источник, время.
+    Используется внутри EventBus для передачи событий с метаданными.
     
     Атрибуты:
-        type: Тип события (строка из event_constants.py)
-        data: Данные события (должны быть наследником EventData)
+        data: Данные события (наследник EventData)
         source: Источник события (имя компонента, испустившего событие)
         timestamp: Временная метка создания события
+    
+    Преимущества:
+        - Единое место для метаданных
+        - Возможность добавлять middleware
+        - Легко логировать и трассировать
+        - Расширяем без изменения EventData
     """
-    type: str
-    data: EventData
+    data: T
     source: Optional[str] = None
     timestamp: datetime = field(default_factory=datetime.now)
-    
-    def __post_init__(self):
-        """Логируем создание события."""
-        from utils.logger import get_logger
-        log = get_logger(__name__)
-        
-        source_str = f" от {self.source}" if self.source else ""
-        log.debug(f"📦 Создано событие: {self.type}{source_str}")
     
     @property
     def age_ms(self) -> float:
@@ -68,3 +76,8 @@ class Event:
         """
         delta = datetime.now() - self.timestamp
         return delta.total_seconds() * 1000
+    
+    @property
+    def type_name(self) -> str:
+        """Имя типа события (для логирования)."""
+        return type(self.data).__name__

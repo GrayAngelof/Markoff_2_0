@@ -7,18 +7,33 @@
 - Форматирование для отображения
 - Парсинг из строк
 
-Никакой бизнес-логики, только преобразования форматов!
+КЛЮЧЕВЫЕ ПРИНЦИПЫ:
+- Чёткое разделение public/private API
+- Функции с исключениями для безопасного кода
+- *_safe версии для кода, который может обработать None
+- Никакой бизнес-логики, только преобразования форматов!
+
+ПРАВИЛА:
+- make_node_key() — ВНУТРЕННЯЯ (не экспортировать)
+- identifier_to_key() — публичная
+- key_to_identifier() — публичная, с исключением
+- try_parse_identifier() — публичная, безопасная
 """
 from typing import Optional
 
-from .types import NodeType, NodeID, NodeKey, NodeIdentifier
+from .types import NodeType, NodeIdentifier
 from .types.exceptions import SerializationError
+from .types.nodes import NodeID, NodeKey
 
-# ===== Сериализация в строковые ключи =====
 
-def make_node_key(node_type: NodeType, node_id: NodeID) -> NodeKey:
+# ============================================================
+# ВНУТРЕННИЕ ФУНКЦИИ (НЕ ЭКСПОРТИРУЮТСЯ)
+# ============================================================
+
+def _make_node_key(node_type: NodeType, node_id: NodeID) -> NodeKey:
     """
-    Создаёт строковый ключ для индексации.
+    ВНУТРЕННЯЯ функция. Создаёт строковый ключ для индексации.
+    Не использовать вне core!
     
     Args:
         node_type: Тип узла
@@ -26,21 +41,50 @@ def make_node_key(node_type: NodeType, node_id: NodeID) -> NodeKey:
         
     Returns:
         NodeKey: Ключ в формате "тип:id"
-        
-    Пример:
-        >>> make_node_key(NodeType.COMPLEX, 42)
-        'complex:42'
-        
-    Логирование:
-        - debug: созданный ключ
     """
-    from utils.logger import get_logger
-    log = get_logger(__name__)
-    
-    key = f"{node_type.value}:{node_id}"
-    log.debug(f"🔑 make_node_key: {key}")
-    return key
+    return f"{node_type.value}:{node_id}"
 
+
+def _parse_node_key(key: NodeKey) -> tuple[NodeType, NodeID]:
+    """
+    ВНУТРЕННЯЯ функция. Разбирает строковый ключ.
+    Не использовать вне core!
+    
+    Args:
+        key: Ключ в формате "тип:id"
+        
+    Returns:
+        tuple[NodeType, NodeID]: (тип, id)
+        
+    Raises:
+        SerializationError: Если ключ невалидный
+    """
+    if not isinstance(key, str):
+        raise SerializationError(f"Ожидалась строка, получен {type(key)}")
+    
+    try:
+        type_str, id_str = key.split(':', 1)
+    except ValueError as e:
+        raise SerializationError(f"Неверный формат ключа '{key}': ожидается 'тип:id'") from e
+    
+    try:
+        node_type = NodeType(type_str)
+    except ValueError as e:
+        raise SerializationError(f"Неизвестный тип узла '{type_str}'") from e
+    
+    try:
+        node_id = int(id_str)
+    except ValueError as e:
+        raise SerializationError(f"Некорректный ID '{id_str}'") from e
+    
+    return node_type, node_id
+
+
+# ============================================================
+# ПУБЛИЧНОЕ API (экспортируется)
+# ============================================================
+
+# --- Преобразование в ключи ---
 
 def identifier_to_key(identifier: NodeIdentifier) -> NodeKey:
     """
@@ -50,81 +94,21 @@ def identifier_to_key(identifier: NodeIdentifier) -> NodeKey:
         identifier: Структурированный идентификатор
         
     Returns:
-        NodeKey: Строковый ключ
+        NodeKey: Строковый ключ вида "тип:id"
         
     Пример:
         >>> id = NodeIdentifier(NodeType.COMPLEX, 42)
         >>> identifier_to_key(id)
         'complex:42'
     """
-    return make_node_key(identifier.node_type, identifier.node_id)
+    return _make_node_key(identifier.node_type, identifier.node_id)
 
 
-# ===== Десериализация из строковых ключей =====
+# --- Преобразование из ключей (с исключением) ---
 
-def parse_node_key(key: NodeKey) -> Optional[NodeIdentifier]:
+def key_to_identifier(key: NodeKey) -> NodeIdentifier:
     """
-    Разбирает строковый ключ в структурированный идентификатор.
-    
-    Args:
-        key: Ключ в формате "тип:id"
-        
-    Returns:
-        Optional[NodeIdentifier]: Структурированный идентификатор или None
-        
-    Пример:
-        >>> parse_node_key('complex:42')
-        NodeIdentifier(node_type=<NodeType.COMPLEX: 'complex'>, node_id=42)
-        >>> parse_node_key('invalid')
-        None
-        
-    Логирование:
-        - debug: успешный разбор
-        - warning: ошибки формата
-    """
-    from utils.logger import get_logger
-    log = get_logger(__name__)
-    
-    if not isinstance(key, str):
-        log.warning(f"⚠️ parse_node_key: ожидалась строка, получен {type(key)}")
-        return None
-    
-    try:
-        type_str, id_str = key.split(':', 1)
-        
-        # Преобразуем строку в NodeType
-        try:
-            node_type = NodeType(type_str)
-        except ValueError:
-            log.warning(f"⚠️ parse_node_key: неизвестный тип '{type_str}'")
-            return None
-        
-        # Преобразуем строку в int
-        try:
-            node_id = int(id_str)
-        except ValueError:
-            log.warning(f"⚠️ parse_node_key: некорректный ID '{id_str}'")
-            return None
-        
-        identifier = NodeIdentifier(node_type, node_id)
-        log.debug(f"🔍 parse_node_key: {key} → {identifier}")
-        return identifier
-        
-    except ValueError as e:
-        log.warning(f"⚠️ parse_node_key: неверный формат '{key}': {e}")
-        return None
-
-
-def key_to_identifier(key: NodeKey) -> Optional[NodeIdentifier]:
-    """
-    Псевдоним для parse_node_key (для симметрии).
-    """
-    return parse_node_key(key)
-
-
-def safe_parse_node_key(key: NodeKey) -> NodeIdentifier:
-    """
-    Безопасный парсинг с исключением при ошибке.
+    Преобразует строковый ключ в структурированный идентификатор.
     
     Args:
         key: Ключ в формате "тип:id"
@@ -136,20 +120,38 @@ def safe_parse_node_key(key: NodeKey) -> NodeIdentifier:
         SerializationError: Если ключ не может быть распарсен
         
     Пример:
-        >>> safe_parse_node_key('complex:42')
-        NodeIdentifier(...)
-        >>> safe_parse_node_key('invalid')
-        SerializationError: Не удалось распарсить ключ 'invalid'
+        >>> key_to_identifier('complex:42')
+        NodeIdentifier(node_type=<NodeType.COMPLEX: 'complex'>, node_id=42)
     """
-    result = parse_node_key(key)
-    if result is None:
-        raise SerializationError(f"Не удалось распарсить ключ '{key}'")
-    return result
+    node_type, node_id = _parse_node_key(key)
+    return NodeIdentifier(node_type, node_id)
 
 
-# ===== Форматирование для отображения =====
+def try_parse_identifier(key: NodeKey) -> Optional[NodeIdentifier]:
+    """
+    Безопасная версия парсинга — возвращает None при ошибке.
+    
+    Args:
+        key: Ключ в формате "тип:id"
+        
+    Returns:
+        Optional[NodeIdentifier]: Идентификатор или None при ошибке
+        
+    Пример:
+        >>> try_parse_identifier('complex:42')
+        NodeIdentifier(...)
+        >>> try_parse_identifier('invalid')
+        None
+    """
+    try:
+        return key_to_identifier(key)
+    except SerializationError:
+        return None
 
-def format_display_id(identifier: NodeIdentifier) -> str:
+
+# --- Форматирование для отображения ---
+
+def format_display(identifier: NodeIdentifier) -> str:
     """
     Форматирует идентификатор для отображения в логах и UI.
     
@@ -161,18 +163,10 @@ def format_display_id(identifier: NodeIdentifier) -> str:
         
     Пример:
         >>> id = NodeIdentifier(NodeType.COMPLEX, 42)
-        >>> format_display_id(id)
+        >>> format_display(id)
         'COMPLEX#42'
-        
-    Логирование:
-        - debug: отформатированная строка
     """
-    from utils.logger import get_logger
-    log = get_logger(__name__)
-    
-    formatted = f"{identifier.node_type.value.upper()}#{identifier.node_id}"
-    log.debug(f"🔤 format_display_id: {formatted}")
-    return formatted
+    return f"{identifier.node_type.value.upper()}#{identifier.node_id}"
 
 
 def format_display_from_parts(node_type: NodeType, node_id: NodeID) -> str:
@@ -186,10 +180,10 @@ def format_display_from_parts(node_type: NodeType, node_id: NodeID) -> str:
     Returns:
         str: Отформатированная строка вида "ТИП#ID"
     """
-    return format_display_id(NodeIdentifier(node_type, node_id))
+    return format_display(NodeIdentifier(node_type, node_id))
 
 
-def parse_display_id(display: str) -> Optional[NodeIdentifier]:
+def parse_display(display: str) -> NodeIdentifier:
     """
     Разбирает отформатированный идентификатор обратно в структуру.
     
@@ -197,29 +191,42 @@ def parse_display_id(display: str) -> Optional[NodeIdentifier]:
         display: Строка вида "ТИП#ID"
         
     Returns:
-        Optional[NodeIdentifier]: Структурированный идентификатор или None
+        NodeIdentifier: Структурированный идентификатор
+        
+    Raises:
+        SerializationError: Если строка не может быть распарсена
         
     Пример:
-        >>> parse_display_id('COMPLEX#42')
+        >>> parse_display('COMPLEX#42')
         NodeIdentifier(...)
-        
-    Логирование:
-        - debug: успешный разбор
-        - warning: ошибки формата
     """
-    from utils.logger import get_logger
-    log = get_logger(__name__)
-    
     try:
         type_str, id_str = display.split('#', 1)
-        # Приводим к нижнему регистру для поиска в Enum
         node_type = NodeType(type_str.lower())
         node_id = int(id_str)
-        
-        identifier = NodeIdentifier(node_type, node_id)
-        log.debug(f"🔍 parse_display_id: {display} → {identifier}")
-        return identifier
-        
+        return NodeIdentifier(node_type, node_id)
     except (ValueError, AttributeError) as e:
-        log.warning(f"⚠️ parse_display_id: неверный формат '{display}': {e}")
+        raise SerializationError(f"Неверный формат display '{display}': ожидается 'ТИП#ID'") from e
+
+
+def try_parse_display(display: str) -> Optional[NodeIdentifier]:
+    """
+    Безопасная версия парсинга display — возвращает None при ошибке.
+    
+    Args:
+        display: Строка вида "ТИП#ID"
+        
+    Returns:
+        Optional[NodeIdentifier]: Идентификатор или None
+        
+    Пример:
+        >>> try_parse_display('COMPLEX#42')
+        NodeIdentifier(...)
+        >>> try_parse_display('invalid')
+        None
+    """
+    try:
+        return parse_display(display)
+    except SerializationError:
         return None
+

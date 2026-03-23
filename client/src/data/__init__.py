@@ -2,13 +2,36 @@
 """
 Публичное API Data слоя.
 
-Экспортирует только фасад графа и репозитории.
+Экспортирует:
+- EntityGraph (фасад графа) — для низкоуровневого доступа
+- Репозитории — для высокоуровневого доступа к данным
+- Статистику
+
 Внутренности (graph/*) не доступны напрямую.
 """
 
 from .entity_graph import EntityGraph, EntityGraphStats
+from .repositories import (
+    BaseRepository,
+    ComplexRepository,
+    BuildingRepository,
+    FloorRepository,
+    RoomRepository,
+    CounterpartyRepository,
+    ResponsiblePersonRepository,
+)
 
 __all__ = [
+    # Фасад графа
     'EntityGraph',
     'EntityGraphStats',
+    
+    # Репозитории
+    'BaseRepository',
+    'ComplexRepository',
+    'BuildingRepository',
+    'FloorRepository',
+    'RoomRepository',
+    'CounterpartyRepository',
+    'ResponsiblePersonRepository',
 ]

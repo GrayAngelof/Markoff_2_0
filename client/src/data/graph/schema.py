@@ -28,8 +28,8 @@
 """
 
 from typing import Final, Optional, cast
-
-from core.types import NodeType, HasNodeType
+from ...core.types.protocols import HasNodeType
+from core.types import NodeType
 from core.hierarchy import get_child_type as _get_child_type
 from core.hierarchy import get_parent_type as _get_parent_type
 from utils.logger import get_logger

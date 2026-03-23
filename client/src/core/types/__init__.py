@@ -2,41 +2,28 @@
 """
 Публичное API типов ядра.
 
-Экспортирует все типы, которые нужны внешнему миру.
-Внутренняя структура пакета скрыта.
+Экспортируем только самые базовые типы.
+Остальное импортируется из соответствующих подмодулей:
+
+    from core.types.nodes import NodeType, NodeIdentifier
+    from core.types.event_structures import EventData, Event
+    from core.types.exceptions import NotFoundError, SerializationError
 """
-from .nodes import (
-    NodeType, NodeID, NodeKey, ParentInfo, NodeIdentifier
-)
-from .event_structures import (
-    EventData, Event
-)
-from .exceptions import (
-    CoreError, ConfigurationError, HierarchyError,
-    SerializationError, ValidationError, NotFoundError,
-    DuplicateError
-)
-from .protocols import HasNodeType
+from .nodes import NodeType, NodeIdentifier
+from .event_structures import EventData, Event
+from .exceptions import CoreError, NotFoundError, ValidationError
 
 __all__ = [
-    # Типы узлов
-    'NodeType',
-    'NodeID',
-    'NodeKey',
-    'ParentInfo',
-    'NodeIdentifier',
-    "HasNodeType",
+    # Базовые типы (нужны везде)
+    "NodeType",
+    "NodeIdentifier",
     
     # Структуры событий
-    'EventData',
-    'Event',
+    "EventData",
+    "Event",
     
-    # Исключения
-    'CoreError',
-    'ConfigurationError',
-    'HierarchyError',
-    'SerializationError',
-    'ValidationError',
-    'NotFoundError',
-    'DuplicateError',
+    # Базовые исключения
+    "CoreError",
+    "NotFoundError",
+    "ValidationError",
 ]

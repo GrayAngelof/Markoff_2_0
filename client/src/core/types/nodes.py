@@ -70,13 +70,18 @@ ParentInfo = Tuple[NodeType, NodeID]
 """
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class NodeIdentifier:
     """
     Структурированный идентификатор узла (Value Object).
     
     В отличие от строкового ключа, этот формат безопасен по типам
     и используется внутри приложения для передачи идентификаторов.
+    
+    slots=True:
+        - Меньше потребление памяти
+        - Быстрее доступ к атрибутам
+        - Защита от динамических полей
     
     Атрибуты:
         node_type: Тип узла (из перечисления NodeType)
@@ -95,9 +100,3 @@ class NodeIdentifier:
     """
     node_type: NodeType
     node_id: NodeID
-    
-    def __post_init__(self):
-        """Валидация после инициализации (только для отладки)."""
-        from utils.logger import get_logger
-        log = get_logger(__name__)
-        log.debug(f"✅ Создан NodeIdentifier: {self}")

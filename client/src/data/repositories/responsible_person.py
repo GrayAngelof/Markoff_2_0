@@ -1,32 +1,57 @@
-# Репозиторий для ответственных лиц
-# Зависимости: .base, models, core
+# client/src/data/repositories/responsible_person.py
+"""
+Репозиторий для ответственных лиц.
 
-from typing import List, Optional
-from core import NodeType
+ТОЛЬКО БАЗОВЫЕ ОПЕРАЦИИ ДОСТУПА:
+- get() — получение по ID
+- get_all() — все сущности
+- get_ids() — все ID
+- exists() — проверка существования
+- add() — добавление/обновление
+- remove() — удаление
+- get_by_counterparty() — навигация по графу (получение ID детей)
+
+Никакой бизнес-логики: фильтрация, сортировка, агрегация — только в сервисах!
+"""
+from typing import List
+from core import NodeType, NotFoundError
 from models import ResponsiblePerson
 from .base import BaseRepository
 
+
 class ResponsiblePersonRepository(BaseRepository[ResponsiblePerson]):
-    """Репозиторий для работы с ответственными лицами"""
+    """
+    Репозиторий для работы с ответственными лицами.
+    
+    Только базовые операции доступа к данным.
+    """
     
     def __init__(self, graph):
         super().__init__(graph, NodeType.RESPONSIBLE_PERSON)
     
-    def get_by_counterparty(self, counterparty_id: int) -> List[ResponsiblePerson]:
-        """Возвращает всех ответственных лиц контрагента."""
-        person_ids = self._graph.get_children(NodeType.COUNTERPARTY, counterparty_id)
-        return [self.get(id) for id in person_ids if self.get(id)]
+    # ===== Навигация по графу (это доступ, а не бизнес-логика) =====
     
-    def get_active_by_counterparty(self, counterparty_id: int) -> List[ResponsiblePerson]:
-        """Возвращает только активных."""
-        all_persons = self.get_by_counterparty(counterparty_id)
-        return [p for p in all_persons if p.is_active]
+    def get_by_counterparty(self, counterparty_id: int) -> List[int]:
+        """
+        Возвращает ID всех ответственных лиц контрагента.
+        
+        Это навигация по графу, а не бизнес-логика.
+        Возвращаются ID, а не объекты — ленивая загрузка.
+        
+        Args:
+            counterparty_id: ID контрагента
+            
+        Returns:
+            List[int]: Список ID ответственных лиц
+        """
+        return self._graph.get_children(NodeType.COUNTERPARTY, counterparty_id)
     
-    def get_by_category(self, category: str) -> List[ResponsiblePerson]:
-        """Поиск по категории контакта."""
-        all_persons = self.get_all()
-        result = []
-        for p in all_persons:
-            if p.contact_categories and category in p.contact_categories:
-                result.append(p)
-        return result
+    # ===== Базовые операции (наследуются от BaseRepository) =====
+    # get(id) -> ResponsiblePerson (или NotFoundError)
+    # get_all() -> List[ResponsiblePerson]
+    # get_ids() -> List[int]
+    # exists(id) -> bool
+    # add(entity) -> None
+    # remove(id) -> None
+    # is_valid(id) -> bool
+    # invalidate(id) -> bool

@@ -1,26 +1,31 @@
 # client/src/core/__init__.py
 """
 Публичное API ядра приложения.
+
+Экспортируем только самые базовые типы и классы.
+Всё остальное импортируется из соответствующих подмодулей:
+
+    from core.types import NodeType, NodeIdentifier
+    from core.events import NodeSelected, DataLoaded
+    from core.hierarchy import get_child_type
+    from core.serializers import identifier_to_key
+    from core.exceptions import NotFoundError, SerializationError
+    from core.interfaces import Repository
 """
-from .types import NodeType, NodeIdentifier, HasNodeType
+from .types import NodeType, NodeIdentifier
 from .event_bus import EventBus
-from .event_constants import (
-    UIEvents, SystemEvents, HotkeyEvents,
-    ProjectionEvents, CustomEvents
-)
-from .types.exceptions import CoreError, ValidationError
-from .interfaces import Repository
+from .types.exceptions import CoreError, NotFoundError, ValidationError
+
 __all__ = [
+    # Базовые типы
     "NodeType",
     "NodeIdentifier",
+    
+    # Шина событий
     "EventBus",
-    "UIEvents",
-    "SystemEvents",
-    "HotkeyEvents",
-    "ProjectionEvents",
-    "CustomEvents",
+    
+    # Базовые исключения
     "CoreError",
+    "NotFoundError",
     "ValidationError",
-    "Repository",
-    "HasNodeType",
 ]

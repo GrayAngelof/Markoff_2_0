@@ -1,4 +1,4 @@
-# client/src/data/utils/comparison.py
+# client/src/shared/comparison.py
 """
 Утилиты для сравнения объектов.
 

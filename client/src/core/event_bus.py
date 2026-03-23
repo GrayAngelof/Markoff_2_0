@@ -1,49 +1,63 @@
 # client/src/core/event_bus.py
 """
-ФАСАД для работы с шиной событий.
+ФАСАД для работы с шиной событий (type-based).
 
-Этот модуль предоставляет публичный интерфейс EventBus,
-скрывая все детали реализации в пакете .bus/
-
-EventBus - это центральный диспетчер событий в приложении.
+EventBus — центральный диспетчер событий в приложении.
 Все компоненты общаются только через него, что обеспечивает
 слабую связанность и тестируемость.
 
+КЛЮЧЕВЫЕ ПРИНЦИПЫ:
+- События — классы, наследующие EventData (типобезопасность)
+- Подписка по типу события, а не по строке
+- Event envelope с метаданными (источник, время)
+- Слабые ссылки для предотвращения утечек памяти
+
 Пример использования:
-    bus = EventBus(debug=True)
+    bus = EventBus()
     
-    def handler(event):
-        print(f"Получено: {event}")
+    def handler(event: Event[NodeSelected]) -> None:
+        print(f"Выбран узел: {event.data.node.display}")
     
-    unsubscribe = bus.subscribe('ui.node_selected', handler)
-    bus.emit('ui.node_selected', {'node_id': 42})
+    unsubscribe = bus.subscribe(NodeSelected, handler)
+    bus.emit(NodeSelected(node=NodeIdentifier(NodeType.COMPLEX, 42)))
     unsubscribe()  # Отписка
 """
-from typing import Callable, Optional, Dict, Any, Union
-import time
+import weakref
+import inspect
+from typing import Dict, List, Type, Callable, Optional, Any, Union, Protocol, cast
+from datetime import datetime
 
 from utils.logger import get_logger
-from .bus.registry import _SubscriptionRegistry
-from .bus.weak_callback import _WeakCallback
+from .types.event_structures import EventData, Event
 
-# Создаём логгер для этого модуля
 log = get_logger(__name__)
+
+
+class EventHandler(Protocol):
+    """Протокол для обработчиков событий (строгая типизация callback)."""
+    def __call__(self, event: Event[Any]) -> None:
+        """
+        Обрабатывает событие.
+        
+        Args:
+            event: Конверт события с данными и метаданными
+        """
+        ...
+
+
+# Тип для хранения в кэше (универсальный)
+_CallbackType = Union[Callable, weakref.ReferenceType]
 
 
 class EventBus:
     """
-    Единая шина событий для всего приложения.
+    Единая шина событий для всего приложения (type-based).
     
-    Этот класс является ФАСАДОМ, который делегирует всю работу
-    внутренним компонентам (_SubscriptionRegistry, _WeakCallback).
-    
-    Публичный интерфейс:
-    - subscribe() - подписка на события
-    - emit() - испускание событий
-    - get_stats() - статистика использования
-    - clear() - очистка всех подписок
-    
-    Внутренние детали полностью скрыты от внешнего мира.
+    Принципы работы:
+    1. Подписка по типу события (класс, наследующий EventData)
+    2. Использование слабых ссылок для предотвращения утечек
+    3. Автоматическая очистка мёртвых подписок
+    4. Типобезопасность через Protocol
     """
     
     def __init__(self, debug: bool = False) -> None:
@@ -51,15 +65,14 @@ class EventBus:
         Инициализирует шину событий.
         
         Args:
-            debug: Включить детальное логирование (по умолчанию False)
-        
-        Логирование:
-            - SUCCESS: при успешной инициализации
-            - INFO: при изменении режима отладки
-            - DEBUG: при каждом emit/subscribe если debug=True
+            debug: Включить детальное логирование
         """
-        # Внутренний реестр подписок (приватный!)
-        self._registry = _SubscriptionRegistry()
+        # Реестр подписок: тип события -> список слабых ссылок на callback'и
+        self._subscribers: Dict[Type[EventData], List[weakref.ref]] = {}
+        
+        # Хранилище для восстановления callback'ов
+        self._callbacks: Dict[int, _CallbackType] = {}
+        self._next_id = 0
         
         # Режим отладки
         self._debug = debug
@@ -73,112 +86,148 @@ class EventBus:
         }
         
         log.success(f"✅ EventBus инициализирован (debug={debug})")
-        log.info(f"📊 EventBus stats initialized: {self._stats}")
     
-    def subscribe(self, event_type: str, callback: Callable) -> Callable[[], None]:
+    def subscribe(self, event_type: Type[EventData], callback: EventHandler) -> Callable[[], None]:
         """
         Подписывает обработчик на указанный тип события.
         
         Args:
-            event_type: Тип события (строка из events.py)
-            callback: Функция-обработчик или метод класса
+            event_type: Класс события (наследник EventData)
+            callback: Функция-обработчик или метод
             
         Returns:
             Callable: Функция для отписки
         """
         self._stats['total_subscribes'] += 1
+        callback_id = self._next_id
+        self._next_id += 1
         
-        # Используем inspect для безопасного определения типа callback
-        import inspect
-        is_method = inspect.ismethod(callback)
-        is_function = inspect.isfunction(callback)
-        
-        if is_method:
+        # Определяем тип callback и создаём слабую ссылку
+        if inspect.ismethod(callback):
+            # Это метод класса
+            ref = weakref.WeakMethod(callback)
             callback_type = "метод"
-            method_name = getattr(callback, '__name__', 'unknown')
-            # Безопасно получаем класс
-            obj = getattr(callback, '__self__', None)
-            if obj is not None:
-                class_name = getattr(obj, '__class__', None)
-                if class_name is not None:
-                    class_name = getattr(class_name, '__name__', 'Unknown')
-                else:
-                    class_name = 'Unknown'
-            else:
-                class_name = 'Unknown'
-            log.debug(f"🔍 Подписка: метод {class_name}.{method_name}")
+            method_name = callback.__name__
+            obj = callback.__self__
+            class_name = obj.__class__.__name__ if obj else "Unknown"
+            if self._debug:
+                log.debug(f"🔍 Подписка: метод {class_name}.{method_name}")
         else:
+            # Это обычная функция
+            ref = weakref.ref(callback)
             callback_type = "функция"
             function_name = getattr(callback, '__name__', str(callback))
-            log.debug(f"🔍 Подписка: функция {function_name}")
+            if self._debug:
+                log.debug(f"🔍 Подписка: функция {function_name}")
         
-        # Делегируем регистрацию внутреннему компоненту
-        unsubscribe = self._registry.register(event_type, callback)
+        self._callbacks[callback_id] = ref
         
-        log.info(f"📝 Подписка на '{event_type}' ({callback_type})")
-        log.debug(f"📊 Всего подписок после подписки: {self._registry.get_count(event_type)}")
+        if event_type not in self._subscribers:
+            self._subscribers[event_type] = []
         
-        # Оборачиваем функцию отписки для сбора статистики
-        def wrapped_unsubscribe() -> None:
-            unsubscribe()
+        self._subscribers[event_type].append(ref)
+        
+        log.info(f"📝 Подписка на {event_type.__name__} ({callback_type})")
+        
+        def unsubscribe() -> None:
+            """Функция отписки."""
+            if ref in self._subscribers.get(event_type, []):
+                self._subscribers[event_type].remove(ref)
+            self._callbacks.pop(callback_id, None)
             self._stats['total_unsubscribes'] += 1
-            log.info(f"❌ Отписка от '{event_type}'")
+            log.info(f"❌ Отписка от {event_type.__name__}")
         
-        return wrapped_unsubscribe
+        return unsubscribe
     
-    def emit(self, event_type: str, data: Optional[Dict[str, Any]] = None, 
-             source: Optional[str] = None) -> None:
+    def _cleanup_dead(self) -> int:
+        """
+        Удаляет мёртвые ссылки из реестра подписок.
+        
+        Returns:
+            int: Количество удалённых подписок
+        """
+        dead_count = 0
+        
+        for event_type, callbacks in list(self._subscribers.items()):
+            alive = []
+            for ref in callbacks:
+                if ref() is not None:
+                    alive.append(ref)
+                else:
+                    dead_count += 1
+            if alive:
+                self._subscribers[event_type] = alive
+            else:
+                del self._subscribers[event_type]
+        
+        if dead_count > 0 and self._debug:
+            log.debug(f"🧹 Очищено {dead_count} мёртвых подписок")
+        
+        return dead_count
+    
+    def emit(self, event_data: EventData, source: Optional[str] = None) -> None:
         """
         Испускает событие, уведомляя всех подписчиков.
         
         Args:
-            event_type: Тип события
-            data: Данные события (словарь)
+            event_data: Данные события (наследник EventData)
             source: Источник события (для отладки)
-            
-        Логирование:
-            - INFO: каждое испускание события
-            - DEBUG: количество подписчиков, время выполнения
-            - ERROR: ошибки в обработчиках
-            - WARNING: если нет подписчиков (при debug=True)
-            
-        Пример:
-            bus.emit('ui.node_selected', 
-                    {'node_type': 'complex', 'node_id': 42},
-                    source='tree_view')
         """
+        if event_data is None:
+            raise ValueError("Event data cannot be None")
+        
         self._stats['total_emits'] += 1
         
-        # Формируем событие
-        event = {
-            'type': event_type,
-            'data': data if data is not None else {},
-            'source': source,
-            'timestamp': time.time()
-        }
+        # Создаём конверт события
+        envelope = Event(
+            data=event_data,
+            source=source,
+            timestamp=datetime.now()
+        )
         
-        # Логируем
+        event_type = type(event_data)
         source_str = f" от {source}" if source else ""
-        log.info(f"📢 EMIT {event_type}{source_str}")
         
-        # Получаем подписчиков
-        subscribers = self._registry.get_subscribers(event_type)
-        count = len(subscribers)
-        
-        if count == 0:
-            log.debug(f"⚠️ Нет подписчиков на {event_type}")
-            return
-        
-        log.debug(f"📋 Оповещение {count} подписчиков...")
-        
-        # Делегируем уведомление реестру
-        dead_count = self._registry.notify(event_type, event)
-        
+        # Очищаем мёртвые ссылки
+        dead_count = self._cleanup_dead()
         if dead_count > 0:
             self._stats['dead_callbacks_cleaned'] += dead_count
-            log.debug(f"🧹 Очищено {dead_count} мёртвых подписок")
         
-        log.debug(f"✅ EMIT {event_type} завершён")
+        # Получаем подписчиков
+        subscribers = self._subscribers.get(event_type, [])
+        
+        if not subscribers:
+            if self._debug:
+                log.debug(f"⚠️ Нет подписчиков на {event_type.__name__}")
+            return
+        
+        # Логирование
+        log.info(f"📢 EMIT {event_type.__name__}{source_str}")
+        
+        if self._debug:
+            log.debug(f"📋 Оповещение {len(subscribers)} подписчиков...")
+        
+        # Уведомляем всех подписчиков
+        for ref in subscribers:
+            callback = ref()
+            if callback is None:
+                continue  # мёртвая ссылка, пропускаем
+            
+            try:
+                # Приводим к типу EventHandler
+                handler = cast(EventHandler, callback)
+                handler(envelope)
+            except Exception as e:
+                # Логируем ошибку без exc_info (наш логгер не поддерживает)
+                log.error(
+                    f"❌ Ошибка в обработчике {event_type.__name__}: {e}"
+                )
+                # Дополнительно выводим traceback для отладки
+                import traceback
+                traceback.print_exc()
+        
+        if self._debug:
+            log.debug(f"✅ EMIT {event_type.__name__} завершён")
     
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -191,26 +240,28 @@ class EventBus:
             - total_unsubscribes: всего отписок
             - dead_callbacks_cleaned: очищено мёртвых ссылок
             - subscribers_by_type: количество подписчиков по типам
-            
-        Логирование:
-            - INFO: при запросе статистики
-            - DEBUG: детальная статистика
         """
-        # Получаем статистику от реестра
-        registry_stats = self._registry.get_stats()
+        # Собираем статистику по подписчикам
+        subscribers_by_type = {
+            event_type.__name__: len(callbacks)
+            for event_type, callbacks in self._subscribers.items()
+        }
+        
+        active_subscriptions = sum(len(callbacks) for callbacks in self._subscribers.values())
         
         stats = {
             **self._stats,
-            'subscribers_by_type': registry_stats['by_type'],
-            'total_subscriptions': registry_stats['total'],
-            'active_subscriptions': registry_stats['active']
+            'subscribers_by_type': subscribers_by_type,
+            'total_subscriptions': len(self._subscribers),
+            'active_subscriptions': active_subscriptions
         }
         
         log.info(f"📊 Статистика EventBus запрошена")
-        log.debug(f"  • Всего испусканий: {stats['total_emits']}")
-        log.debug(f"  • Всего подписок: {stats['total_subscribes']}")
-        log.debug(f"  • Активных подписок: {stats['active_subscriptions']}")
-        log.debug(f"  • Очищено мёртвых: {stats['dead_callbacks_cleaned']}")
+        if self._debug:
+            log.debug(f"  • Всего испусканий: {stats['total_emits']}")
+            log.debug(f"  • Всего подписок: {stats['total_subscribes']}")
+            log.debug(f"  • Активных подписок: {stats['active_subscriptions']}")
+            log.debug(f"  • Очищено мёртвых: {stats['dead_callbacks_cleaned']}")
         
         return stats
     
@@ -219,21 +270,21 @@ class EventBus:
         Очищает все подписки.
         
         Используется при завершении приложения или для полного сброса.
-        
-        Логирование:
-            - INFO: при очистке
-            - DEBUG: количество удалённых подписок
         """
-        count = self._registry.clear()
-        log.info(f"🧹 EventBus очищен (удалено {count} подписок)")
+        count = sum(len(callbacks) for callbacks in self._subscribers.values())
+        self._subscribers.clear()
+        self._callbacks.clear()
+        self._next_id = 0
         
-        # Сбрасываем статистику (кроме total_*)
+        # Сбрасываем статистику (сохраняем total_* для истории)
         self._stats = {
             'total_emits': self._stats['total_emits'],
             'total_subscribes': self._stats['total_subscribes'],
             'total_unsubscribes': self._stats['total_unsubscribes'],
             'dead_callbacks_cleaned': self._stats['dead_callbacks_cleaned']
         }
+        
+        log.info(f"🧹 EventBus очищен (удалено {count} подписок)")
     
     def set_debug(self, enabled: bool) -> None:
         """
@@ -249,17 +300,19 @@ class EventBus:
     def debug(self) -> bool:
         """Возвращает текущий режим отладки."""
         return self._debug
-
-    def get_subscriber_count(self, event_type: Optional[str] = None) -> Union[int, Dict[str, int]]:
+    
+    def get_subscriber_count(self, event_type: Optional[Type[EventData]] = None) -> Union[int, Dict[str, int]]:
         """
         Возвращает количество подписчиков для указанного типа события.
         ТОЛЬКО ДЛЯ ТЕСТОВ И ОТЛАДКИ.
         
         Args:
-            event_type: Тип события. Если None, возвращает словарь для всех типов.
+            event_type: Класс события. Если None, возвращает словарь для всех типов.
         """
         if event_type is not None:
-            return self._registry.get_count(event_type)
+            return len(self._subscribers.get(event_type, []))
         
-        stats = self._registry.get_stats()
-        return stats['by_type']
+        return {
+            event_type.__name__: len(callbacks)
+            for event_type, callbacks in self._subscribers.items()
+        }

@@ -1,37 +1,22 @@
 # client/src/data/graph/store.py
 """
-Хранилище сущностей — только хранение, никакой логики связей.
+Хранилище сущностей — только хранение объектов по типам и ID.
 
-Это второй по базовости компонент Data слоя (после schema.py).
-Store отвечает только за одну вещь: положить объект по ключу (тип+ID)
-и достать его обратно. Никаких связей, никакой валидности, никакой бизнес-логики.
+Это первый компонент Data слоя. EntityStore отвечает только за:
+- Хранение объектов в памяти
+- Получение по типу и ID
+- Удаление
+- Временные метки
 
-Принципы:
-    - Каждая сущность хранится ровно один раз
-    - Доступ O(1) через словарь
-    - Потокобезопасность через RLock
-    - Сохранение временных меток для отслеживания актуальности
-
-Зависимости:
-    - threading — для RLock
-    - datetime — для временных меток
-    - core.types.NodeType — типы узлов
-    - utils.logger — логирование
-
-Потребители:
-    - entity_graph.py (фасад) — через публичные методы
-    - Никто не должен импортировать store напрямую!
-
-ВАЖНО:
-    Store не знает о существовании моделей. Он работает с Any.
-    Валидация типов — ответственность вызывающего кода.
+Никакой логики связей, валидности или навигации!
 """
 
 from threading import RLock
+from typing import Dict, Optional, Any, List, TypedDict
 from datetime import datetime
-from typing import Dict, Optional, Any, List, Final
 
 from core.types import NodeType
+from shared.validation import validate_positive_int
 from utils.logger import get_logger
 
 
@@ -39,82 +24,62 @@ from utils.logger import get_logger
 # КОНСТАНТЫ
 # ============================================
 
-# Единый логгер для модуля (один экземпляр на весь store)
 log = get_logger(__name__)
 
-# Все типы, которые могут храниться в графе
-# Final защищает от случайного изменения
-_STORED_TYPES: Final[list[NodeType]] = [
-    NodeType.COMPLEX,
-    NodeType.BUILDING,
-    NodeType.FLOOR,
-    NodeType.ROOM,
-    NodeType.COUNTERPARTY,
-    NodeType.RESPONSIBLE_PERSON,
-]
 
-# Сообщения для логирования
-_LOG_PUT = "💾 PUT: {type}#{id}"
-_LOG_GET_HIT = "📖 GET HIT: {type}#{id}"
-_LOG_GET_MISS = "📖 GET MISS: {type}#{id}"
-_LOG_REMOVE = "🗑️ REMOVE: {type}#{id}"
-_LOG_CLEAR = "🧹 Store очищен: {count} типов"
+# ============================================
+# ТИПЫ ДЛЯ СТАТИСТИКИ
+# ============================================
+
+class StoreStats(TypedDict):
+    """Статистика хранилища."""
+    total_entities: int
+    by_type: Dict[str, int]
 
 
 # ============================================
-# ИНИЦИАЛИЗАЦИЯ ХРАНИЛИЩ
-# ============================================
-
-def _create_empty_stores() -> Dict[NodeType, Dict[int, Any]]:
-    """
-    Создаёт словарь пустых хранилищ для всех типов.
-    
-    Returns:
-        Dict[NodeType, Dict[int, Any]]: Словарь {тип: {id: объект}}
-    """
-    return {node_type: {} for node_type in _STORED_TYPES}
-
-
-def _create_empty_timestamps() -> Dict[NodeType, Dict[int, datetime]]:
-    """
-    Создаёт словарь пустых хранилищ временных меток.
-    
-    Returns:
-        Dict[NodeType, Dict[int, datetime]]: Словарь {тип: {id: datetime}}
-    """
-    return {node_type: {} for node_type in _STORED_TYPES}
-
-
-# ============================================
-# КЛАСС STORE
+# КЛАСС ENTITY STORE
 # ============================================
 
 class EntityStore:
     """
     Потокобезопасное хранилище сущностей.
     
-    Единственная ответственность: хранить объекты и выдавать их по запросу.
-    Никакой логики связей, валидации или бизнес-правил.
-    
-    Особенности:
-        - Все операции защищены RLock для многопоточности
-        - Временные метки для каждого объекта (когда был добавлен/обновлён)
-        - Полная типизация входных/выходных данных
+    Только базовые операции: put, get, remove, has.
+    Не знает о связях между сущностями.
     
     Пример:
         >>> store = EntityStore()
-        >>> store.put(NodeType.COMPLEX, 42, complex_obj)
-        >>> result = store.get(NodeType.COMPLEX, 42)
-        >>> assert result is complex_obj
+        >>> store.put(NodeType.COMPLEX, 1, complex_obj)
+        >>> obj = store.get(NodeType.COMPLEX, 1)
+        >>> store.remove(NodeType.COMPLEX, 1)
     """
     
-    def __init__(self) -> None:
+    def __init__(self):
         """Инициализирует пустое хранилище."""
         self._lock = RLock()
-        self._entities: Dict[NodeType, Dict[int, Any]] = _create_empty_stores()
-        self._timestamps: Dict[NodeType, Dict[int, datetime]] = _create_empty_timestamps()
         
-        log.success(f"EntityStore инициализирован: {len(_STORED_TYPES)} типов")
+        # Основное хранилище: тип узла -> {id: объект}
+        self._entities: Dict[NodeType, Dict[int, Any]] = {
+            NodeType.COMPLEX: {},
+            NodeType.BUILDING: {},
+            NodeType.FLOOR: {},
+            NodeType.ROOM: {},
+            NodeType.COUNTERPARTY: {},
+            NodeType.RESPONSIBLE_PERSON: {},
+        }
+        
+        # Временные метки для каждого объекта
+        self._timestamps: Dict[NodeType, Dict[int, datetime]] = {
+            NodeType.COMPLEX: {},
+            NodeType.BUILDING: {},
+            NodeType.FLOOR: {},
+            NodeType.ROOM: {},
+            NodeType.COUNTERPARTY: {},
+            NodeType.RESPONSIBLE_PERSON: {},
+        }
+        
+        log.debug("EntityStore инициализирован")
     
     # ============================================
     # ОСНОВНЫЕ ОПЕРАЦИИ
@@ -125,28 +90,16 @@ class EntityStore:
         Сохраняет сущность в хранилище.
         
         Args:
-            node_type: Тип сущности (должен быть в _STORED_TYPES)
-            entity_id: Уникальный идентификатор сущности
+            node_type: Тип сущности
+            entity_id: ID сущности
             entity: Объект для сохранения
-            
-        Raises:
-            KeyError: Если node_type не поддерживается
-            
-        Note:
-            Если сущность с таким ID уже существует, она будет перезаписана.
-            Временная метка обновится на текущее время.
         """
+        entity_id = validate_positive_int(entity_id, "entity_id")
+        
         with self._lock:
-            # Проверяем, что тип поддерживается
-            if node_type not in self._entities:
-                log.error(f"❌ PUT: неподдерживаемый тип {node_type}")
-                raise KeyError(f"Тип {node_type} не поддерживается хранилищем")
-            
-            # Сохраняем объект
             self._entities[node_type][entity_id] = entity
             self._timestamps[node_type][entity_id] = datetime.now()
-            
-            log.cache(_LOG_PUT.format(type=node_type.value, id=entity_id))
+            log.debug(f"PUT {node_type.value}#{entity_id}")
     
     def get(self, node_type: NodeType, entity_id: int) -> Optional[Any]:
         """
@@ -154,27 +107,15 @@ class EntityStore:
         
         Args:
             node_type: Тип сущности
-            entity_id: Идентификатор сущности
+            entity_id: ID сущности
             
         Returns:
-            Optional[Any]: Объект или None, если не найден
-            
-        Raises:
-            KeyError: Если node_type не поддерживается
+            Optional[Any]: Сущность или None, если не найдена
         """
+        entity_id = validate_positive_int(entity_id, "entity_id")
+        
         with self._lock:
-            if node_type not in self._entities:
-                log.error(f"❌ GET: неподдерживаемый тип {node_type}")
-                raise KeyError(f"Тип {node_type} не поддерживается хранилищем")
-            
-            entity = self._entities[node_type].get(entity_id)
-            
-            if entity is not None:
-                log.cache(_LOG_GET_HIT.format(type=node_type.value, id=entity_id))
-            else:
-                log.cache(_LOG_GET_MISS.format(type=node_type.value, id=entity_id))
-            
-            return entity
+            return self._entities[node_type].get(entity_id)
     
     def get_all(self, node_type: NodeType) -> List[Any]:
         """
@@ -184,16 +125,9 @@ class EntityStore:
             node_type: Тип сущности
             
         Returns:
-            List[Any]: Список всех объектов данного типа (порядок не гарантирован)
-            
-        Raises:
-            KeyError: Если node_type не поддерживается
+            List[Any]: Список всех сущностей (может быть пустым)
         """
         with self._lock:
-            if node_type not in self._entities:
-                log.error(f"❌ GET_ALL: неподдерживаемый тип {node_type}")
-                raise KeyError(f"Тип {node_type} не поддерживается хранилищем")
-            
             return list(self._entities[node_type].values())
     
     def get_all_ids(self, node_type: NodeType) -> List[int]:
@@ -204,16 +138,9 @@ class EntityStore:
             node_type: Тип сущности
             
         Returns:
-            List[int]: Список всех ID данного типа
-            
-        Raises:
-            KeyError: Если node_type не поддерживается
+            List[int]: Список всех ID (может быть пустым)
         """
         with self._lock:
-            if node_type not in self._entities:
-                log.error(f"❌ GET_ALL_IDS: неподдерживаемый тип {node_type}")
-                raise KeyError(f"Тип {node_type} не поддерживается хранилищем")
-            
             return list(self._entities[node_type].keys())
     
     def remove(self, node_type: NodeType, entity_id: int) -> bool:
@@ -222,27 +149,20 @@ class EntityStore:
         
         Args:
             node_type: Тип сущности
-            entity_id: Идентификатор сущности
+            entity_id: ID сущности
             
         Returns:
-            bool: True если сущность была удалена, False если не существовала
-            
-        Raises:
-            KeyError: Если node_type не поддерживается
+            bool: True если сущность была удалена
         """
+        entity_id = validate_positive_int(entity_id, "entity_id")
+        
         with self._lock:
-            if node_type not in self._entities:
-                log.error(f"❌ REMOVE: неподдерживаемый тип {node_type}")
-                raise KeyError(f"Тип {node_type} не поддерживается хранилищем")
-            
             if entity_id in self._entities[node_type]:
                 del self._entities[node_type][entity_id]
                 if entity_id in self._timestamps[node_type]:
                     del self._timestamps[node_type][entity_id]
-                
-                log.cache(_LOG_REMOVE.format(type=node_type.value, id=entity_id))
+                log.debug(f"REMOVE {node_type.value}#{entity_id}")
                 return True
-            
             return False
     
     def has(self, node_type: NodeType, entity_id: int) -> bool:
@@ -251,67 +171,53 @@ class EntityStore:
         
         Args:
             node_type: Тип сущности
-            entity_id: Идентификатор сущности
+            entity_id: ID сущности
             
         Returns:
             bool: True если сущность существует
-            
-        Raises:
-            KeyError: Если node_type не поддерживается
         """
+        entity_id = validate_positive_int(entity_id, "entity_id")
+        
         with self._lock:
-            if node_type not in self._entities:
-                log.error(f"❌ HAS: неподдерживаемый тип {node_type}")
-                raise KeyError(f"Тип {node_type} не поддерживается хранилищем")
-            
             return entity_id in self._entities[node_type]
     
     def get_timestamp(self, node_type: NodeType, entity_id: int) -> Optional[datetime]:
         """
-        Возвращает временную метку последнего обновления сущности.
+        Возвращает время последнего обновления сущности.
         
         Args:
             node_type: Тип сущности
-            entity_id: Идентификатор сущности
+            entity_id: ID сущности
             
         Returns:
-            Optional[datetime]: Время последнего put или None, если сущность не найдена
-            
-        Raises:
-            KeyError: Если node_type не поддерживается
+            Optional[datetime]: Время обновления или None
         """
+        entity_id = validate_positive_int(entity_id, "entity_id")
+        
         with self._lock:
-            if node_type not in self._timestamps:
-                log.error(f"❌ GET_TIMESTAMP: неподдерживаемый тип {node_type}")
-                raise KeyError(f"Тип {node_type} не поддерживается хранилищем")
-            
             return self._timestamps[node_type].get(entity_id)
     
     # ============================================
-    # ОПЕРАЦИИ УПРАВЛЕНИЯ
+    # УПРАВЛЕНИЕ
     # ============================================
     
     def clear(self) -> None:
-        """Полностью очищает хранилище (все типы, все объекты)."""
+        """Полностью очищает хранилище."""
         with self._lock:
             for node_type in self._entities:
                 self._entities[node_type].clear()
                 self._timestamps[node_type].clear()
-            
-            log.cache(_LOG_CLEAR.format(count=len(self._entities)))
+            log.debug("EntityStore очищен")
     
     def size(self) -> int:
         """
-        Возвращает общее количество сущностей во всех хранилищах.
+        Возвращает общее количество сущностей.
         
         Returns:
-            int: Сумма объектов всех типов
+            int: Сумма всех сущностей всех типов
         """
         with self._lock:
-            total = 0
-            for store in self._entities.values():
-                total += len(store)
-            return total
+            return sum(len(store) for store in self._entities.values())
     
     def size_by_type(self, node_type: NodeType) -> int:
         """
@@ -321,33 +227,37 @@ class EntityStore:
             node_type: Тип сущности
             
         Returns:
-            int: Количество объектов данного типа
-            
-        Raises:
-            KeyError: Если node_type не поддерживается
+            int: Количество сущностей
         """
         with self._lock:
-            if node_type not in self._entities:
-                log.error(f"❌ SIZE_BY_TYPE: неподдерживаемый тип {node_type}")
-                raise KeyError(f"Тип {node_type} не поддерживается хранилищем")
-            
             return len(self._entities[node_type])
     
-    def get_all_timestamps(self, node_type: NodeType) -> Dict[int, datetime]:
+    # ============================================
+    # СТАТИСТИКА
+    # ============================================
+    
+    def get_stats(self) -> StoreStats:
         """
-        Возвращает все временные метки для указанного типа.
+        Возвращает статистику хранилища.
         
-        Используется для отладки и мониторинга.
-        
-        Args:
-            node_type: Тип сущности
-            
         Returns:
-            Dict[int, datetime]: Словарь {id: timestamp}
+            StoreStats: Статистика с total_entities и by_type
+            
+        Пример:
+            >>> stats = store.get_stats()
+            >>> stats['total_entities']
+            42
+            >>> stats['by_type']['complex']
+            5
         """
         with self._lock:
-            if node_type not in self._timestamps:
-                log.error(f"❌ GET_ALL_TIMESTAMPS: неподдерживаемый тип {node_type}")
-                raise KeyError(f"Тип {node_type} не поддерживается хранилищем")
+            by_type: Dict[str, int] = {}
+            for node_type in self._entities:
+                count = len(self._entities[node_type])
+                if count > 0:
+                    by_type[node_type.value] = count
             
-            return self._timestamps[node_type].copy()
+            return StoreStats(
+                total_entities=self.size(),
+                by_type=by_type
+            )

@@ -1,28 +1,57 @@
-# Репозиторий для помещений
-# Зависимости: .base, models, core
+# client/src/data/repositories/room.py
+"""
+Репозиторий для помещений.
 
-from typing import List, Optional
-from core import NodeType
+ТОЛЬКО БАЗОВЫЕ ОПЕРАЦИИ ДОСТУПА:
+- get() — получение по ID
+- get_all() — все сущности
+- get_ids() — все ID
+- exists() — проверка существования
+- add() — добавление/обновление
+- remove() — удаление
+- get_by_floor() — навигация по графу (получение ID детей)
+
+Никакой бизнес-логики: фильтрация по статусу, поиск по номеру — только в сервисах!
+"""
+from typing import List
+from core import NodeType, NotFoundError
 from models import Room
 from .base import BaseRepository
 
+
 class RoomRepository(BaseRepository[Room]):
-    """Репозиторий для работы с помещениями"""
+    """
+    Репозиторий для работы с помещениями.
+    
+    Только базовые операции доступа к данным.
+    """
     
     def __init__(self, graph):
         super().__init__(graph, NodeType.ROOM)
     
-    def get_by_floor(self, floor_id: int) -> List[Room]:
-        """Возвращает все помещения этажа."""
-        room_ids = self._graph.get_children(NodeType.FLOOR, floor_id)
-        return [self.get(id) for id in room_ids if self.get(id)]
+    # ===== Навигация по графу (это доступ, а не бизнес-логика) =====
     
-    def get_by_status(self, status_code: str) -> List[Room]:
-        """Возвращает помещения по статусу."""
-        all_rooms = self.get_all()
-        return [r for r in all_rooms if r.status_code == status_code]
+    def get_by_floor(self, floor_id: int) -> List[int]:
+        """
+        Возвращает ID всех помещений этажа.
+        
+        Это навигация по графу, а не бизнес-логика.
+        Возвращаются ID, а не объекты — ленивая загрузка.
+        
+        Args:
+            floor_id: ID этажа
+            
+        Returns:
+            List[int]: Список ID помещений
+        """
+        return self._graph.get_children(NodeType.FLOOR, floor_id)
     
-    def find_by_number(self, number_part: str) -> List[Room]:
-        """Поиск по номеру помещения."""
-        all_rooms = self.get_all()
-        return [r for r in all_rooms if number_part in r.number]
+    # ===== Базовые операции (наследуются от BaseRepository) =====
+    # get(id) -> Room (или NotFoundError)
+    # get_all() -> List[Room]
+    # get_ids() -> List[int]
+    # exists(id) -> bool
+    # add(entity) -> None
+    # remove(id) -> None
+    # is_valid(id) -> bool
+    # invalidate(id) -> bool

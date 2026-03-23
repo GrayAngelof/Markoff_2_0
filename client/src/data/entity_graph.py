@@ -11,6 +11,7 @@ from datetime import datetime
 
 from core import EventBus
 from core.types import NodeType, NodeIdentifier
+from core.types.nodes import NodeID 
 from core.hierarchy import get_child_type, get_parent_type
 from shared.validation import validate_positive_int
 from utils.logger import get_logger
@@ -318,3 +319,51 @@ class EntityGraph:
             self._validity.clear()
         
         self._with_lock(_clear)
+
+    def get_if_full(self, node_type: NodeType, node_id: NodeID) -> Optional[Any]:
+        """
+        Возвращает сущность только если она есть И полная.
+        
+        Логика полноты определяется в _has_full_details().
+        """
+        entity = self.get(node_type, node_id)
+        if entity and self.is_valid(node_type, node_id):
+            if self._has_full_details(entity, node_type):
+                return entity
+        return None
+    
+    def get_cached_children(
+        self,
+        parent_type: NodeType,
+        parent_id: NodeID,
+        child_type: NodeType
+    ) -> List[Any]:
+        """
+        Возвращает детей только если ВСЕ они есть в кэше.
+        
+        Если хоть одного ребёнка нет — возвращает [] (неполные данные).
+        """
+        child_ids = self.get_children(parent_type, parent_id)
+        if not child_ids:
+            return []
+        
+        result = []
+        for child_id in child_ids:
+            child = self.get(child_type, child_id)
+            if child is None:
+                return []  # неполные данные
+            result.append(child)
+        
+        return result
+    
+    def _has_full_details(self, entity: Any, node_type: NodeType) -> bool:
+        """Внутренняя логика полноты данных."""
+        if node_type == NodeType.COMPLEX:
+            return entity.description is not None or entity.address is not None
+        if node_type == NodeType.BUILDING:
+            return entity.description is not None or entity.address is not None
+        if node_type == NodeType.FLOOR:
+            return entity.description is not None
+        if node_type == NodeType.ROOM:
+            return entity.area is not None or entity.status_code is not None
+        return False

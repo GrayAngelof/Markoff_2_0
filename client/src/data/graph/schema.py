@@ -27,7 +27,7 @@
 на этапе разработки и приведет к исключению.
 """
 
-from typing import Final, Optional, cast
+from typing import Final, Optional, cast, Any
 from ...core.types.protocols import HasNodeType
 from src.core.types import NodeType
 from src.core.hierarchy import get_child_type as _get_child_type
@@ -149,23 +149,34 @@ def get_parent_type(child_type: NodeType) -> Optional[NodeType]:
 # ФУНКЦИИ ДЛЯ РАБОТЫ С СУЩНОСТЯМИ
 # ============================================
 
-def get_node_type(entity: HasNodeType) -> NodeType:
+def get_node_type(entity: Any) -> Optional[NodeType]:
     """
-    Возвращает тип сущности.
+    Возвращает тип сущности по атрибуту NODE_TYPE.
     
     Args:
-        entity: Сущность, реализующая протокол HasNodeType
+        entity: Сущность (должна иметь атрибут NODE_TYPE)
         
     Returns:
-        NodeType: Тип узла
+        NodeType: Тип узла или None, если определить не удалось
         
     Пример:
+        >>> complex_obj = Complex(id=1, name="Test")
         >>> get_node_type(complex_obj)
         NodeType.COMPLEX
     """
-    result = entity.NODE_TYPE
-    log.debug(f"🏷️ get_node_type({type(entity).__name__}) → {result.value}")
-    return result
+    if not hasattr(entity, 'NODE_TYPE'):
+        log.warning(f"Сущность {type(entity).__name__} не имеет атрибута NODE_TYPE")
+        return None
+    
+    node_type_str = entity.NODE_TYPE
+    
+    try:
+        result = NodeType(node_type_str)
+        log.debug(f"🏷️ get_node_type({type(entity).__name__}) → {result.value}")
+        return result
+    except ValueError as e:
+        log.error(f"Неизвестный тип узла: {node_type_str} для {type(entity).__name__}")
+        return None
 
 
 def get_parent_id(entity: HasNodeType) -> Optional[int]:
@@ -179,48 +190,36 @@ def get_parent_id(entity: HasNodeType) -> Optional[int]:
         entity: Сущность, реализующая протокол HasNodeType
         
     Returns:
-        Optional[int]: ID родителя или None, если:
-            - у сущности нет родителя (корневой тип)
-            - поле с родителем отсутствует
-            - значение поля равно None
-            
-    Raises:
-        ValueError: Если сущность не имеет поля, указанного в PARENT_ID_FIELD.
-                     Это архитектурная ошибка — нарушение контракта.
-        
-    Пример:
-        >>> building = Building(complex_id=42)
-        >>> get_parent_id(building)
-        42
-        
-        >>> complex = Complex(name="Северный")
-        >>> get_parent_id(complex)
-        None
+        Optional[int]: ID родителя или None
     """
     node_type = entity.NODE_TYPE
-    log.debug(f"🔍 get_parent_id: тип={node_type.value}, сущность={type(entity).__name__}")
+    
+    # 🔧 ИСПРАВЛЕНИЕ: node_type может быть строкой или NodeType
+    if isinstance(node_type, str):
+        type_str = node_type
+    else:
+        type_str = node_type.value
+    
+    log.debug(f"🔍 get_parent_id: тип={type_str}, сущность={type(entity).__name__}")
     
     field_name = PARENT_ID_FIELD.get(node_type)
     if field_name is None:
-        log.debug(f"ℹ️ get_parent_id: тип {node_type.value} корневой (нет родителя)")
+        log.debug(f"ℹ️ get_parent_id: тип {type_str} корневой (нет родителя)")
         return None
     
     # Проверка наличия поля — архитектурный контракт
     if not hasattr(entity, field_name):
         log.error(
-            f"❌ Архитектурная ошибка: сущность {node_type.value} "
+            f"❌ Архитектурная ошибка: сущность {type_str} "
             f"не имеет поля '{field_name}'"
         )
         raise ValueError(
-            f"Архитектурная ошибка: сущность {node_type.value} "
-            f"не имеет поля '{field_name}'. "
-            f"Проверьте PARENT_ID_FIELD в {__file__} "
-            f"и модель {type(entity).__name__}."
+            f"Архитектурная ошибка: сущность {type_str} "
+            f"не имеет поля '{field_name}'"
         )
     
     value = getattr(entity, field_name)
-    # Приводим к int с помощью cast для строгой типизации
     result = cast(Optional[int], value)
     
-    log.debug(f"📎 get_parent_id: {node_type.value}#{result if result else 'None'}")
+    log.debug(f"📎 get_parent_id: {type_str}#{result if result else 'None'}")
     return result

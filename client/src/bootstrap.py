@@ -174,6 +174,10 @@ class ApplicationBootstrap:
         # Создаем фасад окна — здесь StatusBar подписывается на ConnectionChanged
         self._app_window = AppWindow(self._bus)
         
+        # Передаем AppWindow в контроллеры
+        self._tree_controller.set_app_window(self._app_window)
+        # self._details_controller.set_app_window(self._app_window)
+
         log.success("  ✅ AppWindow создан")
     
     def _start_services(self) -> None:
@@ -183,6 +187,10 @@ class ApplicationBootstrap:
         # Запускаем ConnectionService
         self._connection_service.start()
         log.info("   ✅ ConnectionService запущен")
+        
+        # 🆕 ЗАПУСКАЕМ ЗАГРУЗКУ КОМПЛЕКСОВ
+        log.info("   🏢 Инициируем загрузку комплексов...")
+        self._tree_controller.load_root_nodes()
         
         # Здесь можно добавить другие сервисы, которые нужно запустить
         # Например:

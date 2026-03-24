@@ -72,6 +72,8 @@ class DataLoader:
             api: HTTP клиент
             graph: Граф сущностей (единый источник правды)
         """
+        log.info("🔧 Инициализация DataLoader...")
+        
         self._bus = bus
         self._graph = graph
         self._utils = LoaderUtils()
@@ -82,6 +84,7 @@ class DataLoader:
             NodeType.FLOOR: lambda a, pid: a.get_floors(pid),
             NodeType.ROOM: lambda a, pid: a.get_rooms(pid),
         }
+        log.debug(f"📦 child_loaders: {list(child_loaders.keys())}")
         
         detail_loaders = {
             NodeType.COMPLEX: lambda a, nid: a.get_complex_detail(nid),
@@ -89,11 +92,12 @@ class DataLoader:
             NodeType.FLOOR: lambda a, nid: a.get_floor_detail(nid),
             NodeType.ROOM: lambda a, nid: a.get_room_detail(nid),
         }
+        log.debug(f"🔍 detail_loaders: {list(detail_loaders.keys())}")
         
         self._node_loader = NodeLoader(api, graph, child_loaders, detail_loaders)
         self._dict_loader = DictionaryLoader(api, graph)
         
-        log.success("DataLoader initialized with DI configuration")
+        log.success("✅ DataLoader initialized with DI configuration")
     
     # ===== Вспомогательный метод для эмиссии событий =====
     
@@ -118,14 +122,35 @@ class DataLoader:
             Any: Результат функции загрузки
         """
         node_display = f"{node_type}#{node_id}"
-        log.debug(f"Emitting DataLoading for {node_display}")
+        log.info(f"📢 _with_events: начало загрузки {node_display}")
+        log.debug(f"🔧 fn: {fn.__name__ if hasattr(fn, '__name__') else fn}")
+        log.debug(f"🔧 args: {args}, kwargs: {kwargs}")
+        
+        # Эмитим событие начала загрузки
+        log.api(f"📡 EMIT DataLoading для {node_display}")
         self._bus.emit(DataLoading(node_type=node_type, node_id=node_id))
         
         try:
+            # Вызываем функцию загрузки
+            log.info(f"🚀 Вызов {fn.__name__ if hasattr(fn, '__name__') else 'fn'}")
             result = fn(*args, **kwargs)
             
-            count = len(result) if isinstance(result, list) else (1 if result else 0)
-            log.debug(f"Emitting DataLoaded for {node_display} (count={count})")
+            # Анализируем результат
+            if isinstance(result, list):
+                count = len(result)
+                log.data(f"📦 Результат: список из {count} элементов")
+                if count > 0 and count <= 5:
+                    for i, item in enumerate(result):
+                        log.debug(f"   [{i}] {type(item).__name__}#{getattr(item, 'id', '?')}")
+            elif result is not None:
+                count = 1
+                log.data(f"📦 Результат: {type(result).__name__}#{getattr(result, 'id', '?')}")
+            else:
+                count = 0
+                log.data(f"📦 Результат: None")
+            
+            # Эмитим событие успешной загрузки
+            log.api(f"📡 EMIT DataLoaded для {node_display} (count={count})")
             self._bus.emit(DataLoaded(
                 node_type=node_type,
                 node_id=node_id,
@@ -133,10 +158,16 @@ class DataLoader:
                 count=count
             ))
             
+            log.success(f"✅ _with_events: успешно загружено {count} элементов для {node_display}")
             return result
             
         except Exception as e:
-            log.error(f"Error loading {node_display}: {e}")
+            log.error(f"❌ _with_events: ошибка загрузки {node_display}: {e}")
+            import traceback
+            log.error(f"   {traceback.format_exc()}")
+            
+            # Эмитим событие ошибки
+            log.api(f"📡 EMIT DataError для {node_display}")
             self._bus.emit(DataError(
                 node_type=node_type,
                 node_id=node_id,
@@ -157,17 +188,34 @@ class DataLoader:
         Returns:
             List[Complex]: Список комплексов (может быть пустым)
         """
-        # Вся логика кэша в EntityGraph
-        cached = self._graph.get_all(NodeType.COMPLEX)
-        if cached:
-            log.cache(f"Complexes in cache: {len(cached)}")
-            return cached
+        log.info("🏢 DataLoader.load_complexes: начальная загрузка комплексов")
         
-        return self._with_events(
-            NodeType.COMPLEX.value,
-            0,
-            self._node_loader.load_complexes
-        )
+        # Проверяем кэш
+        log.debug("🔍 Проверка кэша: _graph.get_all(NodeType.COMPLEX)")
+        try:
+            cached = self._graph.get_all(NodeType.COMPLEX)
+            if cached:
+                log.cache(f"💾 Найдено {len(cached)} комплексов в кэше")
+                return cached
+            else:
+                log.cache(f"💾 Комплексов в кэше нет")
+        except Exception as e:
+            log.error(f"❌ Ошибка при проверке кэша: {e}")
+            raise
+        
+        # Загружаем через API
+        log.info("📡 Загрузка комплексов через API")
+        try:
+            result = self._with_events(
+                NodeType.COMPLEX.value,
+                0,
+                self._node_loader.load_complexes
+            )
+            log.success(f"✅ Загружено {len(result)} комплексов")
+            return result
+        except Exception as e:
+            log.error(f"❌ Ошибка загрузки комплексов: {e}")
+            raise
     
     # ===== Ленивая загрузка детей =====
     
@@ -193,19 +241,27 @@ class DataLoader:
             List[Any]: Список детей
         """
         node_display = f"{parent_type.value}#{parent_id}"
+        log.info(f"👶 DataLoader.load_children: загрузка детей {child_type.value} для {node_display}")
         
-        # Делегируем проверку кэша в EntityGraph
+        # Проверяем кэш
+        log.debug(f"🔍 Проверка кэша: _graph.get_cached_children({parent_type.value}, {parent_id}, {child_type.value})")
         cached = self._graph.get_cached_children(parent_type, parent_id, child_type)
         if cached:
-            log.cache(f"Children of {node_display} in cache: {len(cached)}")
+            log.cache(f"💾 Найдено {len(cached)} детей в кэше для {node_display}")
             return cached
+        else:
+            log.cache(f"💾 Детей в кэше нет для {node_display}")
         
-        return self._with_events(
+        # Загружаем через API
+        log.info(f"📡 Загрузка детей {child_type.value} для {node_display} через API")
+        result = self._with_events(
             parent_type.value,
             parent_id,
             self._node_loader.load_children,
             parent_type, parent_id, child_type
         )
+        log.success(f"✅ Загружено {len(result)} детей {child_type.value} для {node_display}")
+        return result
     
     # ===== Детальная загрузка =====
     
@@ -225,19 +281,30 @@ class DataLoader:
             Optional[Any]: Детальные данные или None
         """
         node_display = f"{node_type.value}#{node_id}"
+        log.info(f"🔍 DataLoader.load_details: загрузка деталей для {node_display}")
         
-        # Делегируем проверку полноты в EntityGraph
+        # Проверяем кэш
+        log.debug(f"🔍 Проверка кэша: _graph.get_if_full({node_type.value}, {node_id})")
         cached = self._graph.get_if_full(node_type, node_id)
         if cached:
-            log.cache(f"Full details for {node_display} in cache")
+            log.cache(f"💾 Полные детали для {node_display} найдены в кэше")
             return cached
+        else:
+            log.cache(f"💾 Детали для {node_display} отсутствуют в кэше или неполные")
         
-        return self._with_events(
+        # Загружаем через API
+        log.info(f"📡 Загрузка деталей для {node_display} через API")
+        result = self._with_events(
             node_type.value,
             node_id,
             self._node_loader.load_details,
             node_type, node_id
         )
+        if result:
+            log.success(f"✅ Детали для {node_display} загружены")
+        else:
+            log.warning(f"⚠️ Детали для {node_display} не найдены")
+        return result
     
     # ===== Контрагенты и ответственные лица =====
     
@@ -251,17 +318,27 @@ class DataLoader:
         Returns:
             Optional[Counterparty]: Контрагент или None
         """
+        log.info(f"🏢 DataLoader.load_counterparty: загрузка контрагента #{counterparty_id}")
+        
+        # Проверяем кэш
         cached = self._graph.get(NodeType.COUNTERPARTY, counterparty_id)
         if cached:
-            log.cache(f"Counterparty {counterparty_id} in cache")
+            log.cache(f"💾 Контрагент #{counterparty_id} найден в кэше")
             return cached
         
-        return self._with_events(
+        # Загружаем через API
+        log.info(f"📡 Загрузка контрагента #{counterparty_id} через API")
+        result = self._with_events(
             NodeType.COUNTERPARTY.value,
             counterparty_id,
             self._dict_loader.load_counterparty,
             counterparty_id
         )
+        if result:
+            log.success(f"✅ Контрагент #{counterparty_id} загружен")
+        else:
+            log.warning(f"⚠️ Контрагент #{counterparty_id} не найден")
+        return result
     
     def load_responsible_persons(self, counterparty_id: NodeID) -> List[ResponsiblePerson]:
         """
@@ -273,19 +350,26 @@ class DataLoader:
         Returns:
             List[ResponsiblePerson]: Список ответственных лиц
         """
+        log.info(f"👥 DataLoader.load_responsible_persons: загрузка контактов для контрагента #{counterparty_id}")
+        
+        # Проверяем кэш
         cached = self._graph.get_cached_children(
             NodeType.COUNTERPARTY, counterparty_id, NodeType.RESPONSIBLE_PERSON
         )
         if cached:
-            log.cache(f"Responsible persons for counterparty {counterparty_id} in cache: {len(cached)}")
+            log.cache(f"💾 {len(cached)} контактов для контрагента #{counterparty_id} найдено в кэше")
             return cached
         
-        return self._with_events(
+        # Загружаем через API
+        log.info(f"📡 Загрузка контактов для контрагента #{counterparty_id} через API")
+        result = self._with_events(
             NodeType.RESPONSIBLE_PERSON.value,
             counterparty_id,
             self._dict_loader.load_responsible_persons,
             counterparty_id
         )
+        log.success(f"✅ Загружено {len(result)} контактов для контрагента #{counterparty_id}")
+        return result
     
     # ===== Загрузка корпуса с владельцем =====
     
@@ -309,23 +393,27 @@ class DataLoader:
         Returns:
             Optional[BuildingWithOwnerResult]: Результат загрузки или None
         """
-        log.info(f"Loading building {building_id} with owner")
+        log.info(f"🏢 DataLoader.load_building_with_owner: загрузка корпуса #{building_id} с владельцем")
         
         # 1. Загружаем детали корпуса (с проверкой кэша)
         building = self.load_details(NodeType.BUILDING, building_id)
         if building is None:
-            log.warning(f"Building {building_id} not found")
+            log.warning(f"⚠️ Корпус #{building_id} не найден")
             return None
+        
+        log.info(f"📦 Корпус #{building_id} загружен: {building.name}")
         
         # 2. Создаем результат с корпусом (остальные поля — по умолчанию)
         result = BuildingWithOwnerResult(building=building)
         
         # 3. Если есть владелец — загружаем
         if building.owner_id:
-            log.debug(f"Building {building_id} has owner {building.owner_id}")
+            log.info(f"👤 Корпус #{building_id} имеет владельца #{building.owner_id}")
             owner = self.load_counterparty(building.owner_id)
             
             if owner:
+                log.info(f"👤 Владелец загружен: {owner.short_name}")
+                
                 # Обновляем результат с владельцем
                 result = BuildingWithOwnerResult(
                     building=building,
@@ -341,24 +429,15 @@ class DataLoader:
                         owner=owner,
                         responsible_persons=persons
                     )
-                log.info(
-                    f"Loaded {len(persons)} responsible persons "
-                    f"for owner {owner.id} ({owner.short_name})"
-                )
+                    log.info(f"👥 Загружено {len(persons)} контактов для владельца {owner.short_name}")
+                else:
+                    log.info(f"👥 У владельца {owner.short_name} нет контактов")
             else:
-                log.warning(
-                    f"Building {building_id} has owner_id={building.owner_id}, "
-                    f"but owner could not be loaded. Check API or database."
-                )
+                log.warning(f"⚠️ Владелец #{building.owner_id} для корпуса #{building_id} не найден")
         else:
-            log.debug(f"Building {building_id} has no owner")
+            log.info(f"🏢 Корпус #{building_id} не имеет владельца")
         
-        log.info(
-            f"Building {building_id} loaded: "
-            f"owner={result.owner is not None}, "
-            f"persons={len(result.responsible_persons)}"
-        )
-        
+        log.success(f"✅ Корпус #{building_id} загружен: владелец={result.owner is not None}, контактов={len(result.responsible_persons)}")
         return result
     
     # ===== Получение предков узла =====
@@ -376,7 +455,11 @@ class DataLoader:
         Returns:
             List[NodeIdentifier]: Список предков от ближайшего к дальнему
         """
-        return self._graph.get_ancestors(node_type, node_id)
+        log.debug(f"🌳 get_ancestors: {node_type.value}#{node_id}")
+        result = self._graph.get_ancestors(node_type, node_id)
+        if result:
+            log.debug(f"   Найдено {len(result)} предков")
+        return result
     
     # ===== Перезагрузка данных =====
     
@@ -388,13 +471,17 @@ class DataLoader:
             node_type: Тип узла
             node_id: ID узла
         """
-        log.info(f"Reloading node {node_type.value}#{node_id}")
+        log.info(f"🔄 reload_node: {node_type.value}#{node_id}")
         
         # Инвалидируем в графе
+        log.debug(f"❌ Инвалидация узла {node_type.value}#{node_id}")
         self._graph.invalidate(node_type, node_id)
         
         # Загружаем заново
+        log.debug(f"📡 Повторная загрузка узла {node_type.value}#{node_id}")
         self.load_details(node_type, node_id)
+        
+        log.success(f"✅ Узел {node_type.value}#{node_id} перезагружен")
     
     def reload_branch(self, node_type: NodeType, node_id: NodeID) -> None:
         """
@@ -404,28 +491,35 @@ class DataLoader:
             node_type: Тип корневого узла ветки
             node_id: ID корневого узла
         """
-        log.info(f"Reloading branch {node_type.value}#{node_id}")
+        log.info(f"🌿 reload_branch: {node_type.value}#{node_id}")
         
         # Инвалидируем всю ветку
+        log.debug(f"❌ Инвалидация ветки {node_type.value}#{node_id}")
         count = self._graph.invalidate_branch(node_type, node_id)
-        log.info(f"Invalidated {count} entities in branch")
+        log.info(f"   Инвалидировано {count} сущностей в ветке")
         
         # Загружаем корневой узел заново
+        log.debug(f"📡 Повторная загрузка корневого узла {node_type.value}#{node_id}")
         self.load_details(node_type, node_id)
+        
+        log.success(f"✅ Ветка {node_type.value}#{node_id} перезагружена")
     
     # ===== Управление =====
     
     def clear_cache(self) -> None:
         """Очищает все кэши в загрузчике."""
+        log.info("🧹 DataLoader.clear_cache: очистка кэша")
         self._utils.clear_cache()
-        log.debug("DataLoader cache cleared")
+        log.success("✅ Кэш DataLoader очищен")
     
     def get_stats(self) -> Dict[str, Any]:
         """Возвращает статистику работы загрузчика."""
-        return {
+        stats = {
             'loader': self._node_loader.get_stats() if hasattr(self._node_loader, 'get_stats') else {},
             'utils': self._utils.get_stats(),
         }
+        log.debug(f"📊 Статистика DataLoader: utils cache_size={stats['utils']['cache_size']}")
+        return stats
     
     def print_stats(self) -> None:
         """Выводит статистику в консоль."""
@@ -439,5 +533,10 @@ class DataLoader:
         log.info(f"  • Detail checks:  {stats['utils']['detail_checks']}")
         log.info(f"  • Detail cache hits: {stats['utils']['detail_cache_hits']}")
         log.info(f"  • Cache size:     {stats['utils']['cache_size']}")
+        
+        if stats['loader']:
+            log.info("\n📦 NodeLoader:")
+            for key, value in stats['loader'].items():
+                log.info(f"  • {key}: {value}")
         
         log.info("=" * 60)

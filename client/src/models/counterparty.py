@@ -32,7 +32,9 @@ class Counterparty(BaseDTO, DateTimeMixin):
         status_code: статус ('active', 'suspended', 'blocked')
         notes: примечания
     """
-    
+    # Тип узла для графа
+    NODE_TYPE = "counterparty"
+
     # Специфичные для контрагента поля
     short_name: str
     full_name: Optional[str] = None

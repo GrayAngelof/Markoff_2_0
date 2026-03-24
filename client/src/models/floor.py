@@ -30,7 +30,9 @@ class Floor(BaseDTO, DateTimeMixin):
         status_id: ID статуса (детали)
         plan_image_url: URL плана этажа (детали)
     """
-    
+    # Тип узла для графа
+    NODE_TYPE = "floor"
+
     # Специфичные для этажа поля
     number: int
     building_id: int

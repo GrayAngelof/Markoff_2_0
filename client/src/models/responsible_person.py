@@ -33,7 +33,9 @@ class ResponsiblePerson(BaseDTO, DateTimeMixin):
         is_active: активен ли
         notes: примечания
     """
-    
+    # Тип узла для графа
+    NODE_TYPE = "responsible_person"
+
     # Специфичные для ответственного лица поля
     counterparty_id: int
     person_name: str

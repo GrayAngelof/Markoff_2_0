@@ -30,7 +30,9 @@ class Building(BaseDTO, DateTimeMixin):
         status_id: ID статуса (детали)
         owner_id: ID владельца (детали)
     """
-    
+    # Тип узла для графа
+    NODE_TYPE = "building"
+
     # Специфичные для корпуса поля
     name: str
     complex_id: int

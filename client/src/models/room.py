@@ -30,7 +30,9 @@ class Room(BaseDTO, DateTimeMixin):
         physical_type_id: ID типа помещения (детали)
         max_tenants: максимальное количество арендаторов (детали)
     """
-    
+    # Тип узла для графа
+    NODE_TYPE = "room"
+
     # Специфичные для помещения поля
     number: str
     floor_id: int

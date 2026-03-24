@@ -28,6 +28,8 @@ class Complex(BaseDTO, DateTimeMixin):
         address: адрес комплекса (детали)
         owner_id: ID владельца (детали)
     """
+    # Тип узла для графа
+    NODE_TYPE = "complex"
     
     # Специфичные для комплекса поля
     name: str

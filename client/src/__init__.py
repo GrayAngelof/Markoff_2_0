@@ -1,7 +1,9 @@
 # client/src/__init__.py
 """
-Пакет src приложения Markoff 2.0.
+Корневой пакет клиентского приложения Markoff 2.0.
 """
 
-__version__ = "2.0.0"
-__author__ = "Markoff Team"
+# Экспортируем основные компоненты (опционально)
+# from src.bootstrap import ApplicationBootstrap
+
+__all__ = []

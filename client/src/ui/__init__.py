@@ -1,10 +1,8 @@
 # client/src/ui/__init__.py
 """
-Пакет UI компонентов приложения Markoff 2.0.
+UI слой приложения Markoff 2.0.
 """
 
-from src.ui.main_window.window import MainWindow
+from src.ui.app_window import AppWindow
 
-__all__ = [
-    "MainWindow",
-]
+__all__ = ["AppWindow"]

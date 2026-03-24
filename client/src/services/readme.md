@@ -469,7 +469,7 @@ class BuildingWithOwnerResult:
 ```python
 from src.services import ConnectionService
 
-service = ConnectionService(bus, api, interval_ms=30000)
+service = ConnectionService(bus, api, interval_ms=300000)
 service.start()  # запускает периодическую проверку
 ```
 

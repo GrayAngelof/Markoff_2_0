@@ -1,10 +1,11 @@
+# client/src/bootstrap.py
 """
 Инициализация всех компонентов приложения.
 Собирает вместе Core, Models, Data, Services, Controllers и передает в UI.
 """
 from typing import Optional
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMainWindow
 
 from src.core import EventBus
 from src.core.events import NodeSelected, NodeExpanded, NodeCollapsed, RefreshRequested
@@ -28,7 +29,7 @@ from src.controllers import (
     ConnectionController,
 )
 
-from src.ui.main_window import MainWindow
+from src.ui.app_window import AppWindow
 
 from utils.logger import get_logger
 
@@ -61,9 +62,12 @@ class ApplicationBootstrap:
         # Инициализация слоев по порядку
         self._init_core()
         self._init_data()
-        self._init_services()
+        self._init_services()      # создает ConnectionService (не запускает)
         self._init_controllers()
-        self._init_ui()
+        self._init_ui()            # UI подписывается на события
+        
+        # ЗАПУСКАЕМ СЕРВИСЫ ПОСЛЕ ТОГО, КАК UI ПОДПИСАЛСЯ
+        self._start_services()
         
         log.success("✅ Все компоненты инициализированы")
         log.info("=" * 60)
@@ -103,7 +107,7 @@ class ApplicationBootstrap:
         log.debug(f"    • ResponsiblePersonRepository: {self._responsible_person_repo}")
     
     def _init_services(self) -> None:
-        """Инициализация сервисного слоя."""
+        """Инициализация сервисного слоя (СОЗДАНИЕ, без запуска)."""
         log.info("🔧 Инициализация Services...")
         
         # API клиент
@@ -125,9 +129,9 @@ class ApplicationBootstrap:
         )
         log.debug(f"  • ContextService: {self._context_service}")
         
-        # ConnectionService
+        # ConnectionService (только создаем, НЕ ЗАПУСКАЕМ)
         self._connection_service = ConnectionService(self._bus, self._api)
-        log.debug(f"  • ConnectionService: {self._connection_service}")
+        log.debug(f"  • ConnectionService: {self._connection_service} (создан, не запущен)")
         
         log.success("  ✅ Services инициализированы")
     
@@ -164,24 +168,32 @@ class ApplicationBootstrap:
         log.success("  ✅ Controllers инициализированы")
     
     def _init_ui(self) -> None:
-        """Инициализация UI."""
+        """Инициализация UI (здесь StatusBar ПОДПИСЫВАЕТСЯ на события)."""
         log.info("🖥️ Инициализация UI...")
         
-        # Создаем главное окно
-        self._window = MainWindow()
+        # Создаем фасад окна — здесь StatusBar подписывается на ConnectionChanged
+        self._app_window = AppWindow(self._bus)
         
-        # TODO: Передаем зависимости в UI (после того как UI будет готов)
-        # self._window.set_event_bus(self._bus)
-        # self._window.set_tree_controller(self._tree_controller)
-        # self._window.set_details_controller(self._details_controller)
+        log.success("  ✅ AppWindow создан")
+    
+    def _start_services(self) -> None:
+        """Запускает фоновые сервисы ПОСЛЕ того, как UI подписался."""
+        log.info("▶️ Запуск фоновых сервисов...")
         
-        log.success("  ✅ MainWindow создана")
+        # Запускаем ConnectionService
+        self._connection_service.start()
+        log.info("   ✅ ConnectionService запущен")
+        
+        # Здесь можно добавить другие сервисы, которые нужно запустить
+        # Например:
+        # self._some_other_service.start()
+        # log.info("   ✅ SomeOtherService запущен")
+        
+        log.info("   ✅ Все фоновые сервисы запущены")
     
-    # ===== Публичные методы =====
-    
-    def get_window(self) -> MainWindow:
-        """Возвращает главное окно."""
-        return self._window
+    def get_window(self) -> QMainWindow:
+        """Возвращает главное окно для отображения."""
+        return self._app_window.get_window()
     
     def get_bus(self) -> EventBus:
         """Возвращает шину событий (для отладки)."""
@@ -193,14 +205,17 @@ class ApplicationBootstrap:
         
         # Останавливаем сервисы
         self._connection_service.stop()
+        log.debug("   • ConnectionService остановлен")
         
         # Очищаем контроллеры
         self._tree_controller.cleanup()
         self._details_controller.cleanup()
         self._refresh_controller.cleanup()
         self._connection_controller.cleanup()
+        log.debug("   • Контроллеры очищены")
         
         # Очищаем граф
         self._graph.clear()
+        log.debug("   • EntityGraph очищен")
         
         log.success("  ✅ Ресурсы очищены")

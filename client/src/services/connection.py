@@ -19,7 +19,7 @@ log = get_logger(__name__)
 class ConnectionService:
     """Сервис периодической проверки доступности сервера."""
     
-    def __init__(self, bus: EventBus, api: ApiClient, interval_ms: int = 30000):
+    def __init__(self, bus: EventBus, api: ApiClient, interval_ms: int = 600000):
         self._bus = bus
         self._api = api
         self._interval = interval_ms / 1000

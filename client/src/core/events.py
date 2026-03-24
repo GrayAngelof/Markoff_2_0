@@ -124,11 +124,12 @@ class DataError(EventData):
     node_id: int
     error: str
 
-
+# ===== События соединения =====
 @dataclass(frozen=True, slots=True)
 class ConnectionChanged(EventData):
-    """Изменился статус соединения."""
+    """Статус соединения изменился."""
     is_online: bool
+    error: Optional[str] = None
 
 
 # === СОБЫТИЯ ОБНОВЛЕНИЯ ===

@@ -9,22 +9,22 @@
 но не экспортируются наружу.
 
 Правильное использование:
-    from services import ApiClient  # ✅
+    from src.services import ApiClient  # ✅
 
 Неправильное использование:
-    from services.api import HttpClient  # ❌
-    from services.api.errors import ApiError  # ❌
+    from src.services.api import HttpClient  # ❌
+    from src.services.api.errors import ApiError  # ❌
 """
 
 # Импортируем для удобства внутри services (не для экспорта!)
-from services.api.http_client import HttpClient
-from services.api.endpoints import Endpoints
-from services.api.converters import (
+from src.services.api.http_client import HttpClient
+from src.services.api.endpoints import Endpoints
+from src.services.api.converters import (
     to_complex_list, to_building_list, to_floor_list, to_room_list,
     to_complex, to_building, to_floor, to_room,
     to_counterparty, to_responsible_person_list,
 )
-from services.api.errors import (
+from src.services.api.errors import (
     ApiError, ConnectionError, TimeoutError,
     NotFoundError, ClientError, ServerError,
 )

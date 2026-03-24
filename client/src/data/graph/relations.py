@@ -35,8 +35,8 @@ RelationIndex отвечает только за одно: хранить свя
 from threading import RLock
 from typing import Dict, Set, List, Optional, Tuple, Final, TypedDict
 
-from core.types import NodeType
-from shared.validation import validate_positive_int
+from src.core.types import NodeType
+from src.shared.validation import validate_positive_int
 from .schema import get_child_type, get_parent_type
 from utils.logger import get_logger
 

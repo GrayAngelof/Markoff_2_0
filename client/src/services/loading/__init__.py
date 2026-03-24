@@ -7,9 +7,9 @@
 """
 
 # Импортируем для удобства внутри services (не для экспорта!)
-from services.loading.node_loader import NodeLoader
-from services.loading.dictionary_loader import DictionaryLoader
-from services.loading.utils import LoaderUtils
+from src.services.loading.node_loader import NodeLoader
+from src.services.loading.dictionary_loader import DictionaryLoader
+from src.services.loading.utils import LoaderUtils
 
 # Нет __all__ — это приватный пакет
 __all__: list[str] = []

@@ -8,15 +8,15 @@ TreeController — управление деревом объектов.
 """
 
 from typing import Optional, Set
-from core import EventBus
-from core.types import Event, NodeIdentifier, NodeType
-from core.events import (
+from src.core import EventBus
+from src.core.types import Event, NodeIdentifier, NodeType
+from src.core.events import (
     NodeSelected, NodeExpanded, NodeCollapsed,
     NodeDetailsLoaded, ChildrenLoaded,
     CurrentSelectionChanged, ExpandedNodesChanged
 )
-from services import DataLoader, ContextService
-from controllers.base import BaseController
+from src.services import DataLoader, ContextService
+from src.controllers.base import BaseController
 from utils.logger import get_logger
 
 log = get_logger(__name__)

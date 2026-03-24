@@ -18,7 +18,7 @@ from typing import Optional, Any
 
 import requests
 
-from services.api.errors import (
+from src.services.api.errors import (
     ApiError, ConnectionError, TimeoutError,
     NotFoundError, ClientError, ServerError
 )

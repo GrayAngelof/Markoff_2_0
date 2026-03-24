@@ -15,8 +15,8 @@
 Никакой бизнес-логики: фильтрация по владельцу — только в сервисах!
 """
 from typing import List
-from core import NodeType, NotFoundError
-from models import Building
+from src.core import NodeType, NotFoundError
+from src.models import Building
 from .base import BaseRepository
 
 

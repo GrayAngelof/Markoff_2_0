@@ -14,8 +14,8 @@
 Никакой бизнес-логики: фильтрация, поиск по ИНН, статус — только в сервисах!
 """
 from typing import List
-from core import NodeType, NotFoundError
-from models import Counterparty
+from src.core import NodeType, NotFoundError
+from src.models import Counterparty
 from .base import BaseRepository
 
 

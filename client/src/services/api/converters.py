@@ -1,4 +1,3 @@
-# client/src/services/api/converters.py
 """
 Преобразование JSON ответов API в модели данных.
 
@@ -13,12 +12,16 @@
 - Переиспользовать конвертеры в разных местах
 """
 
-from typing import List, Optional, Any
+from typing import List, Optional, Any, TypeVar
 
-from models import (
+from src.models import (
     Complex, Building, Floor, Room,
     Counterparty, ResponsiblePerson
 )
+
+
+# ===== Тип для generic =====
+T = TypeVar('T')
 
 
 # ===== Физическая структура =====
@@ -97,9 +100,9 @@ def to_responsible_person_list(data: List[dict]) -> List[ResponsiblePerson]:
     return [ResponsiblePerson.from_dict(item) for item in data]
 
 
-# ===== Универсальные конвертеры (если нужны) =====
+# ===== Универсальные конвертеры =====
 
-def safe_convert[T](data: Any, converter, default: T = None) -> Optional[T]:
+def safe_convert(data: Any, converter, default: Any = None) -> Any:
     """
     Безопасное преобразование с обработкой None.
     
@@ -109,7 +112,7 @@ def safe_convert[T](data: Any, converter, default: T = None) -> Optional[T]:
         default: Значение по умолчанию при None
         
     Returns:
-        Optional[T]: Результат преобразования или default
+        Any: Результат преобразования или default
     """
     if data is None:
         return default

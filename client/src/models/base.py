@@ -5,7 +5,7 @@
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class BaseDTO:
     """
     Базовый DTO с минимальным набором полей.

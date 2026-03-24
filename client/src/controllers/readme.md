@@ -76,11 +76,11 @@ Controllers — это слой бизнес-логики приложения. 
 
 ### Базовый контроллер
 ```python
-from core import EventBus, NodeIdentifier, NodeType
-from core.events import NodeSelected, DataLoaded
-from data import BuildingRepository, ComplexRepository
-from services import DataLoader
-from controllers.base import BaseController
+from src.core import EventBus, NodeIdentifier, NodeType
+from src.core.events import NodeSelected, DataLoaded
+from src.data import BuildingRepository, ComplexRepository
+from src.services import DataLoader
+from src.controllers.base import BaseController
 
 class TreeController(BaseController):
     def __init__(self, bus: EventBus, loader: DataLoader,
@@ -275,7 +275,7 @@ class MyController(BaseController):
 ### 3.2. **TreeController — управление деревом**
 
 ```python
-from controllers import TreeController
+from src.controllers import TreeController
 ```
 
 **Ответственность:**
@@ -318,7 +318,7 @@ self._expanded_nodes: Set[NodeIdentifier] = set()
 ### 3.3. **DetailsController — панель деталей**
 
 ```python
-from controllers import DetailsController
+from src.controllers import DetailsController
 ```
 
 **Ответственность:**
@@ -348,7 +348,7 @@ from controllers import DetailsController
 ### 3.4. **RefreshController — обновление данных**
 
 ```python
-from controllers import RefreshController
+from src.controllers import RefreshController
 ```
 
 **Ответственность:**
@@ -385,7 +385,7 @@ from controllers import RefreshController
 ### 3.5. **ConnectionController — статус соединения**
 
 ```python
-from controllers import ConnectionController
+from src.controllers import ConnectionController
 ```
 
 **Ответственность:**
@@ -536,9 +536,9 @@ from controllers import ConnectionController
 
 Controllers **используют** типы и события из core:
 ```python
-from core import EventBus, NodeIdentifier, NodeType
-from core.events import NodeSelected, DataLoaded, RefreshRequested
-from core.types.exceptions import NotFoundError
+from src.core import EventBus, NodeIdentifier, NodeType
+from src.core.events import NodeSelected, DataLoaded, RefreshRequested
+from src.core.types.exceptions import NotFoundError
 ```
 
 Controllers **не изменяют** core.
@@ -547,7 +547,7 @@ Controllers **не изменяют** core.
 
 Controllers **используют** модели как типы данных:
 ```python
-from models import Building, Counterparty, ResponsiblePerson
+from src.models import Building, Counterparty, ResponsiblePerson
 ```
 
 Controllers **не создают** модели напрямую — это делает DataLoader.
@@ -665,10 +665,10 @@ def closeEvent(self, event):
 ### 7.1. **Инициализация в MainWindow**
 
 ```python
-from core import EventBus
-from data import EntityGraph, ComplexRepository, BuildingRepository, FloorRepository, CounterpartyRepository
-from services import ApiClient, DataLoader, ContextService
-from controllers import TreeController, DetailsController, RefreshController, ConnectionController
+from src.core import EventBus
+from src.data import EntityGraph, ComplexRepository, BuildingRepository, FloorRepository, CounterpartyRepository
+from src.services import ApiClient, DataLoader, ContextService
+from src.controllers import TreeController, DetailsController, RefreshController, ConnectionController
 
 # Создаём зависимости
 bus = EventBus()

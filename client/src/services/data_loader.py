@@ -17,19 +17,19 @@ DataLoader — фасад загрузки данных.
 from typing import List, Optional, Any, Callable, Dict
 from dataclasses import dataclass, field
 
-from core import EventBus, NodeType, NodeIdentifier
-from core.types.nodes import NodeID 
-from core.events import (
+from src.core import EventBus, NodeType, NodeIdentifier
+from src.core.types.nodes import NodeID 
+from src.core.events import (
     DataLoading, DataLoaded, DataError,
     RefreshRequested, ConnectionChanged
 )
-from core.serializers import format_display
-from models import Complex, Building, Floor, Room, Counterparty, ResponsiblePerson
-from data import EntityGraph
-from services.api_client import ApiClient
-from services.loading.node_loader import NodeLoader
-from services.loading.dictionary_loader import DictionaryLoader
-from services.loading.utils import LoaderUtils
+from src.core.serializers import format_display
+from src.models import Complex, Building, Floor, Room, Counterparty, ResponsiblePerson
+from src.data import EntityGraph
+from src.services.api_client import ApiClient
+from src.services.loading.node_loader import NodeLoader
+from src.services.loading.dictionary_loader import DictionaryLoader
+from src.services.loading.utils import LoaderUtils
 from utils.logger import get_logger
 
 log = get_logger(__name__)

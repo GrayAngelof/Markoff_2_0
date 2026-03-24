@@ -6,9 +6,9 @@
 """
 
 from typing import List, Tuple, Callable, TypeVar, Generic, Optional, Any, cast
-from core import EventBus
-from core.types import Event, EventData, NodeIdentifier
-from core.events import DataError
+from src.core import EventBus
+from src.core.types import Event, EventData, NodeIdentifier
+from src.core.events import DataError
 from utils.logger import get_logger
 
 log = get_logger(__name__)

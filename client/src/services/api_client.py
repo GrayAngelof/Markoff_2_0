@@ -22,17 +22,17 @@ ApiClient — фасад HTTP клиента.
 
 from typing import List, Optional
 
-from core.types.nodes import NodeID
-from models import Complex, Building, Floor, Room, Counterparty, ResponsiblePerson
+from src.core.types.nodes import NodeID
+from src.models import Complex, Building, Floor, Room, Counterparty, ResponsiblePerson
 
-from services.api.http_client import HttpClient
-from services.api.endpoints import Endpoints
-from services.api.converters import (
+from src.services.api.http_client import HttpClient
+from src.services.api.endpoints import Endpoints
+from src.services.api.converters import (
     to_complex_list, to_building_list, to_floor_list, to_room_list,
     to_complex, to_building, to_floor, to_room,
     to_counterparty, to_responsible_person_list,
 )
-from services.api.errors import (
+from src.services.api.errors import (
     ApiError, ConnectionError, NotFoundError, TimeoutError,
     ClientError, ServerError
 )

@@ -8,10 +8,10 @@
 - ConnectionService — мониторинг соединения
 """
 
-from services.api_client import ApiClient
-from services.data_loader import DataLoader
-from services.connection import ConnectionService
-from services.context_service import ContextService
+from src.services.api_client import ApiClient
+from src.services.data_loader import DataLoader
+from src.services.connection import ConnectionService
+from src.services.context_service import ContextService
 
 __all__ = [
     'ApiClient',

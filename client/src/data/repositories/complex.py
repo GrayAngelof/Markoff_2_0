@@ -14,8 +14,8 @@
 Никакой бизнес-логики: фильтрация по владельцу, поиск по имени — только в сервисах!
 """
 from typing import List
-from core import NodeType, NotFoundError
-from models import Complex
+from src.core import NodeType, NotFoundError
+from src.models import Complex
 from .base import BaseRepository
 
 

@@ -6,7 +6,7 @@
 import inspect
 from functools import wraps
 from typing import Callable, TypeVar
-from shared.validation import validate_positive_int
+from src.shared.validation import validate_positive_int
 
 T = TypeVar('T')
 

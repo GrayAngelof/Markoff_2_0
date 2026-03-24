@@ -84,7 +84,7 @@
 ### ApiClient:
 ```python
 # В контроллере
-from services import ApiClient
+from src.services import ApiClient
 
 api = ApiClient()
 complexes = api.get_complexes()  # List[Complex]
@@ -95,7 +95,7 @@ owner = api.get_counterparty(42)  # Optional[Counterparty]
 ### DataLoader:
 ```python
 # В контроллере
-from services import DataLoader
+from src.services import DataLoader
 
 loader = DataLoader(event_bus, api_client, graph)
 
@@ -119,7 +119,7 @@ loader.reload_branch(NodeType.COMPLEX, 42)
 ### ConnectionService:
 ```python
 # В main.py
-from services import ConnectionService
+from src.services import ConnectionService
 
 service = ConnectionService(event_bus, api_client)
 service.start()  # начинает периодическую проверку
@@ -225,7 +225,7 @@ services/
 ### 3.1. **ApiClient (фасад HTTP)**
 
 ```python
-from services import ApiClient
+from src.services import ApiClient
 
 api = ApiClient(base_url="http://localhost:8000")
 ```
@@ -270,7 +270,7 @@ api = ApiClient(base_url="http://localhost:8000")
 ### 3.2. **DataLoader (фасад загрузки)**
 
 ```python
-from services import DataLoader
+from src.services import DataLoader
 
 loader = DataLoader(bus, api, graph)
 ```
@@ -409,7 +409,7 @@ def _with_events(self, node_type, node_id, fn, *args, **kwargs):
 ### 3.3. **ContextService — 🆕 сервис контекста**
 
 ```python
-from services import ContextService
+from src.services import ContextService
 
 context_service = ContextService(complex_repo, building_repo, floor_repo, counterparty_repo, loader)
 ```
@@ -467,7 +467,7 @@ class BuildingWithOwnerResult:
 ### 3.5. **ConnectionService (мониторинг соединения)**
 
 ```python
-from services import ConnectionService
+from src.services import ConnectionService
 
 service = ConnectionService(bus, api, interval_ms=30000)
 service.start()  # запускает периодическую проверку
@@ -725,8 +725,8 @@ self._graph.add_or_update(complex_obj)
 
 Services **использует** типы и события из core:
 ```python
-from core import NodeType, NodeID, EventBus
-from core.events import DataLoading, DataLoaded, DataError, ConnectionChanged
+from src.core import NodeType, NodeID, EventBus
+from src.core.events import DataLoading, DataLoaded, DataError, ConnectionChanged
 
 # Эмитит события
 self._bus.emit(DataLoading(node_type=node_type, node_id=node_id))
@@ -819,9 +819,9 @@ except Exception as e:
 ### 8.1. **Инициализация в MainWindow**
 
 ```python
-from core import EventBus
-from data import EntityGraph, ComplexRepository, BuildingRepository, FloorRepository, CounterpartyRepository
-from services import ApiClient, DataLoader, ConnectionService, ContextService
+from src.core import EventBus
+from src.data import EntityGraph, ComplexRepository, BuildingRepository, FloorRepository, CounterpartyRepository
+from src.services import ApiClient, DataLoader, ConnectionService, ContextService
 
 # Создаём компоненты
 bus = EventBus()

@@ -36,11 +36,11 @@ from threading import RLock
 from typing import Dict, Set, List, Callable, Final, Iterable, TypedDict
 from collections import deque
 
-from core import EventBus
-from core.events import DataInvalidated
-from core.types import NodeType
-from core.hierarchy import get_child_type
-from shared.validation import validate_positive_int
+from src.core import EventBus
+from src.core.events import DataInvalidated
+from src.core.types import NodeType
+from src.core.hierarchy import get_child_type
+from src.shared.validation import validate_positive_int
 from utils.logger import get_logger
 
 
@@ -92,7 +92,7 @@ def _validate_validity_types() -> None:
     Это критическая проверка, которая обнаруживает ошибки конфигурации
     на этапе импорта модуля, а не в рантайме.
     """
-    from core.types import NodeType as AllNodeTypes
+    from src.core.types import NodeType as AllNodeTypes
     
     all_types = set(AllNodeTypes)
     configured_types = set(_VALID_TYPES)

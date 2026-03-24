@@ -9,11 +9,11 @@ from threading import RLock
 from typing import Optional, Any, List, Iterable, Dict, TypedDict
 from datetime import datetime
 
-from core import EventBus
-from core.types import NodeType, NodeIdentifier
-from core.types.nodes import NodeID 
-from core.hierarchy import get_child_type, get_parent_type
-from shared.validation import validate_positive_int
+from src.core import EventBus
+from src.core.types import NodeType, NodeIdentifier
+from src.core.types.nodes import NodeID 
+from src.core.hierarchy import get_child_type, get_parent_type
+from src.shared.validation import validate_positive_int
 from utils.logger import get_logger
 
 from .graph.store import EntityStore, StoreStats
@@ -23,8 +23,8 @@ from .graph.schema import get_node_type, get_parent_id
 from .graph.consistency import ConsistencyChecker
 from .graph.decorators import validate_ids
 
-# Импорт из shared (правильный путь)
-from shared.comparison import has_changed
+# Импорт из shared
+from src.shared.comparison import has_changed
 
 log = get_logger(__name__)
 

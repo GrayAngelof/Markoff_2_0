@@ -15,8 +15,8 @@
 Никакой бизнес-логики: сортировка, фильтрация — только в сервисах!
 """
 from typing import List
-from core import NodeType, NotFoundError
-from models import Floor
+from src.core import NodeType, NotFoundError
+from src.models import Floor
 from .base import BaseRepository
 
 

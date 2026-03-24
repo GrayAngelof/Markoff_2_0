@@ -5,11 +5,11 @@
 Экспортирует все контроллеры для использования в MainWindow.
 """
 
-from controllers.base import BaseController
-from controllers.tree_controller import TreeController
-from controllers.details_controller import DetailsController
-from controllers.refresh_controller import RefreshController
-from controllers.connection_controller import ConnectionController
+from .base import BaseController
+from .tree_controller import TreeController
+from .details_controller import DetailsController
+from .refresh_controller import RefreshController
+from .connection_controller import ConnectionController
 
 __all__ = [
     'BaseController',

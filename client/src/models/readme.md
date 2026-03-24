@@ -145,7 +145,7 @@ models/
 ### 3.1. **BaseDTO и DateTimeMixin (base.py)**
 
 ```python
-from models.base import BaseDTO, DateTimeMixin
+from src.models.base import BaseDTO, DateTimeMixin
 ```
 
 **BaseDTO** — абстрактный базовый класс для всех моделей:
@@ -161,7 +161,7 @@ from models.base import BaseDTO, DateTimeMixin
 ### 3.2. **Complex — модель комплекса**
 
 ```python
-from models import Complex
+from src.models import Complex
 
 complex = Complex.from_dict(api_data)
 ```
@@ -202,7 +202,7 @@ print(complex.owner_id)      # 42
 ### 3.3. **Building — модель корпуса**
 
 ```python
-from models import Building
+from src.models import Building
 
 building = Building.from_dict(api_data)
 ```
@@ -244,7 +244,7 @@ complex_obj = complex_repo.get(building.complex_id)
 ### 3.4. **Floor — модель этажа**
 
 ```python
-from models import Floor
+from src.models import Floor
 
 floor = Floor.from_dict(api_data)
 ```
@@ -284,7 +284,7 @@ building_id = floor.building_id  # 101
 ### 3.5. **Room — модель помещения**
 
 ```python
-from models import Room
+from src.models import Room
 
 room = Room.from_dict(api_data)
 ```
@@ -323,7 +323,7 @@ print(room.status_code)  # "free"
 ### 3.6. **Counterparty — модель контрагента**
 
 ```python
-from models import Counterparty
+from src.models import Counterparty
 
 counterparty = Counterparty.from_dict(api_data)
 ```
@@ -368,7 +368,7 @@ print(counterparty.tax_id)      # "1234567890"
 ### 3.7. **ResponsiblePerson — модель ответственного лица**
 
 ```python
-from models import ResponsiblePerson
+from src.models import ResponsiblePerson
 
 person = ResponsiblePerson.from_dict(api_data)
 ```
@@ -524,7 +524,7 @@ def from_dict(cls, data: dict) -> 'Complex':
 
 Models **использует** типы из core:
 ```python
-from core.types import NodeType
+from src.core.types import NodeType
 
 # Определение типа для EntityGraph
 def get_node_type(entity: Any) -> Optional[NodeType]:

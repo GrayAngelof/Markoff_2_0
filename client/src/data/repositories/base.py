@@ -24,9 +24,9 @@
 """
 from abc import ABC
 from typing import Generic, TypeVar, List
-from core import NodeType, NotFoundError
-from core.interfaces import Repository as CoreRepository
-from data.entity_graph import EntityGraph
+from src.core import NodeType, NotFoundError
+from src.core.interfaces import Repository as CoreRepository
+from src.data.entity_graph import EntityGraph
 
 T = TypeVar('T')
 

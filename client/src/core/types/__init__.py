@@ -5,9 +5,9 @@
 Экспортируем только самые базовые типы.
 Остальное импортируется из соответствующих подмодулей:
 
-    from core.types.nodes import NodeType, NodeIdentifier
-    from core.types.event_structures import EventData, Event
-    from core.types.exceptions import NotFoundError, SerializationError
+    from src.core.types.nodes import NodeType, NodeIdentifier
+    from src.core.types.event_structures import EventData, Event
+    from src.core.types.exceptions import NotFoundError, SerializationError
 """
 from .nodes import NodeType, NodeIdentifier
 from .event_structures import EventData, Event

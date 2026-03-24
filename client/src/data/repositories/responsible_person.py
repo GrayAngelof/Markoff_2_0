@@ -14,8 +14,8 @@
 Никакой бизнес-логики: фильтрация, сортировка, агрегация — только в сервисах!
 """
 from typing import List
-from core import NodeType, NotFoundError
-from models import ResponsiblePerson
+from src.core import NodeType, NotFoundError
+from src.models import ResponsiblePerson
 from .base import BaseRepository
 
 

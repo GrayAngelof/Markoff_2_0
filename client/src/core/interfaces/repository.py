@@ -6,7 +6,7 @@
 все репозитории в системе.
 """
 from typing import Protocol, TypeVar, List, Optional
-from typing_extensions import runtime_checkable
+from typing  import runtime_checkable
 
 # Invariant — используется и как in, и как out
 T = TypeVar('T')

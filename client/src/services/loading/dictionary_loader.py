@@ -8,10 +8,10 @@
 
 from typing import List, Optional
 
-from core.types.nodes import NodeID 
-from models import Counterparty, ResponsiblePerson
-from services.api_client import ApiClient
-from data import EntityGraph
+from src.core.types.nodes import NodeID 
+from src.models import Counterparty, ResponsiblePerson
+from src.services.api_client import ApiClient
+from src.data import EntityGraph
 from utils.logger import get_logger
 
 log = get_logger(__name__)

@@ -8,8 +8,8 @@
 """
 from typing import Any, Optional
 
-from ..src.core import NodeType, NodeIdentifier
-from ..src.core.types.exceptions import ValidationError
+from ..core import NodeType, NodeIdentifier
+from ..core.types.exceptions import ValidationError
 
 
 def is_valid_node_type(type_str: str) -> bool:

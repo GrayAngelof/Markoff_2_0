@@ -5,7 +5,7 @@
 
 from dataclasses import dataclass, field
 from typing import List, Optional
-from models import Building, Counterparty, ResponsiblePerson
+from src.models import Building, Counterparty, ResponsiblePerson
 
 
 @dataclass(frozen=True, slots=True)

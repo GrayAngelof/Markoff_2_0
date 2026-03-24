@@ -14,8 +14,8 @@ ContextService — сбор контекста для UI.
 """
 
 from typing import Optional, Dict, Any, List
-from core import NodeType, NodeIdentifier
-from data import (
+from src.core import NodeType, NodeIdentifier
+from src.data import (
     ComplexRepository,
     BuildingRepository,
     FloorRepository,
@@ -23,7 +23,7 @@ from data import (
     CounterpartyRepository,
     ResponsiblePersonRepository
 )
-from models import Counterparty, ResponsiblePerson
+from src.models import Counterparty, ResponsiblePerson
 from utils.logger import get_logger
 
 log = get_logger(__name__)

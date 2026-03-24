@@ -12,11 +12,11 @@
 from dataclasses import dataclass, field
 from typing import Generic, TypeVar, Optional, List, Set, Any
 from .types.nodes import NodeType
-from core.types import NodeIdentifier
-from core.types.event_structures import EventData
+from src.core.types import NodeIdentifier
+from src.core.types.event_structures import EventData
 
 # Импорты моделей для типизации событий
-from models import Building, Counterparty, ResponsiblePerson
+from src.models import Building, Counterparty, ResponsiblePerson
 
 T = TypeVar('T')
 

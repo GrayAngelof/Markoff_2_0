@@ -8,7 +8,7 @@
 - IDE подсказывает доступные эндпоинты
 """
 
-from core.types.nodes import NodeID
+from src.core.types.nodes import NodeID
 
 
 class Endpoints:

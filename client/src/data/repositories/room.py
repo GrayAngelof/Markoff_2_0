@@ -14,8 +14,8 @@
 Никакой бизнес-логики: фильтрация по статусу, поиск по номеру — только в сервисах!
 """
 from typing import List
-from core import NodeType, NotFoundError
-from models import Room
+from src.core import NodeType, NotFoundError
+from src.models import Room
 from .base import BaseRepository
 
 

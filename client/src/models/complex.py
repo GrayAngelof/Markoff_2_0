@@ -10,7 +10,7 @@ from .base import BaseDTO
 from .mixins import DateTimeMixin
 
 
-@dataclass(frozen=True, kw_only=True)  # 👈 ключевое решение!
+@dataclass(frozen=True, kw_only=True)
 class Complex(BaseDTO, DateTimeMixin):
     """
     Модель комплекса (DTO).

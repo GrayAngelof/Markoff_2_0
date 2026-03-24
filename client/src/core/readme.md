@@ -52,7 +52,7 @@ Core — это фундамент приложения, задающий еди
 ## 7. ПРИМЕРЫ
 ```python
 # Импорт публичного API
-from core import (
+from src.core import (
     NodeType, NodeIdentifier, EventBus, UIEvents,
     make_node_key, can_have_children, Repository
 )
@@ -124,10 +124,10 @@ Core экспортирует **только самое необходимое**
 
 ```python
 # Базовые типы и шина (экспортируются из core)
-from core import NodeType, NodeIdentifier, EventBus, CoreError, NotFoundError, ValidationError
+from src.core import NodeType, NodeIdentifier, EventBus, CoreError, NotFoundError, ValidationError
 
 # События — из core.events
-from core.events import (
+from src.core.events import (
     # UI события (факты)
     NodeSelected, NodeExpanded, NodeCollapsed, TabChanged,
     # Системные события (факты)
@@ -145,13 +145,13 @@ from core.events import (
 )
 
 # Правила иерархии — из core.hierarchy
-from core.hierarchy import get_child_type, can_have_children, validate_hierarchy
+from src.core.hierarchy import get_child_type, can_have_children, validate_hierarchy
 
 # Сериализация — из core.serializers
-from core.serializers import identifier_to_key, key_to_identifier, try_parse_identifier, format_display
+from src.core.serializers import identifier_to_key, key_to_identifier, try_parse_identifier, format_display
 
 # Дополнительные исключения — из core.types.exceptions
-from core.types.exceptions import SerializationError, ConnectionError, ApiError
+from src.core.types.exceptions import SerializationError, ConnectionError, ApiError
 ```
 
 ---
@@ -159,7 +159,7 @@ from core.types.exceptions import SerializationError, ConnectionError, ApiError
 ## 🔹 Базовые типы (из `core.types`)
 
 ```python
-from core import NodeType, NodeIdentifier, NodeID, NodeKey, ParentInfo
+from src.core import NodeType, NodeIdentifier, NodeID, NodeKey, ParentInfo
 ```
 
 | Тип | Описание | Пример |
@@ -192,7 +192,7 @@ assert node_id == another  # True
 ## 🔹 Структуры событий (из `core.types`)
 
 ```python
-from core.types import EventData, Event
+from src.core.types import EventData, Event
 ```
 
 | Класс | Назначение |
@@ -204,8 +204,8 @@ from core.types import EventData, Event
 ```python
 from dataclasses import dataclass
 from typing import Optional, List, Set, TypeVar, Generic
-from core import NodeIdentifier, NodeType
-from core.types import EventData
+from src.core import NodeIdentifier, NodeType
+from src.core.types import EventData
 
 T = TypeVar('T')
 
@@ -241,7 +241,7 @@ class ExpandedNodesChanged(EventData):
 ## 🔹 События (из `core.events`)
 
 ```python
-from core.events import (
+from src.core.events import (
     # === UI события (факты) ===
     NodeSelected, NodeExpanded, NodeCollapsed, TabChanged,
     
@@ -298,8 +298,8 @@ from core.events import (
 
 **Пример использования с Generic:**
 ```python
-from core import EventBus, NodeIdentifier, NodeType
-from core.events import NodeSelected, NodeDetailsLoaded, ChildrenLoaded, BuildingDetailsLoaded
+from src.core import EventBus, NodeIdentifier, NodeType
+from src.core.events import NodeSelected, NodeDetailsLoaded, ChildrenLoaded, BuildingDetailsLoaded
 
 bus = EventBus()
 
@@ -340,8 +340,8 @@ bus.emit(BuildingDetailsLoaded(
 ## 🔹 Исключения (из `core.types.exceptions`)
 
 ```python
-from core import CoreError, NotFoundError, ValidationError
-from core.types.exceptions import SerializationError, ConnectionError, ApiError
+from src.core import CoreError, NotFoundError, ValidationError
+from src.core.types.exceptions import SerializationError, ConnectionError, ApiError
 ```
 
 | Исключение | Назначение |
@@ -358,8 +358,8 @@ from core.types.exceptions import SerializationError, ConnectionError, ApiError
 
 **Пример использования:**
 ```python
-from core import NotFoundError
-from core.serializers import key_to_identifier, SerializationError
+from src.core import NotFoundError
+from src.core.serializers import key_to_identifier, SerializationError
 
 try:
     identifier = key_to_identifier("invalid:key")
@@ -377,7 +377,7 @@ except NotFoundError as e:
 ## 🔹 Шина событий (из `core.event_bus`)
 
 ```python
-from core import EventBus
+from src.core import EventBus
 ```
 
 | Метод | Описание |
@@ -390,8 +390,8 @@ from core import EventBus
 
 **Пример использования:**
 ```python
-from core import EventBus, NodeIdentifier, NodeType
-from core.events import (
+from src.core import EventBus, NodeIdentifier, NodeType
+from src.core.events import (
     DataLoaded, NodeSelected, NodeDetailsLoaded,
     CurrentSelectionChanged, BuildingDetailsLoaded
 )
@@ -437,7 +437,7 @@ unsub3()
 ## 🔹 Правила иерархии (из `core.hierarchy`)
 
 ```python
-from core.hierarchy import (
+from src.core.hierarchy import (
     get_child_type, get_parent_type,
     can_have_children, is_leaf,
     get_all_ancestors, get_all_descendants,
@@ -457,8 +457,8 @@ from core.hierarchy import (
 
 **Пример использования:**
 ```python
-from core import NodeType
-from core.hierarchy import get_child_type, can_have_children
+from src.core import NodeType
+from src.core.hierarchy import get_child_type, can_have_children
 
 if can_have_children(NodeType.BUILDING):
     child_type = get_child_type(NodeType.BUILDING)  # FLOOR
@@ -470,7 +470,7 @@ if can_have_children(NodeType.BUILDING):
 ## 🔹 Сериализация (из `core.serializers`)
 
 ```python
-from core.serializers import (
+from src.core.serializers import (
     identifier_to_key,          # NodeIdentifier → "type:id"
     key_to_identifier,          # "type:id" → NodeIdentifier (исключение)
     try_parse_identifier,       # "type:id" → NodeIdentifier | None
@@ -492,8 +492,8 @@ from core.serializers import (
 
 **Пример использования:**
 ```python
-from core import NodeIdentifier, NodeType
-from core.serializers import identifier_to_key, key_to_identifier, try_parse_identifier, format_display
+from src.core import NodeIdentifier, NodeType
+from src.core.serializers import identifier_to_key, key_to_identifier, try_parse_identifier, format_display
 
 # Создание идентификатора
 node = NodeIdentifier(NodeType.BUILDING, 101)
@@ -518,7 +518,7 @@ manual_display = f"{node.node_type.value.upper()}#{node.node_id}"  # "BUILDING#1
 ## 🔹 Интерфейсы (из `core.interfaces`)
 
 ```python
-from core import Repository
+from src.core import Repository
 ```
 
 | Интерфейс | Описание |
@@ -534,7 +534,7 @@ from core import Repository
 
 **Пример использования:**
 ```python
-from core import Repository, NotFoundError
+from src.core import Repository, NotFoundError
 
 class BuildingRepository(Repository[Building, int]):
     def get(self, id: int) -> Building:
@@ -555,7 +555,7 @@ class BuildingRepository(Repository[Building, int]):
 | Компонент | Почему |
 |-----------|--------|
 | `core.bus` | Приватная реализация, может меняться |
-| `core.types.exceptions` напрямую | Использовать через `from core.types.exceptions import ...` или через `core` для базовых |
+| `core.types.exceptions` напрямую | Использовать через `from src.core.types.exceptions import ...` или через `core` для базовых |
 | Приватные функции `_make_node_key`, `_parse_node_key` | Внутренние, не для внешнего использования |
 | `NodeIdentifier.display` | **Атрибут не существует!** Используйте `format_display()` или явное форматирование |
 
@@ -565,22 +565,22 @@ class BuildingRepository(Repository[Building, int]):
 
 ```python
 # ✅ Правильно — через публичное API
-from core import NodeType, NodeIdentifier, EventBus
-from core.events import (
+from src.core import NodeType, NodeIdentifier, EventBus
+from src.core.events import (
     NodeSelected, DataLoaded, RefreshRequested,
     CurrentSelectionChanged, NodeDetailsLoaded, BuildingDetailsLoaded
 )
-from core.hierarchy import get_child_type
-from core.serializers import identifier_to_key, key_to_identifier, format_display
+from src.core.hierarchy import get_child_type
+from src.core.serializers import identifier_to_key, key_to_identifier, format_display
 
 # ✅ Тоже правильно — явные импорты из подмодулей
-from core.types.exceptions import SerializationError, ConnectionError
+from src.core.types.exceptions import SerializationError, ConnectionError
 
 # ❌ Неправильно — приватные модули
-from core.bus.registry import _SubscriptionRegistry
+from src.core.bus.registry import _SubscriptionRegistry
 
 # ❌ Неправильно — внутренние функции
-from core.serializers import _make_node_key
+from src.core.serializers import _make_node_key
 
 # ❌ Неправильно — несуществующий атрибут
 node.display  # AttributeError! Используйте format_display(node) или f"{node.node_type.value}#{node.node_id}"
@@ -630,12 +630,12 @@ node.display  # AttributeError! Используйте format_display(node) ил
 
 **Любой слой приложения может начать с:**
 ```python
-from core import NodeType, NodeIdentifier, EventBus
-from core.events import (
+from src.core import NodeType, NodeIdentifier, EventBus
+from src.core.events import (
     NodeSelected, DataLoaded, RefreshRequested,
     CurrentSelectionChanged, NodeDetailsLoaded, BuildingDetailsLoaded
 )
-from core.hierarchy import get_child_type
-from core.serializers import identifier_to_key, format_display
-from core.types.exceptions import NotFoundError
+from src.core.hierarchy import get_child_type
+from src.core.serializers import identifier_to_key, format_display
+from src.core.types.exceptions import NotFoundError
 ```

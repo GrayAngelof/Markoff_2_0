@@ -5,7 +5,7 @@
 """
 
 from PySide6.QtWidgets import QStatusBar, QLabel
-from PySide6.QtCore import Signal, QObject, QTimer
+from PySide6.QtCore import Signal, QObject, QTimer, Slot
 
 from src.core import EventBus
 from src.core.events import ConnectionChanged
@@ -76,6 +76,7 @@ class StatusBar(QStatusBar):
         # Эмитим сигнал (потокобезопасно)
         self._signals.connection_status_changed.emit(is_online, error_msg)
     
+    @Slot(bool, str)
     def _update_connection_status(self, is_online: bool, error_msg: str) -> None:
         """
         Обновляет UI (вызывается в главном потоке).
@@ -100,7 +101,8 @@ class StatusBar(QStatusBar):
         """Показывает временное сообщение."""
         self.showMessage(message, timeout_ms)
         self._message_timer.start(timeout_ms)
-    
+   
+    @Slot()
     def _clear_message(self) -> None:
         """Очищает временное сообщение."""
         self.showMessage("Готов к работе")

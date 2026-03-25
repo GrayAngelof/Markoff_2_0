@@ -27,7 +27,7 @@
 на этапе разработки и приведет к исключению.
 """
 
-from typing import Final, Optional, cast, Any
+from typing import Final, Optional, cast, Any, Dict
 from ...core.types.protocols import HasNodeType
 from src.core.types import NodeType
 from src.core.hierarchy import get_child_type as _get_child_type
@@ -35,7 +35,7 @@ from src.core.hierarchy import get_parent_type as _get_parent_type
 from utils.logger import get_logger
 
 
-# Логгер на уровне модуля (один экземпляр для всех функций)
+# Логгер на уровне модуля
 log = get_logger(__name__)
 
 
@@ -60,6 +60,22 @@ PARENT_ID_FIELD: Final[dict[NodeType, Optional[str]]] = {
     # Контрагенты и контакты
     NodeType.COUNTERPARTY: None,                 # контрагенты — корень
     NodeType.RESPONSIBLE_PERSON: "counterparty_id",  # контакт → контрагент
+}
+
+
+# ============================================
+# МАППИНГ: имя класса → NodeType
+# ============================================
+# Нужен для обратной совместимости, когда у сущности нет атрибута NODE_TYPE
+# (например, при работе со словарями или старыми данными)
+
+CLASS_NAME_TO_NODETYPE: Final[Dict[str, NodeType]] = {
+    "Complex": NodeType.COMPLEX,
+    "Building": NodeType.BUILDING,
+    "Floor": NodeType.FLOOR,
+    "Room": NodeType.ROOM,
+    "Counterparty": NodeType.COUNTERPARTY,
+    "ResponsiblePerson": NodeType.RESPONSIBLE_PERSON,
 }
 
 
@@ -91,6 +107,7 @@ def _validate_schema() -> None:
 
 # Выполняем валидацию при импорте модуля
 _validate_schema()
+log.system("Схема графа валидна")
 
 
 # ============================================
@@ -122,7 +139,7 @@ def get_child_type(parent_type: NodeType) -> Optional[NodeType]:
         None
     """
     result = _get_child_type(parent_type)
-    log.debug(f"🔽 get_child_type({parent_type.value}) → {result.value if result else None}")
+    log.debug(f"get_child_type({parent_type.value}) -> {result.value if result else None}")
     return result
 
 
@@ -141,7 +158,7 @@ def get_parent_type(child_type: NodeType) -> Optional[NodeType]:
         NodeType.FLOOR
     """
     result = _get_parent_type(child_type)
-    log.debug(f"🔼 get_parent_type({child_type.value}) → {result.value if result else None}")
+    # log.debug(f"get_parent_type({child_type.value}) -> {result.value if result else None}")
     return result
 
 
@@ -151,32 +168,46 @@ def get_parent_type(child_type: NodeType) -> Optional[NodeType]:
 
 def get_node_type(entity: Any) -> Optional[NodeType]:
     """
-    Возвращает тип сущности по атрибуту NODE_TYPE.
+    Определяет NodeType по классу или атрибуту NODE_TYPE сущности.
     
     Args:
-        entity: Сущность (должна иметь атрибут NODE_TYPE)
+        entity: Сущность (модель или словарь)
         
     Returns:
-        NodeType: Тип узла или None, если определить не удалось
-        
-    Пример:
-        >>> complex_obj = Complex(id=1, name="Test")
-        >>> get_node_type(complex_obj)
-        NodeType.COMPLEX
+        Optional[NodeType]: Тип узла или None, если не удалось определить
     """
-    if not hasattr(entity, 'NODE_TYPE'):
-        log.warning(f"Сущность {type(entity).__name__} не имеет атрибута NODE_TYPE")
-        return None
+    # log.debug(f"get_node_type: entity={type(entity).__name__}")
     
-    node_type_str = entity.NODE_TYPE
+    # Сначала проверяем атрибут NODE_TYPE
+    if hasattr(entity, 'NODE_TYPE'):
+        node_type_value = entity.NODE_TYPE
+        # log.debug(f"get_node_type:  NODE_TYPE атрибут: {node_type_value}")
+        
+        # Если это уже NodeType — возвращаем
+        if isinstance(node_type_value, NodeType):
+            # log.debug(f"  -> NodeType.{node_type_value.value}")
+            return node_type_value
+        
+        # Если это строка — преобразуем
+        if isinstance(node_type_value, str):
+            try:
+                result = NodeType(node_type_value)
+                # log.debug(f"  -> NodeType.{result.value} (из строки)")
+                return result
+            except ValueError:
+                log.warning(f"Неизвестный тип узла из строки: {node_type_value}")
+                return None
     
-    try:
-        result = NodeType(node_type_str)
-        log.debug(f"🏷️ get_node_type({type(entity).__name__}) → {result.value}")
-        return result
-    except ValueError as e:
-        log.error(f"Неизвестный тип узла: {node_type_str} для {type(entity).__name__}")
-        return None
+    # Если нет NODE_TYPE, пробуем по имени класса
+    class_name = type(entity).__name__
+    log.debug(f"  нет NODE_TYPE, пробуем по имени класса: {class_name}")
+    result = CLASS_NAME_TO_NODETYPE.get(class_name)
+    if result:
+        log.debug(f"  -> NodeType.{result.value} (по имени класса)")
+    else:
+        log.warning(f"Не удалось определить тип для класса {class_name}")
+    
+    return result
 
 
 def get_parent_id(entity: HasNodeType) -> Optional[int]:
@@ -192,25 +223,29 @@ def get_parent_id(entity: HasNodeType) -> Optional[int]:
     Returns:
         Optional[int]: ID родителя или None
     """
-    node_type = entity.NODE_TYPE
-    
-    # 🔧 ИСПРАВЛЕНИЕ: node_type может быть строкой или NodeType
-    if isinstance(node_type, str):
-        type_str = node_type
+    # Получаем node_type в виде строки и NodeType
+    if isinstance(entity.NODE_TYPE, str):
+        type_str = entity.NODE_TYPE
+        try:
+            node_type_enum = NodeType(type_str)
+        except ValueError:
+            log.error(f"Неизвестный тип узла из строки: {type_str}")
+            return None
     else:
-        type_str = node_type.value
+        node_type_enum = entity.NODE_TYPE
+        type_str = node_type_enum.value
     
-    log.debug(f"🔍 get_parent_id: тип={type_str}, сущность={type(entity).__name__}")
+    # Ищем поле для ID родителя
+    field_name = PARENT_ID_FIELD.get(node_type_enum)
     
-    field_name = PARENT_ID_FIELD.get(node_type)
     if field_name is None:
-        log.debug(f"ℹ️ get_parent_id: тип {type_str} корневой (нет родителя)")
+        log.debug(f"{type_str} корневой (нет родителя)")
         return None
     
-    # Проверка наличия поля — архитектурный контракт
+    # Проверяем наличие поля
     if not hasattr(entity, field_name):
         log.error(
-            f"❌ Архитектурная ошибка: сущность {type_str} "
+            f"Архитектурная ошибка: сущность {type_str} "
             f"не имеет поля '{field_name}'"
         )
         raise ValueError(
@@ -221,5 +256,5 @@ def get_parent_id(entity: HasNodeType) -> Optional[int]:
     value = getattr(entity, field_name)
     result = cast(Optional[int], value)
     
-    log.debug(f"📎 get_parent_id: {type_str}#{result if result else 'None'}")
+    # log.debug(f"get_parent_id: {type_str}#{result if result else 'None'}")
     return result

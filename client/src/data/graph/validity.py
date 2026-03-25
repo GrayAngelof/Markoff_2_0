@@ -1,4 +1,3 @@
-# client/src/data/graph/validity.py
 """
 Индекс валидности данных — отслеживание актуальности сущностей.
 
@@ -49,7 +48,7 @@ from utils.logger import get_logger
 # ============================================
 
 # Единый логгер для модуля
-log = get_logger(__name__)
+logger = get_logger(__name__)
 
 # Все типы, которые могут быть в индексе валидности
 _VALID_TYPES: Final[list[NodeType]] = [
@@ -61,13 +60,18 @@ _VALID_TYPES: Final[list[NodeType]] = [
     NodeType.RESPONSIBLE_PERSON,
 ]
 
-# Сообщения для логирования
-_LOG_MARK_VALID = "✅ VALID: {type}#{id}"
-_LOG_MARK_INVALID = "❌ INVALID: {type}#{id}"
-_LOG_MARK_VALID_BULK = "✅ VALID BULK: {type} ×{count}"
-_LOG_MARK_INVALID_BULK = "❌ INVALID BULK: {type} ×{count}"
-_LOG_INVALIDATE_BRANCH = "🌿 INVALIDATE_BRANCH: {type}#{id} → {count} сущностей"
-_LOG_CLEAR = "🧹 ValidityIndex очищен"
+# Сообщения для логирования (без эмодзи)
+_LOG_MARK_VALID = "VALID: {type}#{id}"
+_LOG_MARK_INVALID = "INVALID: {type}#{id}"
+_LOG_MARK_VALID_BULK = "VALID BULK: {type} ×{count}"
+_LOG_MARK_INVALID_BULK = "INVALID BULK: {type} ×{count}"
+_LOG_INVALIDATE_BRANCH = "INVALIDATE_BRANCH: {type}#{id} → {count} сущностей"
+_LOG_CLEAR = "ValidityIndex очищен"
+_LOG_INIT = "ValidityIndex инициализирован: {types} типов"
+_LOG_VALIDATION_ERROR = "ValidityIndex: отсутствуют типы {missing}"
+_LOG_UNSUPPORTED_TYPE = "Неподдерживаемый тип {type} для операции {operation}"
+_LOG_BULK_SKIP_ID = "BULK: пропущен ID {id}: {error}"
+_LOG_CHILDREN_ERROR = "Ошибка при получении детей {type}#{id}: {error}"
 
 
 # ============================================
@@ -100,13 +104,13 @@ def _validate_validity_types() -> None:
     
     if missing:
         missing_names = [t.value for t in missing]
-        log.error(f"❌ ValidityIndex: отсутствуют типы {missing_names}")
+        logger.error(_LOG_VALIDATION_ERROR.format(missing=missing_names))
         raise RuntimeError(
             f"ValidityIndex не покрывает все типы: {missing_names}\n"
             f"Добавьте их в _VALID_TYPES в {__file__}"
         )
     
-    log.success(f"ValidityIndex схема валидна: {len(_VALID_TYPES)} типов")
+    logger.system(f"ValidityIndex схема валидна: {len(_VALID_TYPES)} типов")
 
 
 # Выполняем валидацию при импорте
@@ -158,7 +162,7 @@ class ValidityIndex:
             node_type: set() for node_type in _VALID_TYPES
         }
         
-        log.success(f"ValidityIndex инициализирован: {len(_VALID_TYPES)} типов")
+        logger.system(_LOG_INIT.format(types=len(_VALID_TYPES)))
     
     
     # ============================================
@@ -181,11 +185,14 @@ class ValidityIndex:
         
         with self._lock:
             if node_type not in self._valid:
-                log.error(f"❌ MARK_VALID: неподдерживаемый тип {node_type}")
+                logger.error(_LOG_UNSUPPORTED_TYPE.format(
+                    type=node_type.value,
+                    operation="mark_valid"
+                ))
                 raise KeyError(f"Тип {node_type} не поддерживается ValidityIndex")
             
             self._valid[node_type].add(entity_id)
-            log.cache(_LOG_MARK_VALID.format(type=node_type.value, id=entity_id))
+            logger.cache(_LOG_MARK_VALID.format(type=node_type.value, id=entity_id))
     
     def mark_invalid(self, node_type: NodeType, entity_id: int) -> bool:
         """
@@ -207,12 +214,15 @@ class ValidityIndex:
         
         with self._lock:
             if node_type not in self._valid:
-                log.error(f"❌ MARK_INVALID: неподдерживаемый тип {node_type}")
+                logger.error(_LOG_UNSUPPORTED_TYPE.format(
+                    type=node_type.value,
+                    operation="mark_invalid"
+                ))
                 raise KeyError(f"Тип {node_type} не поддерживается ValidityIndex")
             
             if entity_id in self._valid[node_type]:
                 self._valid[node_type].discard(entity_id)
-                log.cache(_LOG_MARK_INVALID.format(type=node_type.value, id=entity_id))
+                logger.cache(_LOG_MARK_INVALID.format(type=node_type.value, id=entity_id))
                 
                 # Эмитируем событие об инвалидации
                 self._bus.emit(
@@ -246,7 +256,10 @@ class ValidityIndex:
         
         with self._lock:
             if node_type not in self._valid:
-                log.error(f"❌ IS_VALID: неподдерживаемый тип {node_type}")
+                logger.error(_LOG_UNSUPPORTED_TYPE.format(
+                    type=node_type.value,
+                    operation="is_valid"
+                ))
                 raise KeyError(f"Тип {node_type} не поддерживается ValidityIndex")
             
             return entity_id in self._valid[node_type]
@@ -272,7 +285,10 @@ class ValidityIndex:
         """
         with self._lock:
             if node_type not in self._valid:
-                log.error(f"❌ MARK_VALID_BULK: неподдерживаемый тип {node_type}")
+                logger.error(_LOG_UNSUPPORTED_TYPE.format(
+                    type=node_type.value,
+                    operation="mark_valid_bulk"
+                ))
                 raise KeyError(f"Тип {node_type} не поддерживается ValidityIndex")
             
             count = 0
@@ -285,10 +301,10 @@ class ValidityIndex:
                         valid_set.add(entity_id)
                         count += 1
                 except Exception as e:
-                    log.warning(f"⚠️ MARK_VALID_BULK: пропущен ID {entity_id}: {e}")
+                    logger.warning(_LOG_BULK_SKIP_ID.format(id=entity_id, error=e))
             
             if count > 0:
-                log.cache(_LOG_MARK_VALID_BULK.format(
+                logger.cache(_LOG_MARK_VALID_BULK.format(
                     type=node_type.value,
                     count=count
                 ))
@@ -313,7 +329,10 @@ class ValidityIndex:
         """
         with self._lock:
             if node_type not in self._valid:
-                log.error(f"❌ MARK_INVALID_BULK: неподдерживаемый тип {node_type}")
+                logger.error(_LOG_UNSUPPORTED_TYPE.format(
+                    type=node_type.value,
+                    operation="mark_invalid_bulk"
+                ))
                 raise KeyError(f"Тип {node_type} не поддерживается ValidityIndex")
             
             count = 0
@@ -336,10 +355,10 @@ class ValidityIndex:
                             source="validity_index"
                         )
                 except Exception as e:
-                    log.warning(f"⚠️ MARK_INVALID_BULK: пропущен ID {entity_id}: {e}")
+                    logger.warning(_LOG_BULK_SKIP_ID.format(id=entity_id, error=e))
             
             if count > 0:
-                log.cache(_LOG_MARK_INVALID_BULK.format(
+                logger.cache(_LOG_MARK_INVALID_BULK.format(
                     type=node_type.value,
                     count=count
                 ))
@@ -402,7 +421,10 @@ class ValidityIndex:
         
         with self._lock:
             if node_type not in self._valid:
-                log.error(f"❌ INVALIDATE_BRANCH: неподдерживаемый тип {node_type}")
+                logger.error(_LOG_UNSUPPORTED_TYPE.format(
+                    type=node_type.value,
+                    operation="invalidate_branch"
+                ))
                 raise KeyError(f"Тип {node_type} не поддерживается ValidityIndex")
             
             count = 0
@@ -419,7 +441,7 @@ class ValidityIndex:
                 # Инвалидируем текущий узел
                 if self._invalidate_node(current_type, current_id):
                     count += 1
-                    if log.is_debug_enabled():
+                    if logger.is_debug_enabled():
                         invalidated_ids.append(f"{current_type.value}#{current_id}")
                 
                 # Получаем детей и добавляем в очередь
@@ -430,11 +452,15 @@ class ValidityIndex:
                         for child_id in child_ids:
                             queue.append((child_type, child_id))
                 except Exception as e:
-                    log.error(f"❌ Ошибка при получении детей {current_type.value}#{current_id}: {e}")
+                    logger.error(_LOG_CHILDREN_ERROR.format(
+                        type=current_type.value,
+                        id=current_id,
+                        error=e
+                    ))
                     # Продолжаем обход, не прерываем всю операцию
             
             if count > 0:
-                log.cache(_LOG_INVALIDATE_BRANCH.format(
+                logger.cache(_LOG_INVALIDATE_BRANCH.format(
                     type=node_type.value,
                     id=entity_id,
                     count=count
@@ -450,11 +476,11 @@ class ValidityIndex:
                     source="validity_index"
                 )
                 
-                if log.is_debug_enabled() and invalidated_ids:
+                if logger.is_debug_enabled() and invalidated_ids:
                     # Ограничиваем вывод для читаемости
                     preview = invalidated_ids[:10]
                     suffix = f"... и ещё {len(invalidated_ids) - 10}" if len(invalidated_ids) > 10 else ""
-                    log.debug(f"  • Инвалидированы: {', '.join(preview)} {suffix}")
+                    logger.debug(f"Инвалидированы: {', '.join(preview)} {suffix}")
             
             return count
     
@@ -478,7 +504,10 @@ class ValidityIndex:
         """
         with self._lock:
             if node_type not in self._valid:
-                log.error(f"❌ GET_VALID_IDS: неподдерживаемый тип {node_type}")
+                logger.error(_LOG_UNSUPPORTED_TYPE.format(
+                    type=node_type.value,
+                    operation="get_valid_ids"
+                ))
                 raise KeyError(f"Тип {node_type} не поддерживается ValidityIndex")
             
             return list(self._valid[node_type])
@@ -493,7 +522,7 @@ class ValidityIndex:
             for node_type in self._valid:
                 self._valid[node_type].clear()
             
-            log.cache(_LOG_CLEAR)
+            logger.cache(_LOG_CLEAR)
     
     def get_stats(self) -> ValidityStats:
         """

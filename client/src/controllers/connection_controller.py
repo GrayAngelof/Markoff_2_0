@@ -23,7 +23,10 @@ class ConnectionController(BaseController):
     Эмитит события ТОЛЬКО при реальном изменении статуса.
     """
     
-    def __init__(self, bus: EventBus):
+    def __init__(
+        self,
+        bus: EventBus
+    ):
         """
         Инициализирует контроллер соединения.
         
@@ -32,13 +35,18 @@ class ConnectionController(BaseController):
         """
         super().__init__(bus)
         
-        # None = ещё не проверяли
-        self._is_online: Optional[bool] = None
+        # SYSTEM - конкретный компонент приложения
+        log.system("ConnectionController инициализирован")
         
-        # Подписки
-        self._subscribe(ConnectionChanged, self._on_connection_changed)
+        self._is_online: Optional[bool] = None  # None = статус еще не известен
+        self._initial_status_received = False
         
-        log.info("ConnectionController initialized")
+        # Сохраняем bound method как атрибут (сильная ссылка)
+        self._bound_on_connection_changed = self._on_connection_changed
+        
+        # Подписки - LINK категория
+        log.link("Подписка на ConnectionChanged")
+        self._subscribe(ConnectionChanged, self._bound_on_connection_changed)
     
     def _on_connection_changed(self, event: Event[ConnectionChanged]) -> None:
         """
@@ -50,22 +58,39 @@ class ConnectionController(BaseController):
             event: Событие изменения соединения
         """
         new_status = event.data.is_online
+        error = getattr(event.data, 'error', None)
+        
+        # DEBUG - детальная информация о полученном событии
+        log.debug(f"Получено ConnectionChanged: online={new_status}, error={error}")
+        
+        # Первый статус — сохраняем без эмиссии дополнительных событий
+        if not self._initial_status_received:
+            self._initial_status_received = True
+            self._is_online = new_status
+            
+            # INFO - важное событие инициализации
+            log.info(f"Начальный статус соединения: {'ONLINE' if new_status else 'OFFLINE'}")
+            return
         
         # Проверяем, изменился ли статус
         if self._is_online == new_status:
-            log.debug(f"Connection status unchanged: {'online' if new_status else 'offline'}")
+            log.debug(f"Статус соединения не изменился: {'ONLINE' if new_status else 'OFFLINE'}")
             return
         
         # Статус изменился
         old_status = self._is_online
         self._is_online = new_status
         
-        log.info(f"Connection changed: {'online' if old_status else 'offline'} -> "
-                 f"{'online' if new_status else 'offline'}")
+        # INFO - важное изменение состояния
+        log.info(f"Соединение изменилось: {'ONLINE' if old_status else 'OFFLINE'} -> "
+                 f"{'ONLINE' if new_status else 'OFFLINE'}")
         
         if new_status:
+            # API - действия, связанные с сетью
+            log.api("Эмит: NetworkActionsEnabled")
             self._bus.emit(NetworkActionsEnabled())
         else:
+            log.api("Эмит: NetworkActionsDisabled")
             self._bus.emit(NetworkActionsDisabled())
     
     # ===== Публичные методы =====
@@ -77,4 +102,15 @@ class ConnectionController(BaseController):
         Returns:
             Optional[bool]: True если онлайн, False если офлайн, None если неизвестно
         """
+        # DEBUG - запрос статуса (отладочная информация)
+        log.debug(f"Запрос статуса соединения: {self._is_online}")
         return self._is_online
+    
+    def is_initialized(self) -> bool:
+        """
+        Возвращает True, если первый статус уже получен.
+        
+        Returns:
+            bool: True если статус известен
+        """
+        return self._initial_status_received

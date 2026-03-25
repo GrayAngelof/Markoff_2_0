@@ -32,7 +32,7 @@ class LoaderUtils:
             'detail_checks': 0,
             'detail_cache_hits': 0,
         }
-        log.debug("LoaderUtils initialized")
+        log.data("LoaderUtils инициализирован")
     
     def has_details(self, entity: Any, node_type: NodeType) -> bool:
         """
@@ -70,7 +70,11 @@ class LoaderUtils:
         # Сохраняем в кэш
         self._detail_cache[cache_key] = result
         
-        log.debug(f"has_details({node_type.value}#{entity.id}) = {result}")
+        # Логируем только важные случаи
+        if result:
+            # Обнаружены детальные данные - это событие, достойное DEBUG
+            log.debug(f"Обнаружены детальные данные: {self.format_node_id(node_type, entity.id)}")
+        
         return result
     
     def _check_details_impl(self, entity: Any, node_type: NodeType) -> bool:
@@ -94,20 +98,29 @@ class LoaderUtils:
         cache_key = f"{node_type.value}:{node_id}"
         if cache_key in self._detail_cache:
             del self._detail_cache[cache_key]
-            log.debug(f"Detail cache invalidated for {cache_key}")
+            log.cache(f"Кэш деталей инвалидирован: {cache_key}")
     
     def clear_cache(self) -> None:
         """Полностью очищает кэш деталей."""
+        cache_size = len(self._detail_cache)
         self._detail_cache.clear()
-        log.debug("LoaderUtils cache cleared")
+        log.cache(f"Кэш LoaderUtils очищен (удалено {cache_size} записей)")
     
     def get_stats(self) -> dict:
         """Возвращает статистику использования утилит."""
-        return {
+        stats = {
             'detail_checks': self._stats['detail_checks'],
             'detail_cache_hits': self._stats['detail_cache_hits'],
             'cache_size': len(self._detail_cache),
         }
+        
+        # Статистика - это performance метрика
+        if stats['detail_checks'] > 0:
+            hit_rate = (stats['detail_cache_hits'] / stats['detail_checks'] * 100) if stats['detail_checks'] > 0 else 0
+            log.performance(f"LoaderUtils статистика: {stats['detail_checks']} проверок, "
+                          f"{stats['detail_cache_hits']} попаданий в кэш ({hit_rate:.1f}%)")
+        
+        return stats
     
     # ===== Форматирование для логирования =====
     

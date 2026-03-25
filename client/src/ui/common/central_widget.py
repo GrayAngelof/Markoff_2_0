@@ -1,11 +1,13 @@
 # client/src/ui/common/central_widget.py
 """
 Центральный виджет с разделителем 30/70.
-Позволяет подменять левую и правую панели.
+Левая панель — TreeView (создается сразу), правая — заглушка.
 """
 
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QSplitter, QLabel
 from PySide6.QtCore import Qt
+
+from src.ui.tree.view import TreeView
 
 from utils.logger import get_logger
 
@@ -16,20 +18,20 @@ class CentralWidget:
     """
     Центральный виджет с разделителем.
     
-    Создает QSplitter с заглушками и предоставляет методы
-    для подмены левой и правой панелей.
+    Левая панель — TreeView (создается сразу)
+    Правая панель — заглушка (будет заменена позже)
     
     Методы:
-    - set_left(widget) — заменить левую панель
     - set_right(widget) — заменить правую панель
+    - get_tree_view() — получить TreeView для установки модели
     - central_widget — получить QWidget для установки в MainWindow
     """
     
     def __init__(self):
+        log.system("CentralWidget инициализирован")
+        
         self._container = QWidget()
         self._setup_layout()
-        
-        log.debug("CentralWidget создан")
     
     def _setup_layout(self) -> None:
         """Настраивает layout и разделитель."""
@@ -39,17 +41,40 @@ class CentralWidget:
         
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # Создаем заглушки
-        self._left = self._create_placeholder("🌳 ДЕРЕВО ОБЪЕКТОВ\n\n(будет здесь)")
+        # Левая панель — сразу TreeView
+        self._tree_view = TreeView()
+        self._tree_view.setStyleSheet("""
+            QTreeView {
+                background-color: #f5f5f5;
+                alternate-background-color: #e8e8e8;
+                border: none;
+                outline: none;
+            }
+            QTreeView::item {
+                padding: 4px;
+                border-bottom: 1px solid #e0e0e0;
+            }
+            QTreeView::item:selected {
+                background-color: #e3f2fd;
+                color: black;
+            }
+            QTreeView::item:hover {
+                background-color: #f0f0f0;
+            }
+        """)
+        
+        # Правая панель — заглушка с инструкцией
         self._right = self._create_placeholder(
-            "🔍 ВЫБЕРИТЕ ОБЪЕКТ\n\nдля отображения информации"
+            "ВЫБЕРИТЕ ОБЪЕКТ\n\nдля отображения информации"
         )
         
-        self._splitter.addWidget(self._left)
+        self._splitter.addWidget(self._tree_view)
         self._splitter.addWidget(self._right)
         self._splitter.setSizes([300, 700])  # 30% / 70% от 1024
         
         layout.addWidget(self._splitter)
+        
+        log.debug(f"Splitter настроен: левая панель TreeView, правая заглушка")
     
     def _create_placeholder(self, text: str) -> QWidget:
         """Создает виджет-заглушку."""
@@ -61,26 +86,18 @@ class CentralWidget:
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setStyleSheet("""
             color: #999999;
-            font-size: 14px;
-            padding: 20px;
-            border: 1px dashed #cccccc;
-            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            padding: 40px;
+            border: 2px dashed #cccccc;
+            border-radius: 12px;
+            background-color: #fafafa;
         """)
         
         layout.addWidget(label)
-        return widget
-    
-    def set_left(self, widget: QWidget) -> None:
-        """Заменяет левую панель."""
-        # Удаляем старый виджет
-        old_widget = self._splitter.widget(0)
-        if old_widget:
-            old_widget.deleteLater()
         
-        # Вставляем новый
-        self._splitter.insertWidget(0, widget)
-        self._splitter.setSizes([300, 700])
-        log.debug("Левая панель заменена")
+        log.debug(f"Создана заглушка: {text[:30]}...")
+        return widget
     
     def set_right(self, widget: QWidget) -> None:
         """Заменяет правую панель."""
@@ -90,7 +107,13 @@ class CentralWidget:
         
         self._splitter.insertWidget(1, widget)
         self._splitter.setSizes([300, 700])
-        log.debug("Правая панель заменена")
+        
+        log.system("Правая панель заменена")
+        log.debug(f"Новый виджет: {widget.__class__.__name__}")
+    
+    def get_tree_view(self) -> TreeView:
+        """Возвращает TreeView для установки модели."""
+        return self._tree_view
     
     @property
     def central_widget(self) -> QWidget:

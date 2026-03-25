@@ -181,9 +181,9 @@ class RefreshController(BaseController):
 
 **Controllers — это мозг приложения, который получает сигналы от UI, принимает решения, использует сервисы для загрузки данных и отправляет результаты обратно через события.** 
 
-## 📚 **СЛОЙ CONTROLLERS**
+## 📚 **СЛОЙ CONTROLLERS — ИСПРАВЛЕННАЯ ВЕРСИЯ**
 
-Спасибо за детальный разбор! Учитывая все замечания, представляю исправленную версию.
+С учетом всех доработок, включая сохранение bound methods и правильную работу с подписками.
 
 ---
 
@@ -238,6 +238,7 @@ from controllers.base import BaseController
 
 **Ответственность:**
 - Единая подписка на типизированные события с сохранением для отписки
+- 🆕 **Хранение wrapper'ов** для предотвращения их удаления сборщиком мусора
 - Централизованная обработка ошибок через `_emit_error`
 - Метод `cleanup()` для освобождения ресурсов
 - Логирование подписок и отписок
@@ -255,12 +256,16 @@ from controllers.base import BaseController
 | `_subscribe(event_type, callback)` | Подписка на событие с сохранением |
 | `_emit_error(node, error, extra_context)` | Централизованная эмиссия ошибок |
 
+**🆕 Важное изменение:** В `_subscribe` создаётся wrapper, который проверяет тип события. Этот wrapper сохраняется в `self._wrappers`, чтобы не быть удалённым сборщиком мусора.
+
 **Пример использования:**
 ```python
 class MyController(BaseController):
     def __init__(self, bus: EventBus):
         super().__init__(bus)
-        self._subscribe(NodeSelected, self._on_node_selected)
+        # Сохраняем bound method как атрибут
+        self._bound_on_selected = self._on_node_selected
+        self._subscribe(NodeSelected, self._bound_on_selected)
     
     def _on_node_selected(self, event: Event[NodeSelected]) -> None:
         try:
@@ -289,6 +294,15 @@ from src.controllers import TreeController
   - `_expanded_nodes` — множество раскрытых узлов
 - Эмиссия событий состояния (`CurrentSelectionChanged`, `ExpandedNodesChanged`)
 - Эмиссия событий для UI (`NodeDetailsLoaded[Building]`, `ChildrenLoaded[Building]`)
+
+**🆕 Важное изменение:** В `__init__` все bound methods сохраняются как атрибуты для предотвращения их удаления GC:
+
+```python
+self._bound_on_node_selected = self._on_node_selected
+self._bound_on_node_expanded = self._on_node_expanded
+self._bound_on_node_collapsed = self._on_node_collapsed
+self._bound_on_data_loaded = self._on_data_loaded
+```
 
 **Публичные методы:**
 
@@ -327,6 +341,13 @@ from src.controllers import DetailsController
 - Реакция на переключение вкладок (`TabChanged`)
 - Эмиссия событий с детальными данными
 
+**🆕 Важное изменение:** В `__init__` все bound methods сохраняются как атрибуты:
+
+```python
+self._bound_on_node_selected = self._on_node_selected
+self._bound_on_tab_changed = self._on_tab_changed
+```
+
 **Важное уточнение:** `DataLoader.load_building_with_owner()` возвращает типизированный `BuildingWithOwnerResult` (dataclass), а не словарь. В контроллере **нельзя использовать `.get()`** — только прямой доступ к атрибутам: `result.building`, `result.owner`, `result.responsible_persons`.
 
 **Публичные методы:**
@@ -361,6 +382,14 @@ from src.controllers import RefreshController
   - `CurrentSelectionChanged` — текущий выбранный узел
   - `ExpandedNodesChanged` — список раскрытых узлов
 
+**🆕 Важное изменение:** В `__init__` все bound methods сохраняются как атрибуты:
+
+```python
+self._bound_on_refresh_requested = self._on_refresh_requested
+self._bound_on_selection_changed = self._on_selection_changed
+self._bound_on_expanded_changed = self._on_expanded_changed
+```
+
 **Реактивность:** Все данные приходят синхронно через события, что делает слой реактивным. При изменении состояния в TreeController, RefreshController автоматически получает актуальные значения.
 
 **Публичные методы:**
@@ -393,11 +422,18 @@ from src.controllers import ConnectionController
 - **Debounce** — эмитит события только при реальном изменении статуса
 - Генерация событий для UI при изменении статуса
 
+**🆕 Важное изменение:** В `__init__` bound method сохраняется как атрибут:
+
+```python
+self._bound_on_connection_changed = self._on_connection_changed
+```
+
 **Публичные методы:**
 
 | Метод | Описание |
 |-------|----------|
 | `is_online()` | Возвращает текущий статус соединения |
+| `is_initialized()` | Возвращает True, если первый статус уже получен |
 
 **Генерируемые события:**
 
@@ -628,7 +664,22 @@ if self._is_online == new_status:
     return  # статус не изменился — не эмитим
 ```
 
-### 6.5. **Единая обработка ошибок**
+### 6.5. **🆕 Сохранение bound methods**
+Все контроллеры сохраняют bound methods как атрибуты для предотвращения их удаления сборщиком мусора:
+
+```python
+self._bound_on_node_selected = self._on_node_selected
+self._subscribe(NodeSelected, self._bound_on_node_selected)
+```
+
+### 6.6. **🆕 Сохранение wrapper'ов в BaseController**
+В `BaseController._subscribe` создаваемые wrapper'ы сохраняются в `self._wrappers`, чтобы не быть удалёнными GC:
+
+```python
+self._wrappers.append(wrapper)
+```
+
+### 6.7. **Единая обработка ошибок**
 Все ошибки проходят через `BaseController._emit_error()`:
 ```python
 try:
@@ -638,13 +689,14 @@ except Exception as e:
     return
 ```
 
-### 6.6. **Правильная отписка (cleanup)**
+### 6.8. **Правильная отписка (cleanup)**
 Все подписки сохраняются и очищаются в `cleanup()`:
 ```python
 def cleanup(self) -> None:
     for unsubscribe in self._subscriptions:
         unsubscribe()
     self._subscriptions.clear()
+    self._wrappers.clear()  # очищаем wrapper'ы
 ```
 
 **Пример использования в MainWindow:**
@@ -668,6 +720,7 @@ def closeEvent(self, event):
 from src.core import EventBus
 from src.data import EntityGraph, ComplexRepository, BuildingRepository, FloorRepository, CounterpartyRepository
 from src.services import ApiClient, DataLoader, ContextService
+from src.projections.tree import TreeProjection
 from src.controllers import TreeController, DetailsController, RefreshController, ConnectionController
 
 # Создаём зависимости
@@ -676,7 +729,7 @@ graph = EntityGraph(bus)
 api = ApiClient()
 loader = DataLoader(bus, api, graph)
 
-# Репозитории (через фасад graph)
+# Репозитории
 complex_repo = ComplexRepository(graph)
 building_repo = BuildingRepository(graph)
 floor_repo = FloorRepository(graph)
@@ -687,14 +740,17 @@ context_service = ContextService(
     complex_repo, building_repo, floor_repo, counterparty_repo, loader
 )
 
+# Проекции
+tree_projection = TreeProjection(complex_repo, building_repo, floor_repo, room_repo)
+
 # Создаём контроллеры
-tree_controller = TreeController(bus, loader, context_service)
+tree_controller = TreeController(bus, loader, context_service, tree_projection)
 details_controller = DetailsController(bus, loader)
 refresh_controller = RefreshController(bus, loader)
 connection_controller = ConnectionController(bus)
 
-# Запускаем
-connection_controller.start()  # если есть метод start
+# Передаём AppWindow в контроллеры
+tree_controller.set_app_window(app_window)
 ```
 
 ### 7.2. **Реакция на выбор узла в UI**
@@ -757,8 +813,9 @@ bus.emit(RefreshRequested(mode="current"))
 | **Временное состояние** | Только в TreeController, синхронизация через события |
 | **Реактивность** | RefreshController автоматически синхронизирован |
 | **Обработка ошибок** | Единая, централизованная |
-| **Отсутствие утечек** | cleanup() освобождает все подписки |
+| **🆕 Отсутствие утечек подписок** | Сохранение bound methods и wrapper'ов предотвращает удаление GC |
+| **Отсутствие утечек памяти** | cleanup() освобождает все подписки и wrapper'ы |
 
 ---
 
-**Controllers — это слой координации потока данных, который получает сигналы от UI, вызывает сервисы с бизнес-логикой, управляет временным состоянием и отправляет результаты обратно через типизированные события.** 
+**Controllers — это слой координации потока данных, который получает сигналы от UI, вызывает сервисы с бизнес-логикой, управляет временным состоянием и отправляет результаты обратно через типизированные события.**

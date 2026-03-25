@@ -4,23 +4,104 @@
 
 Особенности:
 - Уровни логирования: ERROR, WARNING, INFO, DEBUG
-- Категории: API, CACHE, DATA (можно включать/отключать)
+- Категории: API, CACHE, DATA, DB, SYSTEM, PERFORMANCE
+- Категории имеют свои собственные уровни, независимые от глобального
 - Автоматическое определение имени модуля-источника
 - Цветной вывод в терминал (автоматически определяется)
 - Разделение форматирования и вывода (принцип единственной ответственности)
 - Кэширование логгеров по модулям для производительности
+- Контекстный менеджер для временного изменения уровня
+- Измерение времени выполнения операций (всегда логируется при DEBUG или отдельно)
+- Поддержка исключений с traceback
 
 Пример использования:
-    from src.utils.logger import get_logger
+    from src.utils.logger import get_logger, LogLevel, CategoryLevel
     
     logger = get_logger(__name__)
     logger.info("Сообщение")
     logger.error("Ошибка")
     logger.api("GET /api/data")
+    
+    # Настройка уровней для категорий
+    Logger.set_category_level("api", LogLevel.INFO)
+    Logger.set_category_level("performance", LogLevel.INFO)
+    
+    # Измерение времени выполнения
+    with logger.measure_time("обработка данных"):
+        # какой-то код
+        pass
 """
 from datetime import datetime
 import sys
-from typing import Optional, Set, Dict, TextIO
+import traceback
+import time
+from typing import Optional, Set, Dict, TextIO, Union, Any
+from contextlib import contextmanager
+from enum import IntEnum
+
+
+class LogLevel(IntEnum):
+    """Уровни логирования."""
+    ERROR = 1
+    """Только критические ошибки"""
+    
+    WARNING = 2
+    """Ошибки и предупреждения"""
+    
+    INFO = 3
+    """Основная информация (по умолчанию)"""
+    
+    DEBUG = 4
+    """Всё, включая отладочную информацию"""
+
+
+class CategoryLevel:
+    """
+    Управление уровнями логирования для разных категорий.
+    
+    Каждая категория может иметь свой уровень, независимый от глобального.
+    """
+    
+    # Категории и их уровни по умолчанию
+    _default_levels = {
+        "api": LogLevel.INFO,        # API запросы по умолчанию INFO
+        "cache": LogLevel.DEBUG,     # Кэш по умолчанию DEBUG
+        "data": LogLevel.INFO,       # Данные по умолчанию INFO
+        "db": LogLevel.WARNING,      # База данных по умолчанию WARNING
+        "system": LogLevel.INFO,     # Система по умолчанию INFO
+        "performance": LogLevel.INFO # Производительность по умолчанию INFO
+    }
+    
+    _levels: Dict[str, LogLevel] = _default_levels.copy()
+    
+    @classmethod
+    def set_level(cls, category: str, level: LogLevel) -> None:
+        """
+        Устанавливает уровень логирования для категории.
+        
+        Args:
+            category: Имя категории
+            level: Уровень логирования
+        """
+        cls._levels[category] = level
+    
+    @classmethod
+    def get_level(cls, category: str) -> LogLevel:
+        """
+        Возвращает уровень логирования для категории.
+        
+        Args:
+            category: Имя категории
+            
+        Returns:
+            LogLevel: Уровень логирования
+        """
+        return cls._levels.get(category, LogLevel.INFO)
+    
+    @classmethod
+    def reset_to_defaults(cls) -> None:
+        """Сбрасывает уровни категорий к значениям по умолчанию."""
+        cls._levels = cls._default_levels.copy()
 
 
 class LogFormatter:
@@ -35,17 +116,20 @@ class LogFormatter:
     
     # Коды цветов ANSI
     _COLOR_CODES: Dict[str, str] = {
-        "ERROR": "\033[91m",    # Красный
-        "WARNING": "\033[93m",   # Жёлтый
-        "INFO": "\033[94m",      # Синий
-        "SUCCESS": "\033[92m",   # Зелёный
-        "DEBUG": "\033[90m",     # Серый
-        "API": "\033[96m",       # Голубой
-        "CACHE": "\033[95m",     # Фиолетовый
-        "DATA": "\033[36m",      # Бирюзовый
-        "STARTUP": "\033[95m",   # Фиолетовый
-        "SHUTDOWN": "\033[91m",  # Красный
-        "RESET": "\033[0m",      # Сброс цвета
+        "ERROR": "\033[91m",      # Красный
+        "WARNING": "\033[93m",     # Жёлтый
+        "INFO": "\033[94m",        # Синий
+        "SUCCESS": "\033[92m",     # Зелёный
+        "DEBUG": "\033[90m",       # Серый
+        "API": "\033[96m",         # Голубой
+        "CACHE": "\033[95m",       # Фиолетовый
+        "DATA": "\033[36m",        # Бирюзовый
+        "DB": "\033[33m",          # Жёлто-оранжевый
+        "SYSTEM": "\033[35m",      # Маджента
+        "PERFORMANCE": "\033[33m", # Жёлтый
+        "STARTUP": "\033[95m",     # Фиолетовый
+        "SHUTDOWN": "\033[91m",    # Красный
+        "RESET": "\033[0m",        # Сброс цвета
     }
     
     # Иконки для разных уровней и категорий
@@ -58,17 +142,21 @@ class LogFormatter:
         "API": "📡",
         "DATA": "📦",
         "CACHE": "💾",
+        "DB": "🗄️",
+        "SYSTEM": "⚙️",
+        "PERFORMANCE": "⏱️",
         "STARTUP": "🚀",
         "SHUTDOWN": "👋",
+        "LINK": "🔗",
     }
     
     _TIMESTAMP_FORMAT = "%H:%M:%S.%f"
     """Формат временной метки"""
     
-    _MODULE_WIDTH = 20
+    _MODULE_WIDTH = 30
     """Максимальная ширина имени модуля для выравнивания"""
     
-    _LEVEL_WIDTH = 7
+    _LEVEL_WIDTH = 12
     """Ширина поля уровня для выравнивания"""
     
     def __init__(self, use_colors: bool = False) -> None:
@@ -93,14 +181,15 @@ class LogFormatter:
         Returns:
             str: Отформатированная строка лога
         """
-        # Формируем временную метку
+        # Формируем временную метку (с миллисекундами)
         timestamp = datetime.now().strftime(self._TIMESTAMP_FORMAT)[:-3]
         
         # Получаем иконку
         icon = self._ICONS.get(level, "•")
         
-        # Укорачиваем имя модуля для выравнивания
-        module_short = module.split(".")[-1][:self._MODULE_WIDTH]
+        # Форматируем имя модуля для отображения
+        display_module = self._format_module_name(module)
+        module_short = display_module[:self._MODULE_WIDTH]
         
         # Формируем строку лога
         log_line = (
@@ -115,6 +204,23 @@ class LogFormatter:
             log_line = f"{color}{log_line}{reset}"
         
         return log_line
+    
+    def _format_module_name(self, module_name: str) -> str:
+        """
+        Форматирует имя модуля для отображения.
+        
+        Args:
+            module_name: Полное имя модуля
+            
+        Returns:
+            str: Отформатированное имя для отображения
+        """
+        # Убираем префикс 'src.' если есть
+        if module_name.startswith("src."):
+            module_name = module_name[4:]
+        
+        # Заменяем точки на слеши для лучшей читаемости
+        return module_name.replace(".", "/")
 
 
 class LogOutput:
@@ -124,14 +230,14 @@ class LogOutput:
     Позволяет перенаправлять вывод в разные потоки (файл, консоль и т.д.)
     """
     
-    def __init__(self, stream: TextIO = sys.stdout) -> None:
+    def __init__(self, stream: Optional[TextIO] = None) -> None:
         """
         Инициализирует вывод логов.
         
         Args:
             stream: Поток для вывода (по умолчанию sys.stdout)
         """
-        self._stream = stream
+        self._stream = stream or sys.stdout
     
     def write(self, message: str) -> None:
         """
@@ -141,6 +247,7 @@ class LogOutput:
             message: Сообщение для вывода
         """
         print(message, file=self._stream)
+        self._stream.flush()  # Немедленный вывод
     
     def set_stream(self, stream: TextIO) -> None:
         """
@@ -157,7 +264,7 @@ class Logger:
     Основной класс логгера для модулей приложения.
     
     Предоставляет методы для логирования с разными уровнями и категориями.
-    Поддерживает глобальные настройки уровня и отключение категорий.
+    Поддерживает глобальные настройки уровня и индивидуальные настройки категорий.
     
     Уровни (по возрастанию детализации):
     - ERROR: только ошибки
@@ -165,31 +272,26 @@ class Logger:
     - INFO: основная информация (по умолчанию)
     - DEBUG: отладочная информация
     
-    Категории:
-    - api: запросы к API
-    - cache: операции с кэшем
-    - data: работа с данными
+    Категории с собственными уровнями:
+    - api: запросы к API (по умолчанию INFO)
+    - cache: операции с кэшем (по умолчанию DEBUG)
+    - data: работа с данными (по умолчанию INFO)
+    - db: работа с базой данных (по умолчанию WARNING)
+    - system: системные операции (по умолчанию INFO)
+    - performance: метрики производительности (по умолчанию INFO)
     """
     
-    # ===== Константы уровней =====
-    ERROR = 1
-    """Только критические ошибки"""
+    # ===== Константы =====
+    ERROR = LogLevel.ERROR
+    WARNING = LogLevel.WARNING
+    INFO = LogLevel.INFO
+    DEBUG = LogLevel.DEBUG
     
-    WARNING = 2
-    """Ошибки и предупреждения"""
-    
-    INFO = 3
-    """Основная информация (по умолчанию)"""
-    
-    DEBUG = 4
-    """Всё, включая отладочную информацию"""
-    
-    # ===== Константы категорий =====
-    CATEGORIES = {"api", "cache", "data"}
+    CATEGORIES = {"api", "cache", "data", "db", "system", "performance"}
     """Доступные категории логирования"""
     
     # ===== Глобальные настройки =====
-    _level: int = INFO
+    _level: LogLevel = LogLevel.INFO
     """Текущий уровень логирования"""
     
     _disabled_categories: Set[str] = set()
@@ -212,16 +314,6 @@ class Logger:
             module_name: Имя модуля (обычно __name__)
         """
         self._module_name = module_name
-
-        def exception(self, message: str) -> None:
-            """
-            Логирует ошибку с traceback (для отладки).
-            
-            Args:
-                message: Сообщение об ошибке
-            """
-            import traceback
-            self._log("ERROR", self.ERROR, f"{message}\n{traceback.format_exc()}")
     
     @classmethod
     def get_logger(cls, module_name: str) -> 'Logger':
@@ -241,7 +333,7 @@ class Logger:
     # ===== Настройка логирования =====
     
     @classmethod
-    def set_level(cls, level: int) -> None:
+    def set_level(cls, level: LogLevel) -> None:
         """
         Устанавливает глобальный уровень логирования.
         
@@ -251,14 +343,39 @@ class Logger:
         cls._level = level
     
     @classmethod
-    def get_level(cls) -> int:
+    def get_level(cls) -> LogLevel:
         """
         Возвращает текущий уровень логирования.
         
         Returns:
-            int: Текущий уровень
+            LogLevel: Текущий уровень
         """
         return cls._level
+    
+    @classmethod
+    def set_category_level(cls, category: str, level: LogLevel) -> None:
+        """
+        Устанавливает уровень логирования для конкретной категории.
+        
+        Args:
+            category: Имя категории
+            level: Уровень логирования
+        """
+        if category in cls.CATEGORIES:
+            CategoryLevel.set_level(category, level)
+    
+    @classmethod
+    def get_category_level(cls, category: str) -> LogLevel:
+        """
+        Возвращает уровень логирования для категории.
+        
+        Args:
+            category: Имя категории
+            
+        Returns:
+            LogLevel: Уровень логирования категории
+        """
+        return CategoryLevel.get_level(category)
     
     @classmethod
     def enable_colors(cls, enable: bool = True) -> None:
@@ -286,7 +403,7 @@ class Logger:
         Отключает указанную категорию логирования.
         
         Args:
-            category: Имя категории ('api', 'cache', 'data')
+            category: Имя категории
         """
         if category in cls.CATEGORIES:
             cls._disabled_categories.add(category)
@@ -297,7 +414,7 @@ class Logger:
         Включает указанную категорию логирования.
         
         Args:
-            category: Имя категории ('api', 'cache', 'data')
+            category: Имя категории
         """
         cls._disabled_categories.discard(category)
     
@@ -324,25 +441,68 @@ class Logger:
         """
         return cls._level >= cls.DEBUG
     
+    @classmethod
+    @contextmanager
+    def temporary_level(cls, level: LogLevel):
+        """
+        Контекстный менеджер для временного изменения уровня логирования.
+        
+        Args:
+            level: Временный уровень логирования
+            
+        Example:
+            with Logger.temporary_level(Logger.DEBUG):
+                logger.debug("Эта отладочная информация будет показана")
+        """
+        old_level = cls._level
+        cls._level = level
+        try:
+            yield
+        finally:
+            cls._level = old_level
+    
     # ===== Внутренние методы =====
     
-    def _log(self, level_name: str, level_val: int, 
-             message: str, category: Optional[str] = None) -> None:
+    def _should_log(self, level: LogLevel, category: Optional[str] = None) -> bool:
+        """
+        Определяет, нужно ли логировать сообщение.
+        
+        Args:
+            level: Уровень сообщения
+            category: Категория (опционально)
+            
+        Returns:
+            bool: True если нужно логировать
+        """
+        # Проверяем отключение категории
+        if category and not self.is_category_enabled(category):
+            return False
+        
+        # Для категорий используем их собственный уровень
+        if category:
+            category_level = CategoryLevel.get_level(category)
+            return level.value <= category_level.value
+        
+        # Для обычных уровней используем глобальный уровень
+        return level.value <= self._level.value
+    
+    def _log(self, level_name: str, level: LogLevel, 
+             message: Union[str, Any], category: Optional[str] = None) -> None:
         """
         Внутренний метод логирования.
         
         Args:
             level_name: Название уровня для отображения
-            level_val: Числовое значение уровня
+            level: Уровень сообщения
             message: Сообщение для логирования
             category: Категория (опционально)
         """
-        # Проверяем уровень
-        if level_val > self._level:
-            return
+        # Преобразуем сообщение в строку, если это не строка
+        if not isinstance(message, str):
+            message = str(message)
         
-        # Проверяем категорию
-        if category and not self.is_category_enabled(category):
+        # Проверяем, нужно ли логировать
+        if not self._should_log(level, category):
             return
         
         # Форматируем и выводим
@@ -351,99 +511,198 @@ class Logger:
     
     # ===== Основные уровни логирования =====
     
-    def error(self, message: str) -> None:
+    def error(self, message: Union[str, Exception]) -> None:
         """
-        Логирует ошибку (всегда показывается).
+        Логирует ошибку (всегда показывается при уровне ERROR и выше).
+        
+        Args:
+            message: Сообщение об ошибке или исключение
+        """
+        self._log("ERROR", LogLevel.ERROR, message)
+    
+    def exception(self, message: str) -> None:
+        """
+        Логирует ошибку с полным traceback (для отладки).
         
         Args:
             message: Сообщение об ошибке
         """
-        self._log("ERROR", self.ERROR, message)
+        exc_info = traceback.format_exc()
+        if exc_info and exc_info != "NoneType: None\n":
+            full_message = f"{message}\n{exc_info}"
+        else:
+            full_message = message
+        self._log("ERROR", LogLevel.ERROR, full_message)
     
-    def warning(self, message: str) -> None:
+    def warning(self, message: Union[str, Any]) -> None:
         """
         Логирует предупреждение.
         
         Args:
             message: Предупреждение
         """
-        self._log("WARNING", self.WARNING, message)
+        self._log("WARNING", LogLevel.WARNING, message)
     
-    def info(self, message: str) -> None:
+    def info(self, message: Union[str, Any]) -> None:
         """
         Логирует информационное сообщение.
         
         Args:
             message: Информация
         """
-        self._log("INFO", self.INFO, message)
+        self._log("INFO", LogLevel.INFO, message)
     
-    def success(self, message: str) -> None:
+    def success(self, message: Union[str, Any]) -> None:
         """
         Логирует сообщение об успехе (уровень INFO).
         
         Args:
             message: Сообщение об успехе
         """
-        self._log("SUCCESS", self.INFO, message)
+        self._log("SUCCESS", LogLevel.INFO, message)
     
-    def debug(self, message: str) -> None:
+    def debug(self, message: Union[str, Any]) -> None:
         """
         Логирует отладочное сообщение.
         
         Args:
             message: Отладочная информация
         """
-        self._log("DEBUG", self.DEBUG, message)
+        self._log("DEBUG", LogLevel.DEBUG, message)
     
-    # ===== Категории =====
+    # ===== Категории с собственными уровнями =====
     
-    def api(self, message: str) -> None:
+    def api(self, message: Union[str, Any]) -> None:
         """
         Логирует сообщение категории API.
+        Уровень логирования для API можно настроить отдельно.
         
         Args:
             message: Информация о запросе к API
         """
-        self._log("API", self.INFO, message, category="api")
+        self._log("API", CategoryLevel.get_level("api"), message, category="api")
     
-    def data(self, message: str) -> None:
+    def data(self, message: Union[str, Any]) -> None:
         """
         Логирует сообщение категории DATA.
+        Уровень логирования для DATA можно настроить отдельно.
         
         Args:
             message: Информация о работе с данными
         """
-        self._log("DATA", self.INFO, message, category="data")
+        self._log("DATA", CategoryLevel.get_level("data"), message, category="data")
     
-    def cache(self, message: str) -> None:
+    def cache(self, message: Union[str, Any]) -> None:
         """
         Логирует сообщение категории CACHE.
+        Уровень логирования для CACHE можно настроить отдельно.
         
         Args:
             message: Информация о кэшировании
         """
-        self._log("CACHE", self.INFO, message, category="cache")
+        self._log("CACHE", CategoryLevel.get_level("cache"), message, category="cache")
+    
+    def db(self, message: Union[str, Any]) -> None:
+        """
+        Логирует сообщение категории DB (база данных).
+        Уровень логирования для DB можно настроить отдельно.
+        
+        Args:
+            message: Информация о работе с базой данных
+        """
+        self._log("DB", CategoryLevel.get_level("db"), message, category="db")
+
+    def link(self, message: Union[str, Any]) -> None:
+        """
+        Логирует сообщение категории LINK (подписки, связи между компонентами).
+        
+        Args:
+            message: Информация о связи/подписке
+        """
+        self._log("LINK", CategoryLevel.get_level("link"), message, category="link")
+    
+    def system(self, message: Union[str, Any]) -> None:
+        """
+        Логирует сообщение категории SYSTEM.
+        Уровень логирования для SYSTEM можно настроить отдельно.
+        
+        Args:
+            message: Информация о системных операциях
+        """
+        self._log("SYSTEM", CategoryLevel.get_level("system"), message, category="system")
+    
+    def performance(self, message: Union[str, Any]) -> None:
+        """
+        Логирует сообщение категории PERFORMANCE (метрики производительности).
+        Уровень логирования для PERFORMANCE можно настроить отдельно.
+        
+        Args:
+            message: Метрика производительности
+        """
+        self._log("PERFORMANCE", CategoryLevel.get_level("performance"), message, category="performance")
     
     # ===== Специальные события =====
     
-    def startup(self, message: str) -> None:
+    def startup(self, message: Union[str, Any]) -> None:
         """
         Логирует событие запуска приложения.
         
         Args:
             message: Информация о запуске
         """
-        self._log("STARTUP", self.INFO, message)
+        self._log("STARTUP", LogLevel.INFO, message)
     
-    def shutdown(self, message: str) -> None:
+    def shutdown(self, message: Union[str, Any]) -> None:
         """
         Логирует событие завершения приложения.
         
         Args:
             message: Информация о завершении
         """
-        self._log("SHUTDOWN", self.INFO, message)
+        self._log("SHUTDOWN", LogLevel.INFO, message)
+    
+    # ===== Вспомогательные методы =====
+    
+    @contextmanager
+    def measure_time(self, operation_name: str, level: Optional[LogLevel] = None):
+        """
+        Контекстный менеджер для измерения времени выполнения операции.
+        
+        Args:
+            operation_name: Название операции
+            level: Уровень логирования (если не указан, используется уровень категории performance)
+            
+        Example:
+            # Будет логироваться на уровне INFO (если так настроено)
+            with logger.measure_time("загрузка данных"):
+                data = load_data()
+            
+            # Принудительно логировать на DEBUG
+            with logger.measure_time("детальная операция", level=LogLevel.DEBUG):
+                process_data()
+        """
+        start = time.time()
+        try:
+            yield
+        finally:
+            elapsed = (time.time() - start) * 1000
+            
+            # Определяем уровень для логирования
+            log_level = level or CategoryLevel.get_level("performance")
+            
+            # Логируем через performance категорию
+            if log_level == LogLevel.DEBUG:
+                self.performance(f"{operation_name} выполнена за {elapsed:.2f}ms")
+            elif log_level == LogLevel.INFO:
+                self.performance(f"{operation_name} выполнена за {elapsed:.2f}ms")
+            elif log_level == LogLevel.WARNING:
+                # Для медленных операций можно использовать WARNING
+                if elapsed > 1000:  # больше секунды
+                    self.performance(f"⚠️ {operation_name} выполнена медленно за {elapsed:.2f}ms")
+                else:
+                    self.performance(f"{operation_name} выполнена за {elapsed:.2f}ms")
+            else:
+                self.performance(f"{operation_name} выполнена за {elapsed:.2f}ms")
 
 
 # ===== Быстрый доступ =====
@@ -458,8 +717,14 @@ def get_logger(module_name: str) -> Logger:
     Returns:
         Logger: Экземпляр логгера
         
-    Пример:
+    Example:
         logger = get_logger(__name__)
         logger.info("Сообщение")
     """
     return Logger.get_logger(module_name)
+
+
+# ===== Инициализация по умолчанию =====
+
+# Включаем цвета для интерактивных терминалов
+Logger.enable_colors(True)

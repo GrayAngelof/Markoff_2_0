@@ -76,7 +76,7 @@ class ApiClient:
                      используется localhost:8000 или API_URL из окружения.
         """
         self._http = HttpClient(base_url)
-        log.success(f"ApiClient initialized with base URL: {self._http._base_url}")
+        log.api(f"ApiClient инициализирован, базовый URL: {self._http._base_url}")
     
     # ===== Списочные методы =====
     
@@ -92,18 +92,20 @@ class ApiClient:
             TimeoutError: Таймаут запроса
             ApiError: Другая ошибка API
         """
-        log.api("GET complexes")
         try:
             data = self._http.get(Endpoints.complexes())
-            return to_complex_list(data) if data else []
+            result = to_complex_list(data) if data else []
+            log.api(f"GET complexes: {len(result)} записей")
+            return result
         except ConnectionError:
-            raise  # пробрасываем с сохранением traceback
+            log.error("Не удалось получить комплексы: сервер недоступен")
+            raise
         except NotFoundError:
             # 404 на /physical/ — странно, но не фатально
-            log.warning("GET complexes returned 404, assuming empty list")
+            log.warning("GET complexes вернул 404, считаем список пустым")
             return []
         except Exception as e:
-            log.error(f"Failed to load complexes: {e}")
+            log.error(f"Ошибка загрузки комплексов: {e}")
             raise ApiError(f"Failed to load complexes: {e}") from e
     
     def get_buildings(self, complex_id: NodeID) -> List[Building]:
@@ -116,48 +118,54 @@ class ApiClient:
         Returns:
             List[Building]: Список корпусов (может быть пустым)
         """
-        log.api(f"GET buildings for complex {complex_id}")
         try:
             data = self._http.get(Endpoints.buildings(complex_id))
-            return to_building_list(data) if data else []
+            result = to_building_list(data) if data else []
+            log.api(f"GET buildings для комплекса {complex_id}: {len(result)} записей")
+            return result
         except NotFoundError:
             # У комплекса может не быть корпусов
-            log.debug(f"No buildings for complex {complex_id}")
+            log.debug(f"Нет корпусов для комплекса {complex_id}")
             return []
         except ConnectionError:
+            log.error(f"Сервер недоступен при загрузке корпусов комплекса {complex_id}")
             raise
         except Exception as e:
-            log.error(f"Failed to load buildings for complex {complex_id}: {e}")
+            log.error(f"Ошибка загрузки корпусов для комплекса {complex_id}: {e}")
             raise ApiError(f"Failed to load buildings for complex {complex_id}: {e}") from e
     
     def get_floors(self, building_id: NodeID) -> List[Floor]:
         """GET /physical/buildings/{id}/floors → список этажей корпуса."""
-        log.api(f"GET floors for building {building_id}")
         try:
             data = self._http.get(Endpoints.floors(building_id))
-            return to_floor_list(data) if data else []
+            result = to_floor_list(data) if data else []
+            log.api(f"GET floors для корпуса {building_id}: {len(result)} записей")
+            return result
         except NotFoundError:
-            log.debug(f"No floors for building {building_id}")
+            log.debug(f"Нет этажей для корпуса {building_id}")
             return []
         except ConnectionError:
+            log.error(f"Сервер недоступен при загрузке этажей корпуса {building_id}")
             raise
         except Exception as e:
-            log.error(f"Failed to load floors for building {building_id}: {e}")
+            log.error(f"Ошибка загрузки этажей для корпуса {building_id}: {e}")
             raise ApiError(f"Failed to load floors for building {building_id}: {e}") from e
     
     def get_rooms(self, floor_id: NodeID) -> List[Room]:
         """GET /physical/floors/{id}/rooms → список помещений этажа."""
-        log.api(f"GET rooms for floor {floor_id}")
         try:
             data = self._http.get(Endpoints.rooms(floor_id))
-            return to_room_list(data) if data else []
+            result = to_room_list(data) if data else []
+            log.api(f"GET rooms для этажа {floor_id}: {len(result)} записей")
+            return result
         except NotFoundError:
-            log.debug(f"No rooms for floor {floor_id}")
+            log.debug(f"Нет помещений для этажа {floor_id}")
             return []
         except ConnectionError:
+            log.error(f"Сервер недоступен при загрузке помещений этажа {floor_id}")
             raise
         except Exception as e:
-            log.error(f"Failed to load rooms for floor {floor_id}: {e}")
+            log.error(f"Ошибка загрузки помещений для этажа {floor_id}: {e}")
             raise ApiError(f"Failed to load rooms for floor {floor_id}: {e}") from e
     
     # ===== Детальные методы =====
@@ -172,62 +180,70 @@ class ApiClient:
         Returns:
             Optional[Complex]: Комплекс с деталями или None, если не найден
         """
-        log.api(f"GET complex detail {complex_id}")
         try:
             data = self._http.get(Endpoints.complex_detail(complex_id))
-            return to_complex(data)
+            result = to_complex(data)
+            log.api(f"GET complex detail {complex_id}: успешно")
+            return result
         except NotFoundError:
-            log.warning(f"Complex {complex_id} not found")
+            log.info(f"Комплекс {complex_id} не найден")
             return None
         except ConnectionError:
+            log.error(f"Сервер недоступен при загрузке комплекса {complex_id}")
             raise
         except Exception as e:
-            log.error(f"Failed to load complex detail {complex_id}: {e}")
+            log.error(f"Ошибка загрузки комплекса {complex_id}: {e}")
             raise ApiError(f"Failed to load complex detail {complex_id}: {e}") from e
     
     def get_building_detail(self, building_id: NodeID) -> Optional[Building]:
         """GET /physical/buildings/{id} → детальная информация о корпусе."""
-        log.api(f"GET building detail {building_id}")
         try:
             data = self._http.get(Endpoints.building_detail(building_id))
-            return to_building(data)
+            result = to_building(data)
+            log.api(f"GET building detail {building_id}: успешно")
+            return result
         except NotFoundError:
-            log.warning(f"Building {building_id} not found")
+            log.info(f"Корпус {building_id} не найден")
             return None
         except ConnectionError:
+            log.error(f"Сервер недоступен при загрузке корпуса {building_id}")
             raise
         except Exception as e:
-            log.error(f"Failed to load building detail {building_id}: {e}")
+            log.error(f"Ошибка загрузки корпуса {building_id}: {e}")
             raise ApiError(f"Failed to load building detail {building_id}: {e}") from e
     
     def get_floor_detail(self, floor_id: NodeID) -> Optional[Floor]:
         """GET /physical/floors/{id} → детальная информация об этаже."""
-        log.api(f"GET floor detail {floor_id}")
         try:
             data = self._http.get(Endpoints.floor_detail(floor_id))
-            return to_floor(data)
+            result = to_floor(data)
+            log.api(f"GET floor detail {floor_id}: успешно")
+            return result
         except NotFoundError:
-            log.warning(f"Floor {floor_id} not found")
+            log.info(f"Этаж {floor_id} не найден")
             return None
         except ConnectionError:
+            log.error(f"Сервер недоступен при загрузке этажа {floor_id}")
             raise
         except Exception as e:
-            log.error(f"Failed to load floor detail {floor_id}: {e}")
+            log.error(f"Ошибка загрузки этажа {floor_id}: {e}")
             raise ApiError(f"Failed to load floor detail {floor_id}: {e}") from e
     
     def get_room_detail(self, room_id: NodeID) -> Optional[Room]:
         """GET /physical/rooms/{id} → детальная информация о помещении."""
-        log.api(f"GET room detail {room_id}")
         try:
             data = self._http.get(Endpoints.room_detail(room_id))
-            return to_room(data)
+            result = to_room(data)
+            log.api(f"GET room detail {room_id}: успешно")
+            return result
         except NotFoundError:
-            log.warning(f"Room {room_id} not found")
+            log.info(f"Помещение {room_id} не найдено")
             return None
         except ConnectionError:
+            log.error(f"Сервер недоступен при загрузке помещения {room_id}")
             raise
         except Exception as e:
-            log.error(f"Failed to load room detail {room_id}: {e}")
+            log.error(f"Ошибка загрузки помещения {room_id}: {e}")
             raise ApiError(f"Failed to load room detail {room_id}: {e}") from e
     
     # ===== Контрагенты =====
@@ -242,17 +258,19 @@ class ApiClient:
         Returns:
             Optional[Counterparty]: Контрагент или None, если не найден
         """
-        log.api(f"GET counterparty {counterparty_id}")
         try:
             data = self._http.get(Endpoints.counterparty(counterparty_id))
-            return to_counterparty(data)
+            result = to_counterparty(data)
+            log.api(f"GET counterparty {counterparty_id}: успешно")
+            return result
         except NotFoundError:
-            log.debug(f"Counterparty {counterparty_id} not found")
+            log.debug(f"Контрагент {counterparty_id} не найден")
             return None
         except ConnectionError:
+            log.error(f"Сервер недоступен при загрузке контрагента {counterparty_id}")
             raise
         except Exception as e:
-            log.error(f"Failed to load counterparty {counterparty_id}: {e}")
+            log.error(f"Ошибка загрузки контрагента {counterparty_id}: {e}")
             raise ApiError(f"Failed to load counterparty {counterparty_id}: {e}") from e
     
     def get_responsible_persons(self, counterparty_id: NodeID) -> List[ResponsiblePerson]:
@@ -265,17 +283,19 @@ class ApiClient:
         Returns:
             List[ResponsiblePerson]: Список ответственных лиц (может быть пустым)
         """
-        log.api(f"GET responsible persons for counterparty {counterparty_id}")
         try:
             data = self._http.get(Endpoints.responsible_persons(counterparty_id))
-            return to_responsible_person_list(data) if data else []
+            result = to_responsible_person_list(data) if data else []
+            log.api(f"GET responsible persons для контрагента {counterparty_id}: {len(result)} записей")
+            return result
         except NotFoundError:
-            log.debug(f"No responsible persons for counterparty {counterparty_id}")
+            log.debug(f"Нет ответственных лиц для контрагента {counterparty_id}")
             return []
         except ConnectionError:
+            log.error(f"Сервер недоступен при загрузке ответственных лиц для контрагента {counterparty_id}")
             raise
         except Exception as e:
-            log.error(f"Failed to load responsible persons: {e}")
+            log.error(f"Ошибка загрузки ответственных лиц: {e}")
             raise ApiError(f"Failed to load responsible persons: {e}") from e
     
     # ===== Мониторинг =====
@@ -290,14 +310,15 @@ class ApiClient:
         Returns:
             bool: True если сервер доступен, False в противном случае
         """
-        log.debug("Checking server connection")
         try:
             self._http.get(Endpoints.health(), timeout=timeout)
+            log.debug("Сервер доступен")
             return True
         except (ConnectionError, TimeoutError):
+            log.debug("Сервер недоступен")
             return False
         except Exception as e:
-            log.debug(f"Unexpected error during connection check: {e}")
+            log.debug(f"Неожиданная ошибка при проверке соединения: {e}")
             return False
     
     def get_server_info(self) -> dict:
@@ -307,12 +328,13 @@ class ApiClient:
         Returns:
             dict: Информация о сервере или пустой словарь при ошибке
         """
-        log.api("GET server info")
         try:
             data = self._http.get(Endpoints.root())
-            return data if isinstance(data, dict) else {}
+            result = data if isinstance(data, dict) else {}
+            log.api(f"GET server info: версия {result.get('version', 'unknown')}")
+            return result
         except Exception as e:
-            log.debug(f"Failed to get server info: {e}")
+            log.debug(f"Не удалось получить информацию о сервере: {e}")
             return {}
     
     # ===== Управление =====
@@ -320,7 +342,7 @@ class ApiClient:
     def close(self) -> None:
         """Закрывает HTTP сессию."""
         self._http.close()
-        log.debug("ApiClient closed")
+        log.debug("ApiClient закрыт")
     
     def __enter__(self):
         """Поддержка контекстного менеджера."""

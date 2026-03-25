@@ -52,12 +52,18 @@ class RefreshController(BaseController):
         self._current_selection: Optional[NodeIdentifier] = None
         self._expanded_nodes: Set[NodeIdentifier] = set()
         
-        # Подписки
-        self._subscribe(RefreshRequested, self._on_refresh_requested)
-        self._subscribe(CurrentSelectionChanged, self._on_selection_changed)
-        self._subscribe(ExpandedNodesChanged, self._on_expanded_changed)
+        # Сохраняем bound methods как атрибуты (сильные ссылки)
+        self._bound_on_refresh_requested = self._on_refresh_requested
+        self._bound_on_selection_changed = self._on_selection_changed
+        self._bound_on_expanded_changed = self._on_expanded_changed
         
-        log.info("RefreshController initialized")
+        # Подписки (LINK категория)
+        log.link("Подписка на RefreshRequested, CurrentSelectionChanged, ExpandedNodesChanged")
+        self._subscribe(RefreshRequested, self._bound_on_refresh_requested)
+        self._subscribe(CurrentSelectionChanged, self._bound_on_selection_changed)
+        self._subscribe(ExpandedNodesChanged, self._bound_on_expanded_changed)
+        
+        log.system("RefreshController инициализирован")
     
     def _on_selection_changed(self, event: Event[CurrentSelectionChanged]) -> None:
         """
@@ -68,9 +74,9 @@ class RefreshController(BaseController):
         """
         self._current_selection = event.data.selection
         if self._current_selection:
-            log.debug(f"Current selection updated: {self._current_selection.node_type.value}#{self._current_selection.node_id}")
+            log.debug(f"Текущий выбор: {self._current_selection.node_type.value}#{self._current_selection.node_id}")
         else:
-            log.debug("Current selection cleared")
+            log.debug("Текущий выбор: None")
     
     def _on_expanded_changed(self, event: Event[ExpandedNodesChanged]) -> None:
         """
@@ -80,7 +86,7 @@ class RefreshController(BaseController):
             event: Событие изменения списка раскрытых
         """
         self._expanded_nodes = event.data.expanded_nodes
-        log.debug(f"Expanded nodes updated: {len(self._expanded_nodes)} nodes")
+        log.debug(f"Раскрыто узлов: {len(self._expanded_nodes)}")
     
     def _on_refresh_requested(self, event: Event[RefreshRequested]) -> None:
         """
@@ -92,9 +98,9 @@ class RefreshController(BaseController):
         mode = event.data.mode
         node = event.data.node
         
-        log.info(f"Refresh requested: mode={mode}")
+        log.info(f"Запрос обновления: режим {mode}")
         if node:
-            log.debug(f"Target node: {node.node_type.value}#{node.node_id}")
+            log.debug(f"Целевой узел: {node.node_type.value}#{node.node_id}")
         
         try:
             if mode == "current":
@@ -104,10 +110,10 @@ class RefreshController(BaseController):
             elif mode == "full":
                 self._handle_full_refresh()
             else:
-                log.warning(f"Unknown refresh mode: {mode}")
+                log.warning(f"Неизвестный режим обновления: {mode}")
                 
         except Exception as e:
-            log.error(f"Error during refresh: {e}")
+            log.error(f"Ошибка при обновлении: {e}")
             if node:
                 self._emit_error(node, e)
             elif self._current_selection:
@@ -123,36 +129,45 @@ class RefreshController(BaseController):
         target = node or self._current_selection
         
         if not target:
-            log.warning("No current selection to refresh")
+            log.warning("Нет текущего выбранного узла для обновления")
             return
         
-        log.info(f"Refreshing current node: {target.node_type.value}#{target.node_id}")
+        node_display = f"{target.node_type.value}#{target.node_id}"
+        log.info(f"Обновление узла: {node_display}")
         
         # Инвалидируем и перезагружаем
         self._loader.reload_node(target.node_type, target.node_id)
         
         # Эмитим событие об успешном обновлении
         self._bus.emit(NodeReloaded(node=target))
+        log.info(f"Узел {node_display} обновлен")
     
     def _handle_visible_refresh(self) -> None:
         """Обновляет все раскрытые узлы."""
         if not self._expanded_nodes:
-            log.warning("No expanded nodes to refresh")
+            log.warning("Нет раскрытых узлов для обновления")
             return
         
-        log.info(f"Refreshing {len(self._expanded_nodes)} visible nodes")
+        count = len(self._expanded_nodes)
+        log.info(f"Обновление {count} раскрытых узлов")
+        
+        if log.is_debug_enabled():
+            for node in self._expanded_nodes:
+                log.debug(f"  → {node.node_type.value}#{node.node_id}")
         
         for node in self._expanded_nodes:
             self._loader.reload_branch(node.node_type, node.node_id)
         
-        self._bus.emit(VisibleNodesReloaded(count=len(self._expanded_nodes)))
+        self._bus.emit(VisibleNodesReloaded(count=count))
+        log.info(f"Обновлено {count} раскрытых узлов")
     
     def _handle_full_refresh(self) -> None:
         """Выполняет полную перезагрузку всех данных."""
-        log.info("Performing full refresh")
+        log.info("Полное обновление всех данных")
         
         # Очищаем кэш
         self._loader.clear_cache()
+        log.cache("Кэш очищен")
         
         # Загружаем комплексы
         complexes = self._loader.load_complexes()
@@ -160,7 +175,7 @@ class RefreshController(BaseController):
         # Эмитим событие о завершении
         self._bus.emit(FullReloadCompleted(count=len(complexes)))
         
-        log.info(f"Full refresh completed: {len(complexes)} complexes loaded")
+        log.info(f"Полное обновление завершено: загружено {len(complexes)} комплексов")
     
     # ===== Публичные методы =====
     

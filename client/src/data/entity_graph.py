@@ -1,13 +1,14 @@
 # client/src/data/entity_graph.py
 """
-Фасад графа сущностей — координатор store, relations, validity.
+Фасад графа сущностей — координатор store, relations, validity, load_state.
 
-Только координация: не содержит логики хранения, связей или валидности.
+Только координация: не содержит логики хранения, связей, валидности или состояния загрузки.
 """
 
 from threading import RLock
-from typing import Optional, Any, List, Iterable, Dict, TypedDict
+from typing import Optional, Any, List, Iterable, Dict, TypedDict, Set, Tuple
 from datetime import datetime
+from collections import defaultdict
 
 from src.core import EventBus
 from src.core.types import NodeType, NodeIdentifier
@@ -19,6 +20,7 @@ from utils.logger import get_logger
 from .graph.store import EntityStore, StoreStats
 from .graph.relations import RelationIndex, RelationStats
 from .graph.validity import ValidityIndex, ValidityStats
+from .graph.load_state import LoadStateIndex, LoadState
 from .graph.schema import get_node_type, get_parent_id
 from .graph.consistency import ConsistencyChecker
 from .graph.decorators import validate_ids
@@ -34,15 +36,16 @@ class EntityGraphStats(TypedDict):
     store: StoreStats
     relations: RelationStats
     validity: ValidityStats
+    load_state: Dict[str, int]  # статистика состояния загрузки
     total_entities: int
     valid_count: int
 
 
 class EntityGraph:
     """
-    Фасад графа сущностей — координатор store, relations, validity.
+    Фасад графа сущностей — координатор store, relations, validity, load_state.
     
-    Только координация: не содержит логики хранения, связей или валидности.
+    Только координация: не содержит логики хранения, связей, валидности или состояния загрузки.
     """
     
     def __init__(self, event_bus: EventBus) -> None:
@@ -58,12 +61,13 @@ class EntityGraph:
         self._store = EntityStore()
         self._relations = RelationIndex()
         self._validity = ValidityIndex(event_bus)
+        self._load_state = LoadStateIndex()
         
         self._consistency = ConsistencyChecker(
             self._store, self._relations, self._validity
         )
         
-        log.success("✅ EntityGraph инициализирован")
+        log.success("EntityGraph инициализирован")
     
     # ============================================
     # ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
@@ -75,13 +79,124 @@ class EntityGraph:
             return func()
     
     # ============================================
-    # CRUD (координация)
+    # BULK-ОПЕРАЦИИ С АГРЕГИРОВАННЫМ ЛОГИРОВАНИЕМ
+    # ============================================
+    
+    def add_or_update_bulk(self, entities: List[Any]) -> Dict[str, Any]:
+        """
+        Добавляет или обновляет несколько сущностей с агрегированным логированием.
+        
+        Args:
+            entities: Список сущностей
+            
+        Returns:
+            Dict со статистикой: {
+                'total': int,
+                'added': int,
+                'updated': int,
+                'skipped': int,
+                'errors': List[str]
+            }
+        """
+        if not entities:
+            return {'total': 0, 'added': 0, 'updated': 0, 'skipped': 0, 'errors': []}
+        
+        # Определяем тип сущностей (предполагаем, что все одного типа)
+        sample_type = get_node_type(entities[0])
+        type_name = sample_type.value if sample_type else "unknown"
+        
+        log.info(f"📦 Пакетная обработка {len(entities)} {type_name}")
+        
+        stats = {
+            'total': len(entities),
+            'added': 0,
+            'updated': 0,
+            'skipped': 0,
+            'errors': []
+        }
+        
+        # Для агрегированного лога
+        added_ids = []
+        updated_ids = []
+        skipped_ids = []
+        
+        for entity in entities:
+            try:
+                # Определяем тип
+                node_type = get_node_type(entity)
+                if node_type is None:
+                    error = f"Не удалось определить тип сущности {type(entity).__name__}"
+                    stats['errors'].append(error)
+                    log.error(error)
+                    continue
+                
+                entity_id = entity.id
+                if entity_id is None:
+                    error = f"Сущность {node_type.value} не имеет id"
+                    stats['errors'].append(error)
+                    log.error(error)
+                    continue
+                
+                # Проверяем существующую
+                old = self._store.get(node_type, entity_id)
+                
+                if old is not None and not has_changed(old, entity):
+                    stats['skipped'] += 1
+                    skipped_ids.append(f"{node_type.value}#{entity_id}")
+                    continue
+                
+                # Сохраняем
+                self._store.put(node_type, entity_id, entity)
+                
+                # Обновляем связи
+                parent_id = get_parent_id(entity)
+                if parent_id is not None:
+                    parent_type = get_parent_type(node_type)
+                    if parent_type:
+                        self._relations.link(
+                            node_type, entity_id, parent_type, parent_id
+                        )
+                
+                # Помечаем как валидный
+                self._validity.mark_valid(node_type, entity_id)
+                
+                if old is None:
+                    stats['added'] += 1
+                    added_ids.append(f"{node_type.value}#{entity_id}")
+                else:
+                    stats['updated'] += 1
+                    updated_ids.append(f"{node_type.value}#{entity_id}")
+                    
+            except Exception as e:
+                error = f"Ошибка при обработке {getattr(entity, 'id', '?')}: {e}"
+                stats['errors'].append(error)
+                log.exception(error)
+        
+        # Агрегированный лог
+        if added_ids:
+            log.success(f"➕ Добавлено {len(added_ids)} {type_name}: {', '.join(added_ids[:5])}" + 
+                       (f" и еще {len(added_ids)-5}" if len(added_ids) > 5 else ""))
+        
+        if updated_ids:
+            log.info(f"🔄 Обновлено {len(updated_ids)} {type_name}: {', '.join(updated_ids[:5])}" +
+                    (f" и еще {len(updated_ids)-5}" if len(updated_ids) > 5 else ""))
+        
+        if skipped_ids:
+            log.cache(f"⏭️ Пропущено {len(skipped_ids)} {type_name} (без изменений)")
+        
+        if stats['errors']:
+            log.error(f"❌ Ошибок: {len(stats['errors'])}")
+        
+        return stats
+    
+    # ============================================
+    # CRUD (координация) - для одиночных операций
     # ============================================
     
     #@validate_ids('entity_id')
     def add_or_update(self, entity: Any) -> bool:
         """
-        Добавляет или обновляет сущность в графе.
+        Добавляет или обновляет сущность в графе (одиночная операция).
         
         Args:
             entity: Сущность (должна иметь NODE_TYPE и id)
@@ -89,112 +204,99 @@ class EntityGraph:
         Returns:
             bool: True если данные изменились, False если без изменений
         """
-        log.debug(f"🔧 add_or_update вызван для {type(entity).__name__}#{getattr(entity, 'id', '?')}")
-        
         def _add():
             # Получаем тип сущности
             node_type = get_node_type(entity)
             if node_type is None:
-                log.error(f"❌ Не удалось определить тип сущности {type(entity).__name__}")
+                log.error(f"Не удалось определить тип сущности {type(entity).__name__}")
                 raise ValueError(f"Сущность {type(entity).__name__} должна иметь NODE_TYPE")
             
             entity_id = entity.id
             if entity_id is None:
-                log.error(f"❌ Сущность {node_type.value} не имеет id")
+                log.error(f"Сущность {node_type.value} не имеет id")
                 raise ValueError(f"Сущность {node_type.value} должна иметь атрибут id")
-            
-            log.debug(f"📝 Обработка {node_type.value}#{entity_id}")
             
             # Проверяем существующую
             old = self._store.get(node_type, entity_id)
             
             if old is not None and not has_changed(old, entity):
-                log.cache(f"💾 {node_type.value}#{entity_id} без изменений, пропускаем")
+                log.cache(f"{node_type.value}#{entity_id} без изменений, пропускаем")
                 return False
             
             # Сохраняем в хранилище
             self._store.put(node_type, entity_id, entity)
-            log.cache(f"💾 PUT {node_type.value}#{entity_id} в хранилище")
+            log.cache(f"PUT {node_type.value}#{entity_id} в хранилище")
             
             # Обновляем связи
             parent_id = get_parent_id(entity)
             if parent_id is not None:
                 parent_type = get_parent_type(node_type)
                 if parent_type:
-                    log.debug(f"🔗 LINK: {node_type.value}#{entity_id} → {parent_type.value}#{parent_id}")
+#                    log.debug(f"LINK: {node_type.value}#{entity_id} → {parent_type.value}#{parent_id}")
                     self._relations.link(
                         node_type, entity_id, parent_type, parent_id
                     )
-            else:
-                log.debug(f"🌳 {node_type.value}#{entity_id} корневой узел (нет родителя)")
             
             # Помечаем как валидный
             self._validity.mark_valid(node_type, entity_id)
-            log.success(f"✅ {node_type.value}#{entity_id} добавлен/обновлён в графе")
+            log.success(f"{node_type.value}#{entity_id} добавлен/обновлён в графе")
             return True
         
         return self._with_lock(_add)
     
     # ============================================
-    # ОСТАЛЬНЫЕ МЕТОДЫ
+    # ОСТАЛЬНЫЕ МЕТОДЫ (без изменений)
     # ============================================
     
     def get(self, node_type: NodeType, entity_id: int) -> Optional[Any]:
         """Получает сущность."""
-        log.debug(f"🔍 GET {node_type.value}#{entity_id}")
         return self._with_lock(lambda: self._store.get(node_type, entity_id))
     
     def get_all(self, node_type: NodeType) -> List[Any]:
         """Возвращает все сущности типа."""
-        result = self._with_lock(lambda: self._store.get_all(node_type))
-        log.debug(f"📋 GET_ALL {node_type.value} → {len(result)} записей")
-        return result
+        return self._with_lock(lambda: self._store.get_all(node_type))
     
     def get_all_ids(self, node_type: NodeType) -> List[int]:
         """Возвращает все ID сущностей типа."""
-        result = self._with_lock(lambda: self._store.get_all_ids(node_type))
-        log.debug(f"🔢 GET_ALL_IDS {node_type.value} → {len(result)} ID")
-        return result
+        return self._with_lock(lambda: self._store.get_all_ids(node_type))
     
     def has_entity(self, node_type: NodeType, entity_id: int) -> bool:
         """Проверяет наличие сущности."""
-        result = self._with_lock(lambda: self._store.has(node_type, entity_id))
-        log.debug(f"❓ HAS {node_type.value}#{entity_id} → {result}")
-        return result
+        return self._with_lock(lambda: self._store.has(node_type, entity_id))
     
     def remove(self, node_type: NodeType, entity_id: int, cascade: bool = False) -> bool:
         """Удаляет сущность."""
-        log.info(f"🗑️ REMOVE {node_type.value}#{entity_id} (cascade={cascade})")
+        log.info(f"REMOVE {node_type.value}#{entity_id} (cascade={cascade})")
         
         def _remove():
             if not self._store.has(node_type, entity_id):
-                log.warning(f"⚠️ {node_type.value}#{entity_id} не найден для удаления")
+                log.warning(f"{node_type.value}#{entity_id} не найден для удаления")
                 return False
             
             if cascade:
                 child_ids = self._relations.get_children(node_type, entity_id)
                 child_type = get_child_type(node_type)
-                if child_type:
-                    log.debug(f"📦 Каскадное удаление {len(child_ids)} детей {child_type.value}")
+                if child_type and child_ids:
+                    log.debug(f"Каскадное удаление {len(child_ids)} детей {child_type.value}")
                     for child_id in child_ids:
                         self.remove(child_type, child_id, cascade=True)
             
             self._relations.remove_node(node_type, entity_id)
             self._store.remove(node_type, entity_id)
             self._validity.mark_invalid(node_type, entity_id)
-            log.success(f"✅ {node_type.value}#{entity_id} удалён")
+            self._load_state.reset(node_type, entity_id)
+            log.success(f"{node_type.value}#{entity_id} удалён")
             return True
         
         return self._with_lock(_remove)
     
-    # ============================================
-    # BULK-ОПЕРАЦИИ
-    # ============================================
-    
     def validate_bulk(self, node_type: NodeType, ids: Iterable[int]) -> int:
         """Помечает множество сущностей как валидные."""
         ids_list = list(ids)
-        log.info(f"✅ VALIDATE_BULK {node_type.value} ×{len(ids_list)}")
+        if ids_list:
+            log.data(f"✅ Валидация {node_type.value} ×{len(ids_list)}")
+            if len(ids_list) <= 10:  # Для небольших групп показываем IDs
+                log.debug(f"   IDs: {', '.join(map(str, ids_list))}")
         return self._with_lock(
             lambda: self._validity.mark_valid_bulk(node_type, ids_list)
         )
@@ -202,7 +304,10 @@ class EntityGraph:
     def invalidate_bulk(self, node_type: NodeType, ids: Iterable[int]) -> int:
         """Помечает множество сущностей как невалидные."""
         ids_list = list(ids)
-        log.info(f"❌ INVALIDATE_BULK {node_type.value} ×{len(ids_list)}")
+        if ids_list:
+            log.data(f"❌ Инвалидация {node_type.value} ×{len(ids_list)}")
+            if len(ids_list) <= 10:
+                log.debug(f"   IDs: {', '.join(map(str, ids_list))}")
         return self._with_lock(
             lambda: self._validity.mark_invalid_bulk(node_type, ids_list)
         )
@@ -216,7 +321,8 @@ class EntityGraph:
         result = self._with_lock(
             lambda: self._relations.get_children(parent_type, parent_id)
         )
-        log.debug(f"👶 CHILDREN {parent_type.value}#{parent_id} → {len(result)} детей")
+        if result:
+            log.debug(f"CHILDREN {parent_type.value}#{parent_id} → {len(result)} детей")
         return result
     
     def get_parent(self, child_type: NodeType, child_id: int) -> Optional[NodeIdentifier]:
@@ -228,12 +334,7 @@ class EntityGraph:
                 return NodeIdentifier(parent_type, parent_id)
             return None
         
-        result = self._with_lock(_get)
-        if result:
-            log.debug(f"👪 PARENT {child_type.value}#{child_id} → {result.node_type.value}#{result.node_id}")
-        else:
-            log.debug(f"👪 PARENT {child_type.value}#{child_id} → None")
-        return result
+        return self._with_lock(_get)
     
     def get_ancestors(self, node_type: NodeType, node_id: int) -> List[NodeIdentifier]:
         """Возвращает всех предков."""
@@ -252,10 +353,7 @@ class EntityGraph:
             
             return ancestors
         
-        result = self._with_lock(_get)
-        if result:
-            log.debug(f"🌳 ANCESTORS {node_type.value}#{node_id} → {len(result)} уровней")
-        return result
+        return self._with_lock(_get)
     
     # ============================================
     # ВАЛИДНОСТЬ
@@ -263,22 +361,20 @@ class EntityGraph:
     
     def is_valid(self, node_type: NodeType, entity_id: int) -> bool:
         """Проверяет валидность."""
-        result = self._with_lock(
+        return self._with_lock(
             lambda: self._validity.is_valid(node_type, entity_id)
         )
-        log.debug(f"✓ IS_VALID {node_type.value}#{entity_id} → {result}")
-        return result
     
     def invalidate(self, node_type: NodeType, entity_id: int) -> bool:
         """Инвалидирует сущность."""
-        log.info(f"❌ INVALIDATE {node_type.value}#{entity_id}")
+        log.info(f"INVALIDATE {node_type.value}#{entity_id}")
         return self._with_lock(
             lambda: self._validity.mark_invalid(node_type, entity_id)
         )
     
     def invalidate_branch(self, node_type: NodeType, entity_id: int) -> int:
         """Инвалидирует ветку."""
-        log.info(f"🌿 INVALIDATE_BRANCH {node_type.value}#{entity_id}")
+        log.info(f"INVALIDATE_BRANCH {node_type.value}#{entity_id}")
         return self._with_lock(
             lambda: self._validity.invalidate_branch(
                 node_type, entity_id, self._relations.get_children
@@ -287,9 +383,53 @@ class EntityGraph:
     
     def validate(self, node_type: NodeType, entity_id: int) -> None:
         """Помечает сущность как валидную."""
-        log.info(f"✅ VALIDATE {node_type.value}#{entity_id}")
+        log.info(f"VALIDATE {node_type.value}#{entity_id}")
         return self._with_lock(
             lambda: self._validity.mark_valid(node_type, entity_id)
+        )
+    
+    # ============================================
+    # СОСТОЯНИЕ ЗАГРУЗКИ ДЕТЕЙ
+    # ============================================
+    
+    def is_children_loaded(self, node_type: NodeType, node_id: int) -> bool:
+        """Проверяет, загружены ли дети для узла."""
+        return self._with_lock(
+            lambda: self._load_state.is_loaded(node_type, node_id)
+        )
+    
+    def is_children_loading(self, node_type: NodeType, node_id: int) -> bool:
+        """Проверяет, идет ли загрузка детей для узла."""
+        return self._with_lock(
+            lambda: self._load_state.is_loading(node_type, node_id)
+        )
+    
+    def mark_children_loading(self, node_type: NodeType, node_id: int) -> bool:
+        """Помечает начало загрузки детей."""
+        log.info(f"🔄 Загрузка детей {node_type.value}#{node_id}")
+        return self._with_lock(
+            lambda: self._load_state.mark_loading(node_type, node_id)
+        )
+    
+    def mark_children_loaded(self, node_type: NodeType, node_id: int) -> None:
+        """Помечает, что дети загружены."""
+        log.success(f"✅ Дети загружены {node_type.value}#{node_id}")
+        return self._with_lock(
+            lambda: self._load_state.mark_loaded(node_type, node_id)
+        )
+    
+    def mark_children_load_failed(self, node_type: NodeType, node_id: int) -> None:
+        """Помечает ошибку загрузки детей."""
+        log.error(f"❌ Ошибка загрузки детей {node_type.value}#{node_id}")
+        return self._with_lock(
+            lambda: self._load_state.mark_failed(node_type, node_id)
+        )
+    
+    def reset_children_state(self, node_type: NodeType, node_id: int) -> None:
+        """Сбрасывает состояние загрузки детей (при инвалидации)."""
+        log.debug(f"Сброс состояния детей {node_type.value}#{node_id}")
+        return self._with_lock(
+            lambda: self._load_state.reset(node_type, node_id)
         )
     
     # ============================================
@@ -312,11 +452,13 @@ class EntityGraph:
             store_stats = self._store.get_stats()
             relations_stats = self._relations.get_stats()
             validity_stats = self._validity.get_stats()
+            load_state_stats = self._load_state.get_stats()
             
             return EntityGraphStats(
                 store=store_stats,
                 relations=relations_stats,
                 validity=validity_stats,
+                load_state=load_state_stats,
                 total_entities=store_stats['total_entities'],
                 valid_count=validity_stats['total_valid'],
             )
@@ -328,42 +470,49 @@ class EntityGraph:
         stats = self.get_stats()
         
         log.info("\n" + "=" * 50)
-        log.info("📊 EntityGraph Statistics")
+        log.info("EntityGraph Statistics")
         log.info("=" * 50)
         
-        log.info("\n📦 Store:")
+        log.info("\nStore:")
         log.info(f"  • Всего сущностей: {stats['store']['total_entities']}")
         for type_name, count in stats['store']['by_type'].items():
             log.info(f"  • {type_name}: {count}")
         
-        log.info("\n🔗 Relations:")
+        log.info("\nRelations:")
         log.info(f"  • Parent entries: {stats['relations']['parent_entries']}")
         log.info(f"  • Child entries: {stats['relations']['child_entries']}")
         
-        log.info("\n✅ Validity:")
+        log.info("\nValidity:")
         validity_stats = stats['validity']
         log.info(f"  • Всего валидных: {validity_stats['total_valid']}")
         for type_name, count in validity_stats['by_type'].items():
             if count > 0:
                 log.info(f"  • {type_name}: {count}")
         
+        log.info("\nLoad State:")
+        load_state_stats = stats['load_state']
+        log.info(f"  • NOT_LOADED: {load_state_stats['not_loaded']}")
+        log.info(f"  • LOADING: {load_state_stats['loading']}")
+        log.info(f"  • LOADED: {load_state_stats['loaded']}")
+        
         log.info("=" * 50 + "\n")
     
     def check_consistency(self) -> Dict[str, Any]:
         """Проверяет консистентность графа."""
-        log.info("🔍 Проверка консистентности графа...")
+        log.info("Проверка консистентности графа...")
         return self._consistency.check()
     
     def clear(self) -> None:
         """Полная очистка."""
-        log.info("🧹 Очистка EntityGraph")
+        log.info("Очистка EntityGraph")
         def _clear():
             self._store.clear()
             self._relations.clear()
             self._validity.clear()
+            self._load_state.clear()
         
         self._with_lock(_clear)
-        log.success("✅ EntityGraph очищен")
+        log.success("EntityGraph очищен")
     
     # ============================================
     # СПЕЦИАЛЬНЫЕ МЕТОДЫ ДЛЯ ЗАГРУЗЧИКА
@@ -375,16 +524,10 @@ class EntityGraph:
         
         Логика полноты определяется в _has_full_details().
         """
-        log.debug(f"🔍 get_if_full {node_type.value}#{node_id}")
         entity = self.get(node_type, node_id)
         if entity and self.is_valid(node_type, node_id):
             if self._has_full_details(entity, node_type):
-                log.cache(f"💾 get_if_full {node_type.value}#{node_id} → полные данные")
                 return entity
-            else:
-                log.cache(f"💾 get_if_full {node_type.value}#{node_id} → данные неполные")
-        else:
-            log.cache(f"💾 get_if_full {node_type.value}#{node_id} → нет данных")
         return None
     
     def get_cached_children(
@@ -398,41 +541,27 @@ class EntityGraph:
         
         Если хоть одного ребёнка нет — возвращает [] (неполные данные).
         """
-        log.debug(f"👶 get_cached_children {parent_type.value}#{parent_id} → {child_type.value}")
-        
         child_ids = self.get_children(parent_type, parent_id)
         if not child_ids:
-            log.cache(f"💾 Нет детей у {parent_type.value}#{parent_id}")
             return []
         
         result = []
         for child_id in child_ids:
             child = self.get(child_type, child_id)
             if child is None:
-                log.cache(f"💾 Неполный кэш: отсутствует {child_type.value}#{child_id}")
                 return []  # неполные данные
             result.append(child)
         
-        log.cache(f"💾 Все {len(result)} детей {child_type.value} в кэше")
         return result
     
     def _has_full_details(self, entity: Any, node_type: NodeType) -> bool:
         """Внутренняя логика полноты данных."""
         if node_type == NodeType.COMPLEX:
-            has = entity.description is not None or entity.address is not None
-            log.debug(f"🔍 _has_full_details complex#{entity.id} → {has}")
-            return has
+            return entity.description is not None or entity.address is not None
         if node_type == NodeType.BUILDING:
-            has = entity.description is not None or entity.address is not None
-            log.debug(f"🔍 _has_full_details building#{entity.id} → {has}")
-            return has
+            return entity.description is not None or entity.address is not None
         if node_type == NodeType.FLOOR:
-            has = entity.description is not None
-            log.debug(f"🔍 _has_full_details floor#{entity.id} → {has}")
-            return has
+            return entity.description is not None
         if node_type == NodeType.ROOM:
-            has = entity.area is not None or entity.status_code is not None
-            log.debug(f"🔍 _has_full_details room#{entity.id} → {has}")
-            return has
-        log.debug(f"🔍 _has_full_details {node_type.value}#{entity.id} → False (тип не поддерживается)")
+            return entity.area is not None or entity.status_code is not None
         return False

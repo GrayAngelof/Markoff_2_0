@@ -52,7 +52,7 @@ class StatusBar(QStatusBar):
         # Подписываемся на события
         self._subscribe_to_events()
         
-        log.debug("StatusBar создан")
+        log.system("StatusBar создан")
     
     def _create_connection_indicator(self) -> None:
         """Создает индикатор соединения."""
@@ -62,7 +62,7 @@ class StatusBar(QStatusBar):
     def _subscribe_to_events(self) -> None:
         """Подписывается на события."""
         self._bus.subscribe(ConnectionChanged, self._on_connection_changed)
-        log.debug("StatusBar подписан на ConnectionChanged")
+        log.link("Подписка на ConnectionChanged")
     
     def _on_connection_changed(self, event) -> None:
         """
@@ -72,6 +72,8 @@ class StatusBar(QStatusBar):
         is_online = event.data.is_online
         error = event.data.error if hasattr(event.data, 'error') else None
         error_msg = error if error else ("Сервер недоступен" if not is_online else "")
+        
+        log.debug(f"Получено ConnectionChanged: online={is_online}, error={error_msg}")
         
         # Эмитим сигнал (потокобезопасно)
         self._signals.connection_status_changed.emit(is_online, error_msg)
@@ -88,24 +90,26 @@ class StatusBar(QStatusBar):
         if is_online:
             self._connection_label.setText("✅ Онлайн")
             self._connection_label.setStyleSheet("color: green;")
-            self.showTemporaryMessage("✅ Соединение с сервером установлено")
-            log.debug("Статус: Онлайн")
+            self.showTemporaryMessage("Соединение с сервером установлено")
+            log.api("Статус изменён: Онлайн")
         else:
             self._connection_label.setText("❌ Офлайн")
             self._connection_label.setStyleSheet("color: red;")
-            msg = f"❌ {error_msg}" if error_msg else "❌ Сервер недоступен"
+            msg = error_msg if error_msg else "Сервер недоступен"
             self.showTemporaryMessage(msg)
-            log.debug("Статус: Офлайн")
+            log.api(f"Статус изменён: Офлайн ({msg})")
     
     def showTemporaryMessage(self, message: str, timeout_ms: int = 3000) -> None:
         """Показывает временное сообщение."""
         self.showMessage(message, timeout_ms)
         self._message_timer.start(timeout_ms)
+        log.debug(f"Временное сообщение: {message}")
    
     @Slot()
     def _clear_message(self) -> None:
         """Очищает временное сообщение."""
         self.showMessage("Готов к работе")
+        log.debug("Временное сообщение очищено")
     
     def cleanup(self) -> None:
         """Очищает ресурсы перед закрытием."""

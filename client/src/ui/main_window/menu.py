@@ -25,7 +25,8 @@ class MenuBar(QMenuBar):
         self._create_reference_menu()
         self._create_help_menu()
         
-        log.debug("MenuBar создан (только визуал)")
+        # DEBUG - отладочная информация о создании визуального компонента
+        log.debug("MenuBar создан")
     
     def _create_file_menu(self) -> None:
         """Создает меню 'Файл'."""
@@ -35,6 +36,8 @@ class MenuBar(QMenuBar):
         exit_action.setShortcut("Ctrl+Q")
         # TODO: добавить действие при выходе
         file_menu.addAction(exit_action)
+        
+        log.debug("Меню 'Файл' создано")
     
     def _create_reference_menu(self) -> None:
         """Создает меню 'Справочники'."""
@@ -52,6 +55,8 @@ class MenuBar(QMenuBar):
             action = QAction(ref_name, self)
             # TODO: добавить действия для справочников
             ref_menu.addAction(action)
+        
+        log.debug(f"Меню 'Справочники' создано, пунктов: {len(references)}")
     
     def _create_help_menu(self) -> None:
         """Создает меню 'Помощь'."""
@@ -60,3 +65,5 @@ class MenuBar(QMenuBar):
         about_action = QAction("&О программе", self)
         # TODO: добавить действие "О программе"
         help_menu.addAction(about_action)
+        
+        log.debug("Меню 'Помощь' создано")

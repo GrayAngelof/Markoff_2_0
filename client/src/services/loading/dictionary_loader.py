@@ -42,7 +42,7 @@ class DictionaryLoader:
         """
         self._api = api
         self._graph = graph
-        log.debug("DictionaryLoader initialized")
+        log.system("DictionaryLoader создан")
     
     def load_counterparty(self, counterparty_id: NodeID) -> Optional[Counterparty]:
         """
@@ -54,14 +54,14 @@ class DictionaryLoader:
         Returns:
             Optional[Counterparty]: Контрагент или None, если не найден
         """
-        log.info(f"Loading counterparty {counterparty_id}")
+        log.api(f"Загрузка контрагента {counterparty_id}")
         
         data = self._api.get_counterparty(counterparty_id)
         if data:
             self._graph.add_or_update(data)
-            log.success(f"Counterparty {counterparty_id} loaded and saved to graph")
+            log.data(f"Контрагент {counterparty_id} загружен и сохранён")
         else:
-            log.warning(f"Counterparty {counterparty_id} not found")
+            log.warning(f"Контрагент {counterparty_id} не найден")
         
         return data
     
@@ -75,7 +75,7 @@ class DictionaryLoader:
         Returns:
             List[ResponsiblePerson]: Список ответственных лиц (может быть пустым)
         """
-        log.info(f"Loading responsible persons for counterparty {counterparty_id}")
+        log.api(f"Загрузка ответственных лиц для контрагента {counterparty_id}")
         
         data = self._api.get_responsible_persons(counterparty_id)
         
@@ -83,8 +83,8 @@ class DictionaryLoader:
             self._graph.add_or_update(person)
         
         if data:
-            log.success(f"Loaded {len(data)} responsible persons for counterparty {counterparty_id}")
+            log.data(f"Загружено {len(data)} ответственных лиц для контрагента {counterparty_id}")
         else:
-            log.debug(f"No responsible persons for counterparty {counterparty_id}")
+            log.debug(f"Нет ответственных лиц для контрагента {counterparty_id}")
         
         return data

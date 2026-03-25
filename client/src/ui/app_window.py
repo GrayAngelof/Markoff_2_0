@@ -4,7 +4,7 @@
 Собирает главное окно из постоянных компонентов.
 """
 
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QMainWindow, QWidget
 
 from src.core.event_bus import EventBus
 
@@ -22,19 +22,29 @@ log = get_logger(__name__)
 class AppWindow:
     """
     Фасад UI слоя.
-    Собирает главное окно из компонентов.
+    
+    Отвечает за:
+    - Создание пустого MainWindow
+    - Создание постоянных компонентов (MenuBar, Toolbar, StatusBar)
+    - Создание CentralWidget с TreeView (сразу) и заглушкой
+    - Компоновку всех компонентов в окне
+    - Предоставление методов для подмены правой панели
+    
+    НЕ отвечает за:
+    - Создание DetailsPanel
+    - Решение, когда подменять панели
     """
     
     def __init__(self, bus: EventBus):
         # Создаем пустую оболочку
         self._window = MainWindow()
         
-        # Создаем постоянные компоненты (только визуал)
+        # Создаем постоянные компоненты
         self._menu = MenuBar()
         self._toolbar = Toolbar()
         self._status_bar = StatusBar(bus)
         
-        # Создаем центральную область с заглушками
+        # Создаем центральную область (TreeView сразу внутри)
         self._central = CentralWidget()
         
         # Компонуем окно
@@ -43,8 +53,23 @@ class AppWindow:
         self._window.setStatusBar(self._status_bar)
         self._window.setCentralWidget(self._central.central_widget)
         
-        log.success("AppWindow создан (только визуал)")
+        log.success("AppWindow создан")
     
     def get_window(self) -> QMainWindow:
         """Возвращает QMainWindow для отображения."""
         return self._window
+    
+    def get_tree_view(self):
+        """Возвращает TreeView для установки модели."""
+        return self._central.get_tree_view()
+    
+    def set_right_panel(self, widget: QWidget) -> None:
+        """
+        Заменяет правую панель.
+        Вызывается контроллерами (например, DetailsController).
+        
+        Args:
+            widget: Новый виджет для правой панели
+        """
+        self._central.set_right(widget)
+        log.debug("Правая панель заменена по запросу контроллера")

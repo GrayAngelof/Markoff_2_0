@@ -63,7 +63,7 @@ class ContextService:
         self._counterparty_repo = counterparty_repo
         self._person_repo = person_repo
         
-        log.debug("ContextService initialized")
+        log.data("ContextService инициализирован")
     
     # ===== Основной метод =====
     
@@ -93,21 +93,21 @@ class ContextService:
                     complex_obj = self._complex_repo.get(anc_id)
                     context['complex_name'] = complex_obj.name
                 except Exception as e:
-                    log.warning(f"Failed to get complex {anc_id}: {e}")
+                    log.warning(f"Не удалось получить комплекс {anc_id}: {e}")
                     
             elif anc_type == NodeType.BUILDING:
                 try:
                     building_obj = self._building_repo.get(anc_id)
                     context['building_name'] = building_obj.name
                 except Exception as e:
-                    log.warning(f"Failed to get building {anc_id}: {e}")
+                    log.warning(f"Не удалось получить корпус {anc_id}: {e}")
                     
             elif anc_type == NodeType.FLOOR:
                 try:
                     floor_obj = self._floor_repo.get(anc_id)
                     context['floor_num'] = floor_obj.number
                 except Exception as e:
-                    log.warning(f"Failed to get floor {anc_id}: {e}")
+                    log.warning(f"Не удалось получить этаж {anc_id}: {e}")
         
         return context
     
@@ -135,7 +135,7 @@ class ContextService:
                     complex_obj = self._complex_repo.get(building.complex_id)
                     context['complex_name'] = complex_obj.name
                 except Exception as e:
-                    log.warning(f"Failed to get complex {building.complex_id}: {e}")
+                    log.warning(f"Не удалось получить комплекс {building.complex_id}: {e}")
             
             # Получаем владельца
             if building.owner_id:
@@ -148,10 +148,10 @@ class ContextService:
                     context['responsible_persons'] = persons
                     
                 except Exception as e:
-                    log.warning(f"Failed to get owner {building.owner_id}: {e}")
+                    log.warning(f"Не удалось получить владельца {building.owner_id}: {e}")
                     
         except Exception as e:
-            log.error(f"Failed to get building context for {building_id}: {e}")
+            log.error(f"Не удалось получить контекст корпуса {building_id}: {e}")
         
         return context
     
@@ -175,7 +175,7 @@ class ContextService:
             context['responsible_persons'] = persons
             
         except Exception as e:
-            log.error(f"Failed to get owner context for {counterparty_id}: {e}")
+            log.error(f"Не удалось получить контекст владельца {counterparty_id}: {e}")
         
         return context
     
@@ -220,7 +220,7 @@ class ContextService:
                     
             elif current_type == NodeType.ROOM:
                 try:
-                    room = self._room_repo.get(current_id)  # может понадобиться
+                    room = self._room_repo.get(current_id)
                     if room.floor_id:
                         ancestors.append((NodeType.FLOOR, room.floor_id))
                     current_type = NodeType.FLOOR

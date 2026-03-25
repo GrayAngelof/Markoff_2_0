@@ -66,7 +66,7 @@ class HttpClient:
             'User-Agent': 'Markoff-Client/1.0'
         })
         
-        log.api(f"HttpClient initialized with base URL: {self._base_url}")
+        log.api(f"HttpClient создан, базовый URL: {self._base_url}")
     
     def get(self, path: str, timeout: Optional[int] = None) -> Any:
         """
@@ -90,47 +90,47 @@ class HttpClient:
         url = f"{self._base_url}{path}"
         timeout_sec = timeout or self._default_timeout
         
-        log.debug(f"HTTP GET {url} (timeout={timeout_sec}s)")
+        log.api(f"GET {path}")
         
         try:
             response = self._session.get(url, timeout=timeout_sec)
             
-            # Логируем статус ответа
-            log.api(f"Response: {response.status_code} {url}")
-            
             # Обрабатываем статус коды
-            self._handle_status_code(response, url)
+            self._handle_status_code(response, path)
             
             # Для 204 No Content возвращаем None
             if response.status_code == 204 or not response.content:
+#                log.debug(f"GET {path} -> {response.status_code} (без содержимого)")
                 return None
             
             # Парсим JSON
             try:
-                return response.json()
+                data = response.json()
+                log.debug(f"GET {path} -> {response.status_code}, получено {len(str(data))} байт")
+                return data
             except ValueError as e:
-                log.error(f"Invalid JSON response from {url}: {e}")
+                log.error(f"Некорректный JSON в ответе от {path}: {e}")
                 raise ApiError(f"Invalid JSON response: {e}") from e
                 
         except requests.exceptions.Timeout as e:
-            log.error(f"Timeout connecting to {url}: {e}")
+            log.error(f"Таймаут при запросе {path} ({timeout_sec}с): {e}")
             raise TimeoutError(f"Timeout after {timeout_sec}s: {url}") from e
             
         except requests.exceptions.ConnectionError as e:
-            log.error(f"Connection error to {url}: {e}")
+            log.error(f"Ошибка соединения с {self._base_url}: {e}")
             raise ConnectionError(f"Cannot connect to {self._base_url}") from e
             
         except requests.exceptions.RequestException as e:
-            log.error(f"Request error: {e}")
+            log.error(f"Ошибка запроса {path}: {e}")
             raise ApiError(f"Request failed: {e}") from e
     
-    def _handle_status_code(self, response: requests.Response, url: str) -> None:
+    def _handle_status_code(self, response: requests.Response, path: str) -> None:
         """
         Обрабатывает HTTP статус код, преобразуя в соответствующие исключения.
         
         Args:
             response: Ответ requests
-            url: URL запроса (для логирования)
+            path: Путь запроса (для логирования)
             
         Raises:
             Соответствующее исключение в зависимости от статус кода
@@ -138,32 +138,37 @@ class HttpClient:
         status = response.status_code
         
         if status == 404:
+            log.warning(f"Ресурс не найден: {path} (404)")
             raise NotFoundError(
-                f"Resource not found: {url}",
+                f"Resource not found: {path}",
                 status_code=status,
                 response_body=response.text[:500] if response.text else None
             )
         
         elif 400 <= status < 500:
+            log.warning(f"Ошибка клиента {status} при запросе {path}")
             raise ClientError(
-                f"Client error {status}: {url}",
+                f"Client error {status}: {path}",
                 status_code=status,
                 response_body=response.text[:500] if response.text else None
             )
         
         elif 500 <= status < 600:
+            log.error(f"Ошибка сервера {status} при запросе {path}")
             raise ServerError(
-                f"Server error {status}: {url}",
+                f"Server error {status}: {path}",
                 status_code=status,
                 response_body=response.text[:500] if response.text else None
             )
         
-        # 2xx и 3xx — нормальные статусы, не выбрасываем исключения
+        # 2xx и 3xx — нормальные статусы, логируем на debug
+        elif self._debug_mode:
+            log.debug(f"GET {path} -> {status}")
     
     def close(self) -> None:
         """Закрывает HTTP сессию."""
         self._session.close()
-        log.debug("HttpClient closed")
+        log.api("HttpClient закрыт")
     
     def __enter__(self):
         """Поддержка контекстного менеджера."""
@@ -172,3 +177,9 @@ class HttpClient:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Закрывает сессию при выходе из контекста."""
         self.close()
+    
+    @property
+    def _debug_mode(self) -> bool:
+        """Возвращает, включен ли режим отладки (для внутреннего использования)."""
+        from utils.logger import Logger
+        return Logger.is_debug_enabled()

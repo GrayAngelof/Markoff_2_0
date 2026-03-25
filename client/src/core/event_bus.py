@@ -85,7 +85,9 @@ class EventBus:
             'dead_callbacks_cleaned': 0
         }
         
-        log.success(f"✅ EventBus инициализирован (debug={debug})")
+        log.system("EventBus инициализирован")
+        if debug:
+            log.debug("Режим отладки включен")
     
     def subscribe(self, event_type: Type[EventData], callback: EventHandler) -> Callable[[], None]:
         """
@@ -106,19 +108,16 @@ class EventBus:
         if inspect.ismethod(callback):
             # Это метод класса
             ref = weakref.WeakMethod(callback)
-            callback_type = "метод"
-            method_name = callback.__name__
-            obj = callback.__self__
-            class_name = obj.__class__.__name__ if obj else "Unknown"
             if self._debug:
-                log.debug(f"🔍 Подписка: метод {class_name}.{method_name}")
+                obj = callback.__self__
+                class_name = obj.__class__.__name__ if obj else "Unknown"
+                log.link(f"Подписка метода {class_name}.{callback.__name__} на {event_type.__name__}")
         else:
             # Это обычная функция
             ref = weakref.ref(callback)
-            callback_type = "функция"
-            function_name = getattr(callback, '__name__', str(callback))
             if self._debug:
-                log.debug(f"🔍 Подписка: функция {function_name}")
+                function_name = getattr(callback, '__name__', str(callback))
+                log.link(f"Подписка функции {function_name} на {event_type.__name__}")
         
         self._callbacks[callback_id] = ref
         
@@ -127,7 +126,7 @@ class EventBus:
         
         self._subscribers[event_type].append(ref)
         
-        log.info(f"📝 Подписка на {event_type.__name__} ({callback_type})")
+        log.link(f"Подписка на {event_type.__name__} оформлена")
         
         def unsubscribe() -> None:
             """Функция отписки."""
@@ -135,36 +134,38 @@ class EventBus:
                 self._subscribers[event_type].remove(ref)
             self._callbacks.pop(callback_id, None)
             self._stats['total_unsubscribes'] += 1
-            log.info(f"❌ Отписка от {event_type.__name__}")
+            log.link(f"Отписка от {event_type.__name__}")
         
         return unsubscribe
     
     def _cleanup_dead(self) -> int:
         """
         Удаляет мёртвые ссылки из реестра подписок.
-        
+
         Returns:
             int: Количество удалённых подписок
         """
         dead_count = 0
-        
+
         for event_type, callbacks in list(self._subscribers.items()):
             alive = []
             for ref in callbacks:
-                if ref() is not None:
+                callback = ref()
+                if callback is not None:
                     alive.append(ref)
                 else:
                     dead_count += 1
+
             if alive:
                 self._subscribers[event_type] = alive
             else:
                 del self._subscribers[event_type]
-        
-        if dead_count > 0 and self._debug:
-            log.debug(f"🧹 Очищено {dead_count} мёртвых подписок")
-        
+
+        if dead_count > 0:
+            log.debug(f"Очищено {dead_count} мёртвых подписок")
+
         return dead_count
-    
+
     def emit(self, event_data: EventData, source: Optional[str] = None) -> None:
         """
         Испускает событие, уведомляя всех подписчиков.
@@ -186,7 +187,6 @@ class EventBus:
         )
         
         event_type = type(event_data)
-        source_str = f" от {source}" if source else ""
         
         # Очищаем мёртвые ссылки
         dead_count = self._cleanup_dead()
@@ -198,36 +198,29 @@ class EventBus:
         
         if not subscribers:
             if self._debug:
-                log.debug(f"⚠️ Нет подписчиков на {event_type.__name__}")
+                log.debug(f"Нет подписчиков на {event_type.__name__}")
             return
         
-        # Логирование
-        log.info(f"📢 EMIT {event_type.__name__}{source_str}")
+        # Логирование испускания события
+        source_str = f" от {source}" if source else ""
+        log.info(f"Испускание {event_type.__name__}{source_str}")
         
         if self._debug:
-            log.debug(f"📋 Оповещение {len(subscribers)} подписчиков...")
+            log.debug(f"Оповещение {len(subscribers)} подписчиков")
         
         # Уведомляем всех подписчиков
         for ref in subscribers:
             callback = ref()
             if callback is None:
-                continue  # мёртвая ссылка, пропускаем
+                continue
             
             try:
-                # Приводим к типу EventHandler
                 handler = cast(EventHandler, callback)
                 handler(envelope)
             except Exception as e:
-                # Логируем ошибку без exc_info (наш логгер не поддерживает)
-                log.error(
-                    f"❌ Ошибка в обработчике {event_type.__name__}: {e}"
-                )
-                # Дополнительно выводим traceback для отладки
+                log.error(f"Ошибка в обработчике {event_type.__name__}: {e}")
                 import traceback
                 traceback.print_exc()
-        
-        if self._debug:
-            log.debug(f"✅ EMIT {event_type.__name__} завершён")
     
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -241,7 +234,6 @@ class EventBus:
             - dead_callbacks_cleaned: очищено мёртвых ссылок
             - subscribers_by_type: количество подписчиков по типам
         """
-        # Собираем статистику по подписчикам
         subscribers_by_type = {
             event_type.__name__: len(callbacks)
             for event_type, callbacks in self._subscribers.items()
@@ -256,12 +248,12 @@ class EventBus:
             'active_subscriptions': active_subscriptions
         }
         
-        log.info(f"📊 Статистика EventBus запрошена")
+        log.info("Статистика EventBus запрошена")
         if self._debug:
-            log.debug(f"  • Всего испусканий: {stats['total_emits']}")
-            log.debug(f"  • Всего подписок: {stats['total_subscribes']}")
-            log.debug(f"  • Активных подписок: {stats['active_subscriptions']}")
-            log.debug(f"  • Очищено мёртвых: {stats['dead_callbacks_cleaned']}")
+            log.debug(f"Всего испусканий: {stats['total_emits']}")
+            log.debug(f"Всего подписок: {stats['total_subscribes']}")
+            log.debug(f"Активных подписок: {stats['active_subscriptions']}")
+            log.debug(f"Очищено мёртвых: {stats['dead_callbacks_cleaned']}")
         
         return stats
     
@@ -284,7 +276,7 @@ class EventBus:
             'dead_callbacks_cleaned': self._stats['dead_callbacks_cleaned']
         }
         
-        log.info(f"🧹 EventBus очищен (удалено {count} подписок)")
+        log.system(f"EventBus очищен (удалено {count} подписок)")
     
     def set_debug(self, enabled: bool) -> None:
         """
@@ -294,7 +286,7 @@ class EventBus:
             enabled: True для включения детального логирования
         """
         self._debug = enabled
-        log.info(f"🔧 Режим отладки EventBus: {'включён' if enabled else 'выключен'}")
+        log.info(f"Режим отладки EventBus: {'включён' if enabled else 'выключен'}")
     
     @property
     def debug(self) -> bool:

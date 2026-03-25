@@ -56,52 +56,54 @@ class NodeLoader:
         self._child_loaders = child_loaders
         self._detail_loaders = detail_loaders
         
-        log.debug("NodeLoader initialized with DI configuration")
+        log.system("NodeLoader инициализирован")
+        log.debug(f"Зарегистрировано child_loader'ов: {len(child_loaders)}")
+        log.debug(f"Зарегистрировано detail_loader'ов: {len(detail_loaders)}")
     
     # ===== Списочные загрузчики (конкретные, для удобства) =====
     
     def load_complexes(self) -> List[Complex]:
         """Загружает все комплексы."""
-        log.info("Loading all complexes")
+        log.info("Загрузка комплексов")
         
         data = self._api.get_complexes()
         for item in data:
             self._graph.add_or_update(item)
         
-        log.success(f"Loaded {len(data)} complexes")
+        log.info(f"Загружено {len(data)} комплексов")
         return data
     
     def load_buildings(self, complex_id: NodeID) -> List[Building]:
         """Загружает корпуса комплекса."""
-        log.info(f"Loading buildings for complex {complex_id}")
+        log.info(f"Загрузка корпусов для комплекса {complex_id}")
         
         data = self._api.get_buildings(complex_id)
         for item in data:
             self._graph.add_or_update(item)
         
-        log.success(f"Loaded {len(data)} buildings for complex {complex_id}")
+        log.info(f"Загружено {len(data)} корпусов для комплекса {complex_id}")
         return data
     
     def load_floors(self, building_id: NodeID) -> List[Floor]:
         """Загружает этажи корпуса."""
-        log.info(f"Loading floors for building {building_id}")
+        log.info(f"Загрузка этажей для корпуса {building_id}")
         
         data = self._api.get_floors(building_id)
         for item in data:
             self._graph.add_or_update(item)
         
-        log.success(f"Loaded {len(data)} floors for building {building_id}")
+        log.info(f"Загружено {len(data)} этажей для корпуса {building_id}")
         return data
     
     def load_rooms(self, floor_id: NodeID) -> List[Room]:
         """Загружает помещения этажа."""
-        log.info(f"Loading rooms for floor {floor_id}")
+        log.info(f"Загрузка помещений для этажа {floor_id}")
         
         data = self._api.get_rooms(floor_id)
         for item in data:
             self._graph.add_or_update(item)
         
-        log.success(f"Loaded {len(data)} rooms for floor {floor_id}")
+        log.info(f"Загружено {len(data)} помещений для этажа {floor_id}")
         return data
     
     # ===== Универсальные загрузчики (через DI) =====
@@ -128,16 +130,16 @@ class NodeLoader:
         """
         loader = self._child_loaders.get(child_type)
         if not loader:
-            log.error(f"No child loader configured for type: {child_type}")
+            log.error(f"Не найден загрузчик для типа {child_type}")
             raise KeyError(f"No child loader for type: {child_type}")
         
-        log.info(f"Loading children for {parent_type.value}#{parent_id} -> {child_type.value}")
+        log.info(f"Загрузка {child_type.value} для {parent_type.value}#{parent_id}")
         
         data = loader(self._api, parent_id)
         for item in data:
             self._graph.add_or_update(item)
         
-        log.success(f"Loaded {len(data)} {child_type.value} for {parent_type.value}#{parent_id}")
+        log.info(f"Загружено {len(data)} {child_type.value} для {parent_type.value}#{parent_id}")
         return data
     
     def load_details(self, node_type: NodeType, node_id: NodeID) -> Optional[Any]:
@@ -156,17 +158,17 @@ class NodeLoader:
         """
         loader = self._detail_loaders.get(node_type)
         if not loader:
-            log.error(f"No detail loader configured for type: {node_type}")
+            log.error(f"Не найден загрузчик деталей для типа {node_type}")
             raise KeyError(f"No detail loader for type: {node_type}")
         
-        log.info(f"Loading details for {node_type.value}#{node_id}")
+        log.debug(f"Загрузка деталей для {node_type.value}#{node_id}")
         
         data = loader(self._api, node_id)
         if data:
             self._graph.add_or_update(data)
-            log.success(f"Details loaded for {node_type.value}#{node_id}")
+            log.debug(f"Детали загружены для {node_type.value}#{node_id}")
         else:
-            log.debug(f"No details for {node_type.value}#{node_id}")
+            log.debug(f"Нет деталей для {node_type.value}#{node_id}")
         
         return data
     

@@ -1,5 +1,4 @@
 # client/src/shared/validation.py
-
 """
 Утилиты для валидации данных.
 
@@ -10,6 +9,9 @@ from typing import Any, Optional
 
 from ..core import NodeType, NodeIdentifier
 from ..core.types.exceptions import ValidationError
+from utils.logger import get_logger
+
+log = get_logger(__name__)
 
 
 def is_valid_node_type(type_str: str) -> bool:
@@ -74,23 +76,16 @@ def validate_non_empty(value: Optional[str], name: str = "Значение") -> 
         
     Raises:
         ValidationError: Если строка пустая или None
-        
-    Логирование:
-        - debug: успешная валидация
-        - warning: ошибка валидации
     """
-    from utils.logger import get_logger
-    log = get_logger(__name__)
-    
     if value is None:
-        log.warning(f"⚠️ validate_non_empty: {name} = None")
+        log.warning(f"Валидация {name}: значение None")
         raise ValidationError(f"{name} не может быть None")
     
     if not value.strip():
-        log.warning(f"⚠️ validate_non_empty: {name} пустая строка")
+        log.warning(f"Валидация {name}: пустая строка")
         raise ValidationError(f"{name} не может быть пустым")
     
-    log.debug(f"✅ validate_non_empty: {name} = '{value[:50]}...'")
+    # log.debug(f"Валидация {name}: '{value[:50]}...'")
     return value
 
 
@@ -107,23 +102,16 @@ def validate_positive_int(value: Any, name: str = "ID") -> int:
         
     Raises:
         ValidationError: Если значение не является положительным целым
-        
-    Логирование:
-        - debug: успешная валидация
-        - warning: ошибка валидации
     """
-    from utils.logger import get_logger
-    log = get_logger(__name__)
-    
     if not isinstance(value, int):
-        log.warning(f"⚠️ validate_positive_int: {name} = {value} (тип {type(value)})")
+        log.warning(f"Валидация {name}: {value} (тип {type(value).__name__})")
         raise ValidationError(f"{name} должен быть целым числом")
     
     if value <= 0:
-        log.warning(f"⚠️ validate_positive_int: {name} = {value} (не положительное)")
+        log.warning(f"Валидация {name}: {value} (не положительное)")
         raise ValidationError(f"{name} должен быть положительным")
     
-    log.debug(f"✅ validate_positive_int: {name} = {value}")
+    # log.debug(f"validate_positive_int: Валидация {name}: {value}")
     return value
 
 
@@ -155,26 +143,19 @@ def validate_node_type(node_type: Any) -> NodeType:
         
     Raises:
         ValidationError: Если значение не является валидным типом
-        
-    Логирование:
-        - debug: успешная валидация
-        - warning: ошибка валидации
     """
-    from utils.logger import get_logger
-    log = get_logger(__name__)
-    
     if isinstance(node_type, NodeType):
-        log.debug(f"✅ validate_node_type: {node_type}")
+        log.debug(f"Валидация типа узла: {node_type}")
         return node_type
     
     if isinstance(node_type, str):
         try:
             result = NodeType(node_type)
-            log.debug(f"✅ validate_node_type: '{node_type}' → {result}")
+            log.debug(f"Валидация типа узла: '{node_type}' -> {result}")
             return result
         except ValueError:
-            log.warning(f"⚠️ validate_node_type: неизвестный тип '{node_type}'")
+            log.warning(f"Валидация типа узла: неизвестный тип '{node_type}'")
             raise ValidationError(f"Неизвестный тип узла: '{node_type}'")
     
-    log.warning(f"⚠️ validate_node_type: {node_type} (тип {type(node_type)})")
+    log.warning(f"Валидация типа узла: {node_type} (тип {type(node_type).__name__})")
     raise ValidationError(f"Тип узла должен быть NodeType или str")

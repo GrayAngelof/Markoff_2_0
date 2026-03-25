@@ -1,4 +1,3 @@
-# client/src/data/graph/relations.py
 """
 Индекс связей между сущностями — быстрый доступ к иерархии.
 
@@ -65,9 +64,9 @@ _CHILD_TYPES: Final[list[NodeType]] = [
 ]
 
 # Сообщения для логирования
-_LOG_LINK = "🔗 LINK: {child_type}#{child_id} → {parent_type}#{parent_id}"
-_LOG_UNLINK = "🔓 UNLINK: {child_type}#{child_id}"
-_LOG_REMOVE_NODE = "🗑️ REMOVE_NODE: {node_type}#{node_id} (удалено {children_count} связей)"
+_LOG_LINK = "Связь установлена: {child_type}#{child_id} → {parent_type}#{parent_id}"
+_LOG_UNLINK = "Связь удалена: {child_type}#{child_id}"
+_LOG_REMOVE_NODE = "Узел удален: {node_type}#{node_id} (удалено {children_count} связей)"
 
 
 # ============================================
@@ -97,30 +96,38 @@ def _validate_relations_schema() -> None:
     for parent_type in _PARENT_TYPES:
         child_type = get_child_type(parent_type)
         if child_type is None:
-            log.error(f"❌ Тип {parent_type.value} помечен как родитель, "
-                     f"но get_child_type() вернул None")
+            log.error(
+                f"Тип {parent_type.value} помечен как родитель, "
+                f"но get_child_type() вернул None"
+            )
             raise RuntimeError(
                 f"Ошибка конфигурации: {parent_type.value} не может иметь детей "
                 f"согласно core.hierarchy"
             )
         if child_type not in _CHILD_TYPES:
-            log.warning(f"⚠️ Тип {child_type.value} не в _CHILD_TYPES, "
-                       f"хотя является ребенком {parent_type.value}")
+            log.warning(
+                f"Тип {child_type.value} не в _CHILD_TYPES, "
+                f"хотя является ребенком {parent_type.value}"
+            )
     
     for child_type in _CHILD_TYPES:
         parent_type = get_parent_type(child_type)
         if parent_type is None:
-            log.error(f"❌ Тип {child_type.value} помечен как ребенок, "
-                     f"но get_parent_type() вернул None")
+            log.error(
+                f"Тип {child_type.value} помечен как ребенок, "
+                f"но get_parent_type() вернул None"
+            )
             raise RuntimeError(
                 f"Ошибка конфигурации: {child_type.value} не может иметь родителя "
                 f"согласно core.hierarchy"
             )
         if parent_type not in _PARENT_TYPES:
-            log.warning(f"⚠️ Тип {parent_type.value} не в _PARENT_TYPES, "
-                       f"хотя является родителем {child_type.value}")
+            log.warning(
+                f"Тип {parent_type.value} не в _PARENT_TYPES, "
+                f"хотя является родителем {child_type.value}"
+            )
     
-    log.success("RelationIndex схема валидна")
+    log.info("Схема RelationIndex валидна")
 
 
 # Выполняем валидацию при импорте
@@ -164,8 +171,10 @@ class RelationIndex:
             child_type: {} for child_type in _CHILD_TYPES
         }
         
-        log.success(f"RelationIndex инициализирован: "
-                   f"родителей={len(_PARENT_TYPES)}, детей={len(_CHILD_TYPES)}")
+        log.info(
+            f"RelationIndex инициализирован: "
+            f"родителей={len(_PARENT_TYPES)}, детей={len(_CHILD_TYPES)}"
+        )
     
     # ============================================
     # УПРАВЛЕНИЕ СВЯЗЯМИ
@@ -196,18 +205,18 @@ class RelationIndex:
         with self._lock:
             # Проверка поддержки типов (специфичная для RelationIndex)
             if child_type not in self._parents:
-                log.error(f"❌ LINK: неподдерживаемый тип ребенка {child_type}")
+                log.error(f"Неподдерживаемый тип ребенка {child_type}")
                 raise KeyError(f"Тип {child_type} не поддерживается RelationIndex")
             
             if parent_type not in self._children:
-                log.error(f"❌ LINK: неподдерживаемый тип родителя {parent_type}")
+                log.error(f"Неподдерживаемый тип родителя {parent_type}")
                 raise KeyError(f"Тип {parent_type} не поддерживается RelationIndex")
             
             # Проверка допустимости связи по схеме (через core)
             expected_parent = get_parent_type(child_type)
             if expected_parent and expected_parent != parent_type:
                 log.error(
-                    f"❌ Недопустимая связь: {child_type.value} → {parent_type.value} "
+                    f"Недопустимая связь: {child_type.value} → {parent_type.value} "
                     f"(ожидался {expected_parent.value})"
                 )
                 raise ValueError(
@@ -226,7 +235,7 @@ class RelationIndex:
             # Добавляем в обратные индексы
             self._parents[child_type][child_id] = (parent_type, parent_id)
             
-            log.cache(_LOG_LINK.format(
+            log.debug(_LOG_LINK.format(
                 child_type=child_type.value,
                 child_id=child_id,
                 parent_type=parent_type.value,
@@ -267,7 +276,7 @@ class RelationIndex:
             # Удаляем из обратных индексов
             del self._parents[child_type][child_id]
             
-            log.cache(_LOG_UNLINK.format(
+            log.debug(_LOG_UNLINK.format(
                 child_type=child_type.value,
                 child_id=child_id
             ))
@@ -297,7 +306,7 @@ class RelationIndex:
         
         with self._lock:
             if parent_type not in self._children:
-                log.error(f"❌ GET_CHILDREN: неподдерживаемый тип {parent_type}")
+                log.error(f"Неподдерживаемый тип {parent_type}")
                 raise KeyError(f"Тип {parent_type} не поддерживается RelationIndex")
             
             children_set = self._children[parent_type].get(parent_id)
@@ -326,7 +335,7 @@ class RelationIndex:
         
         with self._lock:
             if child_type not in self._parents:
-                log.error(f"❌ GET_PARENT: неподдерживаемый тип {child_type}")
+                log.error(f"Неподдерживаемый тип {child_type}")
                 raise KeyError(f"Тип {child_type} не поддерживается RelationIndex")
             
             return self._parents[child_type].get(child_id)
@@ -351,7 +360,7 @@ class RelationIndex:
         
         with self._lock:
             if parent_type not in self._children:
-                log.error(f"❌ HAS_CHILDREN: неподдерживаемый тип {parent_type}")
+                log.error(f"Неподдерживаемый тип {parent_type}")
                 raise KeyError(f"Тип {parent_type} не поддерживается RelationIndex")
             
             children_set = self._children[parent_type].get(parent_id)
@@ -402,7 +411,7 @@ class RelationIndex:
                 if node_id in self._parents[node_type]:
                     del self._parents[node_type][node_id]
             
-            log.cache(_LOG_REMOVE_NODE.format(
+            log.debug(_LOG_REMOVE_NODE.format(
                 node_type=node_type.value,
                 node_id=node_id,
                 children_count=removed_children
@@ -420,7 +429,7 @@ class RelationIndex:
             for child_type in self._parents:
                 self._parents[child_type].clear()
             
-            log.cache("🧹 RelationIndex очищен")
+            log.debug("RelationIndex очищен")
     
     def get_stats(self) -> RelationStats:
         """

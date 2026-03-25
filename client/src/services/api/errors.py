@@ -19,6 +19,9 @@
 """
 
 from typing import Optional
+from utils.logger import get_logger
+
+log = get_logger(__name__)
 
 
 class ApiError(Exception):
@@ -35,6 +38,14 @@ class ApiError(Exception):
         super().__init__(message)
         self.status_code = status_code
         self.response_body = response_body
+        self._log_creation()
+    
+    def _log_creation(self) -> None:
+        """Логирует создание исключения (для отладки)."""
+        if self.status_code:
+            log.api(f"Создано исключение {self.__class__.__name__}: [{self.status_code}] {str(self)}")
+        else:
+            log.api(f"Создано исключение {self.__class__.__name__}: {str(self)}")
     
     def __str__(self) -> str:
         base = super().__str__()

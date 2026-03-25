@@ -1,4 +1,3 @@
-# client/src/data/graph/store.py
 """
 Хранилище сущностей — только хранение объектов по типам и ID.
 
@@ -79,7 +78,7 @@ class EntityStore:
             NodeType.RESPONSIBLE_PERSON: {},
         }
         
-        log.debug("EntityStore инициализирован")
+        log.data("EntityStore инициализирован")
     
     # ============================================
     # ОСНОВНЫЕ ОПЕРАЦИИ
@@ -207,7 +206,7 @@ class EntityStore:
             for node_type in self._entities:
                 self._entities[node_type].clear()
                 self._timestamps[node_type].clear()
-            log.debug("EntityStore очищен")
+            log.data("EntityStore очищен")
     
     def size(self) -> int:
         """

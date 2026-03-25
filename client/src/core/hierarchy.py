@@ -43,6 +43,11 @@ _CAN_HAVE_CHILDREN = {
     NodeType.RESPONSIBLE_PERSON: False,
 }
 
+# ===== Логгер =====
+from utils.logger import get_logger
+_log = get_logger(__name__)
+
+
 # ===== Публичные функции =====
 
 def get_child_type(parent_type: NodeType) -> Optional[NodeType]:
@@ -64,11 +69,8 @@ def get_child_type(parent_type: NodeType) -> Optional[NodeType]:
     Логирование:
         - debug: результат поиска
     """
-    from utils.logger import get_logger
-    log = get_logger(__name__)
-    
     child_type = _CHILD_TYPE_MAP.get(parent_type)
-    log.debug(f"🔽 get_child_type({parent_type}) = {child_type}")
+    _log.debug(f"get_child_type({parent_type.value}) = {child_type.value if child_type else None}")
     return child_type
 
 
@@ -91,11 +93,8 @@ def get_parent_type(child_type: NodeType) -> Optional[NodeType]:
     Логирование:
         - debug: результат поиска
     """
-    from utils.logger import get_logger
-    log = get_logger(__name__)
-    
     parent_type = _PARENT_TYPE_MAP.get(child_type)
-    log.debug(f"🔼 get_parent_type({child_type}) = {parent_type}")
+    # _log.debug(f"get_parent_type({child_type.value}) = {parent_type.value if parent_type else None}")
     return parent_type
 
 
@@ -118,11 +117,8 @@ def can_have_children(node_type: NodeType) -> bool:
     Логирование:
         - debug: результат проверки
     """
-    from utils.logger import get_logger
-    log = get_logger(__name__)
-    
     result = _CAN_HAVE_CHILDREN.get(node_type, False)
-    log.debug(f"🔍 can_have_children({node_type}) = {result}")
+    _log.debug(f"can_have_children({node_type.value}) = {result}")
     return result
 
 
@@ -162,9 +158,6 @@ def get_all_ancestors(start_type: NodeType) -> List[NodeType]:
     Логирование:
         - debug: найденные предки
     """
-    from utils.logger import get_logger
-    log = get_logger(__name__)
-    
     ancestors = []
     current = get_parent_type(start_type)
     
@@ -172,7 +165,7 @@ def get_all_ancestors(start_type: NodeType) -> List[NodeType]:
         ancestors.append(current)
         current = get_parent_type(current)
     
-    log.debug(f"📊 get_all_ancestors({start_type}) = {[a.value for a in ancestors]}")
+    _log.debug(f"get_all_ancestors({start_type.value}) = {[a.value for a in ancestors]}")
     return ancestors
 
 
@@ -193,9 +186,6 @@ def get_all_descendants(start_type: NodeType) -> List[NodeType]:
     Логирование:
         - debug: найденные потомки
     """
-    from utils.logger import get_logger
-    log = get_logger(__name__)
-    
     descendants = []
     current = get_child_type(start_type)
     
@@ -203,7 +193,7 @@ def get_all_descendants(start_type: NodeType) -> List[NodeType]:
         descendants.append(current)
         current = get_child_type(current)
     
-    log.debug(f"📊 get_all_descendants({start_type}) = {[d.value for d in descendants]}")
+    _log.debug(f"get_all_descendants({start_type.value}) = {[d.value for d in descendants]}")
     return descendants
 
 
@@ -225,17 +215,15 @@ def validate_hierarchy(parent_type: NodeType, child_type: NodeType) -> bool:
         False
         
     Логирование:
-        - debug: результат проверки
+        - debug: для допустимых связей
+        - warning: для недопустимых связей
     """
     expected_child = get_child_type(parent_type)
     result = expected_child == child_type
     
-    from utils.logger import get_logger
-    log = get_logger(__name__)
-    
     if result:
-        log.debug(f"✅ validate_hierarchy: {parent_type} → {child_type} допустимо")
+        _log.debug(f"validate_hierarchy: {parent_type.value} → {child_type.value} допустимо")
     else:
-        log.warning(f"⚠️ validate_hierarchy: {parent_type} → {child_type} НЕДОПУСТИМО")
+        _log.warning(f"validate_hierarchy: {parent_type.value} → {child_type.value} недопустимо")
     
     return result

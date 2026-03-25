@@ -21,7 +21,7 @@ from src.data import (
 )
 
 from src.services import ApiClient, DataLoader, ConnectionService, ContextService
-
+from src.projections.tree import TreeProjection
 from src.controllers import (
     TreeController,
     DetailsController,
@@ -54,39 +54,47 @@ class ApplicationBootstrap:
             app: Экземпляр QApplication
         """
         log.info("=" * 60)
-        log.info("🚀 Запуск инициализации компонентов")
+        log.info("Запуск инициализации компонентов")
         log.info("=" * 60)
         
         self._app = app
         
-        # Инициализация слоев по порядку
-        self._init_core()
-        self._init_data()
-        self._init_services()      # создает ConnectionService (не запускает)
-        self._init_controllers()
-        self._init_ui()            # UI подписывается на события
+        # Инициализация слоев по порядку с замером времени
+        with log.measure_time("инициализация Core"):
+            self._init_core()
         
-        # ЗАПУСКАЕМ СЕРВИСЫ ПОСЛЕ ТОГО, КАК UI ПОДПИСАЛСЯ
-        self._start_services()
+        with log.measure_time("инициализация Data слоя"):
+            self._init_data()
         
-        log.success("✅ Все компоненты инициализированы")
+        with log.measure_time("инициализация Services"):
+            self._init_services()
+        
+        with log.measure_time("инициализация Projections"):
+            self._init_projections()
+        
+        with log.measure_time("инициализация Controllers"):
+            self._init_controllers()
+        
+        with log.measure_time("инициализация UI"):
+            self._init_ui()
+        
+        with log.measure_time("запуск фоновых сервисов"):
+            self._start_services()
+        
+        log.success("Все компоненты инициализированы")
         log.info("=" * 60)
     
     # ===== Инициализация слоев =====
     
     def _init_core(self) -> None:
         """Инициализация ядра."""
-        log.info("📡 Инициализация Core...")
-        
         self._bus = EventBus()
         self._bus.set_debug(True)  # Включаем отладку для разработки
         
-        log.success("  ✅ EventBus создан")
+        log.system("EventBus создан, отладка включена")
     
     def _init_data(self) -> None:
         """Инициализация слоя данных."""
-        log.info("💾 Инициализация Data слоя...")
-        
         # Граф сущностей
         self._graph = EntityGraph(self._bus)
         
@@ -98,25 +106,18 @@ class ApplicationBootstrap:
         self._counterparty_repo = CounterpartyRepository(self._graph)
         self._responsible_person_repo = ResponsiblePersonRepository(self._graph)
         
-        log.success("  ✅ EntityGraph и репозитории созданы")
-        log.debug(f"    • ComplexRepository: {self._complex_repo}")
-        log.debug(f"    • BuildingRepository: {self._building_repo}")
-        log.debug(f"    • FloorRepository: {self._floor_repo}")
-        log.debug(f"    • RoomRepository: {self._room_repo}")
-        log.debug(f"    • CounterpartyRepository: {self._counterparty_repo}")
-        log.debug(f"    • ResponsiblePersonRepository: {self._responsible_person_repo}")
+        log.data("EntityGraph и репозитории созданы")
+        log.debug(f"Репозитории: Complex, Building, Floor, Room, Counterparty, ResponsiblePerson")
     
     def _init_services(self) -> None:
         """Инициализация сервисного слоя (СОЗДАНИЕ, без запуска)."""
-        log.info("🔧 Инициализация Services...")
-        
         # API клиент
         self._api = ApiClient()
-        log.debug(f"  • ApiClient: {self._api}")
+        log.api("ApiClient создан")
         
         # DataLoader
         self._loader = DataLoader(self._bus, self._api, self._graph)
-        log.debug(f"  • DataLoader: {self._loader}")
+        log.data("DataLoader создан")
         
         # ContextService
         self._context_service = ContextService(
@@ -127,77 +128,71 @@ class ApplicationBootstrap:
             self._counterparty_repo,
             self._responsible_person_repo
         )
-        log.debug(f"  • ContextService: {self._context_service}")
+        log.data("ContextService создан")
         
         # ConnectionService (только создаем, НЕ ЗАПУСКАЕМ)
         self._connection_service = ConnectionService(self._bus, self._api)
-        log.debug(f"  • ConnectionService: {self._connection_service} (создан, не запущен)")
-        
-        log.success("  ✅ Services инициализированы")
+        log.api("ConnectionService создан (ожидает запуска)")
+    
+    def _init_projections(self) -> None:
+        """Инициализация проекций."""
+        # TreeProjection
+        self._tree_projection = TreeProjection(
+            complex_repo=self._complex_repo,
+            building_repo=self._building_repo,
+            floor_repo=self._floor_repo,
+            room_repo=self._room_repo
+        )
+        log.data("TreeProjection создан")
     
     def _init_controllers(self) -> None:
         """Инициализация контроллеров."""
-        log.info("🎮 Инициализация Controllers...")
-        
-        # TreeController
+        # TreeController (теперь получает tree_projection)
         self._tree_controller = TreeController(
-            self._bus,
-            self._loader,
-            self._context_service
+            bus=self._bus,
+            loader=self._loader,
+            context_service=self._context_service,
+            tree_projection=self._tree_projection
         )
-        log.debug(f"  • TreeController: {self._tree_controller}")
         
         # DetailsController
         self._details_controller = DetailsController(
             self._bus,
             self._loader
         )
-        log.debug(f"  • DetailsController: {self._details_controller}")
         
         # RefreshController
         self._refresh_controller = RefreshController(
             self._bus,
             self._loader
         )
-        log.debug(f"  • RefreshController: {self._refresh_controller}")
         
         # ConnectionController
         self._connection_controller = ConnectionController(self._bus)
-        log.debug(f"  • ConnectionController: {self._connection_controller}")
         
-        log.success("  ✅ Controllers инициализированы")
+        log.system("Контроллеры созданы: Tree, Details, Refresh, Connection")
     
     def _init_ui(self) -> None:
         """Инициализация UI (здесь StatusBar ПОДПИСЫВАЕТСЯ на события)."""
-        log.info("🖥️ Инициализация UI...")
-        
         # Создаем фасад окна — здесь StatusBar подписывается на ConnectionChanged
         self._app_window = AppWindow(self._bus)
         
         # Передаем AppWindow в контроллеры
         self._tree_controller.set_app_window(self._app_window)
-        # self._details_controller.set_app_window(self._app_window)
-
-        log.success("  ✅ AppWindow создан")
+        
+        log.system("AppWindow создан, подписки на события настроены")
     
     def _start_services(self) -> None:
         """Запускает фоновые сервисы ПОСЛЕ того, как UI подписался."""
-        log.info("▶️ Запуск фоновых сервисов...")
-        
         # Запускаем ConnectionService
         self._connection_service.start()
-        log.info("   ✅ ConnectionService запущен")
+        log.api("ConnectionService запущен")
         
-        # 🆕 ЗАПУСКАЕМ ЗАГРУЗКУ КОМПЛЕКСОВ
-        log.info("   🏢 Инициируем загрузку комплексов...")
+        # ЗАПУСКАЕМ ЗАГРУЗКУ КОМПЛЕКСОВ
+        log.info("Инициируем загрузку комплексов...")
         self._tree_controller.load_root_nodes()
         
-        # Здесь можно добавить другие сервисы, которые нужно запустить
-        # Например:
-        # self._some_other_service.start()
-        # log.info("   ✅ SomeOtherService запущен")
-        
-        log.info("   ✅ Все фоновые сервисы запущены")
+        log.info("Все фоновые сервисы запущены")
     
     def get_window(self) -> QMainWindow:
         """Возвращает главное окно для отображения."""
@@ -209,21 +204,20 @@ class ApplicationBootstrap:
     
     def cleanup(self) -> None:
         """Очистка ресурсов перед завершением."""
-        log.info("🧹 Очистка ресурсов...")
+        with log.measure_time("остановка сервисов и очистка ресурсов"):
+            # Останавливаем сервисы
+            self._connection_service.stop()
+            log.api("ConnectionService остановлен")
+            
+            # Очищаем контроллеры
+            self._tree_controller.cleanup()
+            self._details_controller.cleanup()
+            self._refresh_controller.cleanup()
+            self._connection_controller.cleanup()
+            log.system("Контроллеры очищены")
+            
+            # Очищаем граф
+            self._graph.clear()
+            log.data("EntityGraph очищен")
         
-        # Останавливаем сервисы
-        self._connection_service.stop()
-        log.debug("   • ConnectionService остановлен")
-        
-        # Очищаем контроллеры
-        self._tree_controller.cleanup()
-        self._details_controller.cleanup()
-        self._refresh_controller.cleanup()
-        self._connection_controller.cleanup()
-        log.debug("   • Контроллеры очищены")
-        
-        # Очищаем граф
-        self._graph.clear()
-        log.debug("   • EntityGraph очищен")
-        
-        log.success("  ✅ Ресурсы очищены")
+        log.shutdown("Ресурсы очищены")

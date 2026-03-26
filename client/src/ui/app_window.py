@@ -26,7 +26,7 @@ class AppWindow:
     Отвечает за:
     - Создание пустого MainWindow
     - Создание постоянных компонентов (MenuBar, Toolbar, StatusBar)
-    - Создание CentralWidget с TreeView (сразу) и заглушкой
+    - Создание CentralWidget
     - Компоновку всех компонентов в окне
     - Предоставление методов для подмены правой панели
     
@@ -41,12 +41,18 @@ class AppWindow:
         
         # Создаем постоянные компоненты
         self._menu = MenuBar()
+        log.success("MenuBar создан")
+
         self._toolbar = Toolbar()
+        log.success("Toolbar создан")
+
         self._status_bar = StatusBar(bus)
+        log.success("StatusBar создан")
         
         # Создаем центральную область (TreeView сразу внутри)
         self._central = CentralWidget()
-        
+        log.success("CentralWidget создан")
+
         # Компонуем окно
         self._window.setMenuBar(self._menu)
         self._window.addToolBar(self._toolbar)
@@ -63,7 +69,7 @@ class AppWindow:
         """Возвращает TreeView для установки модели."""
         return self._central.get_tree_view()
     
-    def set_right_panel(self, widget: QWidget) -> None:
+#    def set_right_panel(self, widget: QWidget) -> None:
         """
         Заменяет правую панель.
         Вызывается контроллерами (например, DetailsController).
@@ -71,5 +77,5 @@ class AppWindow:
         Args:
             widget: Новый виджет для правой панели
         """
-        self._central.set_right(widget)
-        log.debug("Правая панель заменена по запросу контроллера")
+#        self._central.set_right(widget)
+#        log.debug("Правая панель заменена по запросу контроллера")

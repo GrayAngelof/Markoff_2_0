@@ -75,6 +75,8 @@ class DataLoader:
         log.system("Инициализация DataLoader")
         
         self._bus = bus
+        log.system("EventBus инициализирован")
+        
         self._graph = graph
         self._utils = LoaderUtils()
         
@@ -84,7 +86,6 @@ class DataLoader:
             NodeType.FLOOR: lambda a, pid: a.get_floors(pid),
             NodeType.ROOM: lambda a, pid: a.get_rooms(pid),
         }
-        log.debug(f"child_loaders: {list(child_loaders.keys())}")
         
         detail_loaders = {
             NodeType.COMPLEX: lambda a, nid: a.get_complex_detail(nid),
@@ -92,7 +93,6 @@ class DataLoader:
             NodeType.FLOOR: lambda a, nid: a.get_floor_detail(nid),
             NodeType.ROOM: lambda a, nid: a.get_room_detail(nid),
         }
-        log.debug(f"detail_loaders: {list(detail_loaders.keys())}")
         
         self._node_loader = NodeLoader(api, graph, child_loaders, detail_loaders)
         self._dict_loader = DictionaryLoader(api, graph)
@@ -123,7 +123,6 @@ class DataLoader:
         """
         node_display = f"{node_type}#{node_id}"
         log.info(f"Начало загрузки {node_display}")
-        log.debug(f"Функция: {fn.__name__ if hasattr(fn, '__name__') else fn}")
         
         # Эмитим событие начала загрузки
         self._bus.emit(DataLoading(node_type=node_type, node_id=node_id))
@@ -136,9 +135,6 @@ class DataLoader:
             if isinstance(result, list):
                 count = len(result)
                 log.data(f"Загружено {count} элементов для {node_display}")
-                if count > 0 and count <= 5 and log.is_debug_enabled():
-                    for i, item in enumerate(result):
-                        log.debug(f"  [{i}] {type(item).__name__}#{getattr(item, 'id', '?')}")
             elif result is not None:
                 count = 1
                 log.data(f"Загружен {type(result).__name__}#{getattr(result, 'id', '?')} для {node_display}")
@@ -394,7 +390,7 @@ class DataLoader:
                     )
                     log.data(f"Загружено {len(persons)} контактов для владельца {owner.short_name}")
                 else:
-                    log.debug(f"У владельца {owner.short_name} нет контактов")
+                    log.warning(f"У владельца {owner.short_name} нет контактов")
             else:
                 log.warning(f"Владелец #{building.owner_id} для корпуса #{building_id} не найден")
         
@@ -418,7 +414,7 @@ class DataLoader:
         """
         result = self._graph.get_ancestors(node_type, node_id)
         if result:
-            log.debug(f"Найдено {len(result)} предков для {node_type.value}#{node_id}")
+            log.warning(f"Найдено {len(result)} предков для {node_type.value}#{node_id}")
         return result
     
     # ===== Перезагрузка данных =====
@@ -473,7 +469,7 @@ class DataLoader:
             'loader': self._node_loader.get_stats() if hasattr(self._node_loader, 'get_stats') else {},
             'utils': self._utils.get_stats(),
         }
-        log.debug(f"Статистика DataLoader: utils cache_size={stats['utils']['cache_size']}")
+        log.info(f"Статистика DataLoader: utils cache_size={stats['utils']['cache_size']}")
         return stats
     
     def print_stats(self) -> None:

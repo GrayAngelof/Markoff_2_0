@@ -56,7 +56,7 @@ class DetailsController(BaseController):
         self._subscribe(NodeSelected, self._bound_on_node_selected)
         self._subscribe(TabChanged, self._bound_on_tab_changed)
         
-        log.system("DetailsController инициализирован")
+        log.success("DetailsController создан")
     
     def set_app_window(self, app_window):
         """Устанавливает ссылку на фасад окна (для подмены панелей)."""

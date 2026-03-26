@@ -63,7 +63,7 @@ class RefreshController(BaseController):
         self._subscribe(CurrentSelectionChanged, self._bound_on_selection_changed)
         self._subscribe(ExpandedNodesChanged, self._bound_on_expanded_changed)
         
-        log.system("RefreshController инициализирован")
+        log.success("RefreshController создан")
     
     def _on_selection_changed(self, event: Event[CurrentSelectionChanged]) -> None:
         """

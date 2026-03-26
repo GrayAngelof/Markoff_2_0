@@ -64,10 +64,10 @@ def main() -> None:
         window = bootstrap.get_window()
         window.show()
         
-        log.system("Главное окно отображено")
+        log.success("Главное окно отображено")
         
         # Запускаем event loop
-        log.info("Запуск главного цикла приложения")
+        log.startup("Запуск главного цикла приложения")
         
         with log.measure_time("сессия работы приложения"):
             exit_code = app.exec()

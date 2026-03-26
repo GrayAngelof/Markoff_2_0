@@ -81,6 +81,7 @@ class ApplicationBootstrap:
         with log.measure_time("запуск фоновых сервисов"):
             self._start_services()
         
+        log.info("=" * 60)
         log.success("Все компоненты инициализированы")
         log.info("=" * 60)
     

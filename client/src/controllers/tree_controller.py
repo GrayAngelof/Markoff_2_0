@@ -80,12 +80,12 @@ class TreeController(BaseController):
         self._subscribe(NodeCollapsed, self._bound_on_node_collapsed)
         self._subscribe(DataLoaded, self._bound_on_data_loaded)
         
-        log.system("TreeController инициализирован")
+        log.success("TreeController создан")
     
     def set_app_window(self, app_window: AppWindow) -> None:
         """Устанавливает ссылку на фасад окна (для подмены панелей)."""
         self._app_window = app_window
-        log.system("AppWindow установлен")
+        log.link("Связь с AppWindow установлена")
     
     # ===== Загрузка корневых узлов =====
     
@@ -102,8 +102,6 @@ class TreeController(BaseController):
             log.api("Загрузка комплексов через API")
             complexes = self._loader.load_complexes()
             log.data(f"Загружено комплексов: {len(complexes)}")
-            for c in complexes:
-                log.debug(f"load_root_nodes: Комплекс #{c.id}: {c.name} (корпусов: {c.buildings_count})")
     
     def _on_data_loaded(self, event: Event[DataLoaded]) -> None:
         """
@@ -142,7 +140,7 @@ class TreeController(BaseController):
         
         # Если дети уже есть — выходим (защита от дублирования)
         if parent_node.child_count() > 0:
-            log.debug(f"_on_data_loaded: Дети уже загружены, пропускаем")
+            log.info(f"_on_data_loaded: Дети уже загружены, пропускаем")
             return
         
         # Определяем тип детей
@@ -175,12 +173,8 @@ class TreeController(BaseController):
             log.error("AppWindow не установлен")
             return
         
-        for c in complexes:
-            log.debug(f"_on_complexes_loaded: Комплекс #{c.id}: {c.name} (корпусов: {c.buildings_count})")
-        
         # Строим корневые узлы через проекцию
         root_nodes = self._tree_projection.get_root_nodes()
-        log.debug(f"_on_complexes_loaded: Построено корневых узлов: {len(root_nodes)}")
         
         # Получаем TreeView из AppWindow
         tree_view = self._app_window.get_tree_view()

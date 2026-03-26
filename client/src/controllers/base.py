@@ -35,6 +35,7 @@ class BaseController:
             bus: Шина событий
         """
         self._bus = bus
+        log.system("EventBus инициализирован")
         # Храним unsubscribe функции
         self._subscriptions: List[Callable[[], None]] = []
         # Храним wrapper'ы, чтобы они не были удалены GC
@@ -43,7 +44,7 @@ class BaseController:
         self._logger = get_logger(__name__)
         
         # DEBUG - базовый класс, не конечный компонент
-        self._logger.system(f"{self.__class__.__name__} создан")
+        self._logger.system(f"{self.__class__.__name__} инициализирован")
     
     def _subscribe(
         self,

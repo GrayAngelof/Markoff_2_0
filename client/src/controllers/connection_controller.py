@@ -46,7 +46,7 @@ class ConnectionController(BaseController):
         log.link("Подписка на ConnectionChanged")
         self._subscribe(ConnectionChanged, self._bound_on_connection_changed)
 
-        log.system("ConnectionController инициализирован")
+        log.success("ConnectionController создан")
     
     def _on_connection_changed(self, event: Event[ConnectionChanged]) -> None:
         """

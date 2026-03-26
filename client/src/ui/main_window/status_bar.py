@@ -36,6 +36,7 @@ class StatusBar(QStatusBar):
         super().__init__()
         
         self._bus = bus
+        log.system("EventBus инициализирован")
         self._signals = StatusBarSignals()
         self._message_timer = QTimer()
         self._message_timer.setSingleShot(True)
@@ -52,7 +53,7 @@ class StatusBar(QStatusBar):
         # Подписываемся на события
         self._subscribe_to_events()
         
-        log.success("StatusBar создан")
+        log.system("StatusBar инициализирован")
     
     def _create_connection_indicator(self) -> None:
         """Создает индикатор соединения."""

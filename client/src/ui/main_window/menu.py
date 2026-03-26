@@ -25,7 +25,7 @@ class MenuBar(QMenuBar):
         self._create_reference_menu()
         self._create_help_menu()
         
-        log.success("MenuBar создан")
+        log.system("MenuBar инициализирован")
     
     def _create_file_menu(self) -> None:
         """Создает меню 'Файл'."""
@@ -36,7 +36,7 @@ class MenuBar(QMenuBar):
         # TODO: добавить действие при выходе
         file_menu.addAction(exit_action)
         
-        log.info("Меню 'Файл' создано")
+        log.info("Меню 'Файл' добавлено")
     
     def _create_reference_menu(self) -> None:
         """Создает меню 'Справочники'."""
@@ -55,7 +55,7 @@ class MenuBar(QMenuBar):
             # TODO: добавить действия для справочников
             ref_menu.addAction(action)
         
-        log.info(f"Меню 'Справочники' создано, пунктов: {len(references)}")
+        log.info(f"Меню 'Справочники' добавлено, пунктов: {len(references)}")
     
     def _create_help_menu(self) -> None:
         """Создает меню 'Помощь'."""
@@ -65,4 +65,4 @@ class MenuBar(QMenuBar):
         # TODO: добавить действие "О программе"
         help_menu.addAction(about_action)
         
-        log.info("Меню 'Помощь' создано")
+        log.info("Меню 'Помощь' добавлено")

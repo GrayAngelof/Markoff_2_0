@@ -21,6 +21,7 @@ class ConnectionService:
     
     def __init__(self, bus: EventBus, api: ApiClient, interval_ms: int = 600000):
         self._bus = bus
+        log.system("EventBus инициализирован")
         self._api = api
         self._interval = interval_ms / 1000
         self._is_online: Optional[bool] = None

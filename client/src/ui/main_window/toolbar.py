@@ -24,7 +24,7 @@ class Toolbar(QToolBar):
         self._create_mode_button()
         
         # DEBUG - создание UI компонента
-        log.success("Toolbar создан")
+        log.system("Toolbar инициализирован")
     
     def _create_refresh_button(self) -> None:
         """Создает кнопку обновления."""

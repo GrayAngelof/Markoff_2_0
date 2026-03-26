@@ -29,12 +29,9 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         
-        # SYSTEM - создание системного UI компонента
-        log.info("Создание главного окна")
-        
         # Базовые настройки окна
         self.setWindowTitle("Markoff 2.0")
         self.setMinimumSize(1024, 768)
         self.resize(1024, 768)
         
-        log.success("Главное окно создано и настроено: 1024x768, min 1024x768")
+        log.system("Главное окно инициализировано")

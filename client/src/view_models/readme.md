@@ -211,7 +211,7 @@ from src.view_models import (
 | Принцип | Описание |
 |---------|----------|
 | **Иммутабельность** | Все View Models — `@dataclass(frozen=True, slots=True)` |
-| **Отсутствие None** | Вместо None используются пустые значения или отдельные флаги |
+| **Отсутствие None** | Все поля имеют значения по умолчанию. Для чисел — `0`, для строк — `""`, для списков — `field(default_factory=list)`, для вложенных VM — `field(default_factory=ChildVM)`. Если UI нужно знать наличие данных — добавляется флаг `has_*: bool` |
 | **Отсутствие логики** | Только поля-данные, никаких методов (кроме `empty()` фабрики) |
 | **Доменная гранулярность** | Каждый домен (статистика, контакты, датчики, события) — отдельный View Model |
 | **Явность** | Все поля имеют понятные имена и типы |
@@ -245,7 +245,7 @@ class ComplexStatisticsVM:
     rentable_area: float = 0.0        # Сдаваемая площадь
     occupancy_rate: float = 0.0       # Процент занятости
     
-    room_types: List[RoomTypeStat] = field(default_factory=list)  # Статистика по типам
+    room_types: List[RoomTypeStat] = field(default_factory=list)  # Статистика по типами
     
     @classmethod
     def empty(cls) -> 'ComplexStatisticsVM':
@@ -330,7 +330,7 @@ class ContactsVM:
     debtors_count: int = 0             # Должников
     
     groups: List[ContactGroup] = field(default_factory=list)   # Группы контактов
-    summary: Optional[ContactSummary] = None                   # Сводка
+    summary: ContactSummary = field(default_factory=ContactSummary)   # Сводка (всегда есть)
     
     @classmethod
     def empty(cls) -> 'ContactsVM':
@@ -356,9 +356,9 @@ class ContactPerson:
     """Контактное лицо."""
     
     name: str
-    position: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
+    position: str = ""                # пустая строка вместо None
+    phone: str = ""                   # пустая строка вместо None
+    email: str = ""                   # пустая строка вместо None
     is_primary: bool = False
 ```
 
@@ -415,9 +415,9 @@ class SensorIssue:
     """Проблемный датчик."""
     
     sensor_id: int
-    location: str                     # "пом. 203"
-    issue: str                        # "не отвечает", "низкий заряд"
-    last_check: datetime
+    location: str = ""                # пустая строка вместо None
+    issue: str = ""                   # пустая строка вместо None
+    last_check: datetime = field(default_factory=datetime.now)
 ```
 
 ---
@@ -451,10 +451,10 @@ class EventsVM:
 class EventItem:
     """Отдельное событие."""
     
-    timestamp: datetime
-    type: str                         # "Сработка", "ТО", "Тест"
-    location: str                     # "Корпус А, 3 этаж"
-    description: str
+    timestamp: datetime = field(default_factory=datetime.now)
+    type: str = ""                    # пустая строка вместо None
+    location: str = ""                # пустая строка вместо None
+    description: str = ""             # пустая строка вместо None
     is_critical: bool = False
 ```
 
@@ -499,8 +499,21 @@ class RoomListItem:
     
     id: int
     number: str
-    area: Optional[float] = None
-    status_code: Optional[str] = None
+    area: float = 0.0                 # 0.0 вместо None
+    status_code: str = ""             # пустая строка вместо None
+    has_area: bool = False            # флаг, если UI нужно знать наличие данных
+    
+    @classmethod
+    def from_room(cls, room, area: Optional[float] = None, status_code: Optional[str] = None):
+        """Фабрика для создания из модели Room."""
+        has_area = area is not None
+        return cls(
+            id=room.id,
+            number=room.number,
+            area=area if area is not None else 0.0,
+            status_code=status_code if status_code is not None else "",
+            has_area=has_area
+        )
 ```
 
 ---
@@ -528,7 +541,8 @@ except Exception as e:
 |---------|-------------|
 | **Иммутабельность (`frozen=True`)** | Нельзя случайно изменить данные после создания |
 | **Экономия памяти (`slots=True`)** | Нет `__dict__` у каждого экземпляра |
-| **Отсутствие None** | UI не проверяет на None, просто отображает нули |
+| **Отсутствие None** | Все поля имеют значения по умолчанию. Для строк — `""`, для чисел — `0`, для списков — `field(default_factory=list)` |
+| **Флаги `has_*`** | Если UI нужно знать, есть ли данные (например, `has_area`) |
 | **Отсутствие логики** | Форматирование и бизнес-логика — в других слоях |
 | **Доменная гранулярность** | Каждый домен обновляется независимо |
 | **Фабрика `empty()`** | Единый способ создания пустых View Models |
@@ -561,7 +575,7 @@ except Exception as e:
 | Действие | Почему |
 |----------|--------|
 | **Добавлять бизнес-логику** | Только данные, методы только для фабрики `empty()` |
-| **Возвращать None вместо View Model** | Всегда возвращаем View Model с нулями |
+| **Возвращать None вместо View Model** | Всегда возвращаем View Model с нулями/пустыми строками |
 | **Хранить ссылки на модели данных** | Только примитивы и другие View Models |
 | **Создавать циклические ссылки** | ComplexStatisticsVM не ссылается на BuildingStatisticsVM |
 | **Добавлять поля "на всякий случай"** | Только то, что нужно UI сейчас |
@@ -593,6 +607,8 @@ except Exception as e:
 | `BuildingListItem` | ✅ |
 | `FloorListItem` | ✅ |
 | `RoomListItem` | ✅ |
+| **Отсутствие None** | ✅ Все Optional заменены на пустые значения |
+| **Фабрика `empty()`** | ✅ Есть у всех VM |
 
 ---
 
@@ -602,13 +618,14 @@ except Exception as e:
 
 - **Типобезопасным** — все поля типизированы, IDE подсказывает
 - **Иммутабельным** — `frozen=True` гарантирует неизменность
+- **Без None** — все поля имеют значения по умолчанию
 - **Минималистичным** — только то, что нужно UI
 - **Предсказуемым** — всегда возвращаем View Model, даже при ошибке
 - **Расширяемым** — легко добавить новые поля
 
 **Любой контроллер может создавать View Models:**
 ```python
-from src.view_models import ComplexStatisticsVM
+from src.view_models import ComplexStatisticsVM, RoomTypeStat
 
 stats = ComplexStatisticsVM(
     total_buildings=4,
@@ -627,4 +644,4 @@ stats = ComplexStatisticsVM(
 self._bus.emit(StatisticsUpdated(stats))
 ```
 
-**UI получает готовые данные для отображения.** 🚀
+**UI получает готовые данные для отображения, и никогда не получает None.** 🚀

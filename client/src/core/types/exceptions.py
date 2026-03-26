@@ -15,7 +15,7 @@
 - В обработчиках можно ловить CoreError для всех ошибок ядра
 - Детали передаются в конструктор, но не логируются автоматически
 """
-from typing import Optional, Any
+from typing import Optional
 
 
 class CoreError(Exception):

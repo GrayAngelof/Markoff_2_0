@@ -495,7 +495,6 @@ app_window = AppWindow(bus)
 |-------|---------|----------|
 | `__init__(bus)` | — | Создает окно, постоянные компоненты и CentralWidget |
 | `get_window()` | `QMainWindow` | Возвращает QMainWindow для отображения |
-| `set_left_panel(widget)` | — | Заменяет левую панель (вызывается контроллерами) |
 | `set_right_panel(widget)` | — | Заменяет правую панель (вызывается контроллерами) |
 | `get_tree_view()` | `TreeView` | Возвращает TreeView для установки модели |
 
@@ -853,4 +852,3 @@ def _on_statistics(self, event):
     self.free_label.setText(str(stats.free_rooms))
     # ...
 ```
-

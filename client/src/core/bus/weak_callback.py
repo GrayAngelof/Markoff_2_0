@@ -41,9 +41,6 @@ class _WeakCallback:
         
         Args:
             callback: Функция или метод для слабого хранения
-            
-        Логирование:
-            - DEBUG: при создании, с определением типа callback
         """
         # Используем inspect для определения типа
         self._is_method = inspect.ismethod(callback)
@@ -54,28 +51,27 @@ class _WeakCallback:
         
         if self._is_method:
             # Для методов храним слабую ссылку на объект и имя метода
-            # Используем getattr для безопасности
             obj = getattr(callback, '__self__', None)
             self._obj_ref = weakref.ref(obj) if obj is not None else None
             self._method_name = getattr(callback, '__name__', None)
             self._func_ref = None
-            log.debug(f"🔗 Создана слабая ссылка на МЕТОД {self._callback_name}")
+            log.debug(f"Создана слабая ссылка на метод {self._callback_name}")
             
         elif self._is_function:
             # Для функций храним слабую ссылку на саму функцию
             self._obj_ref = None
             self._method_name = None
             self._func_ref = weakref.ref(callback)
-            log.debug(f"🔗 Создана слабая ссылка на ФУНКЦИЮ {self._callback_name}")
+            log.debug(f"Создана слабая ссылка на функцию {self._callback_name}")
             
         else:
-            # Неизвестный тип - пробуем как функцию (может быть staticmethod и т.д.)
+            # Неизвестный тип - пробуем как функцию
             self._is_method = False
             self._is_function = True
             self._obj_ref = None
             self._method_name = None
             self._func_ref = weakref.ref(callback)
-            log.debug(f"🔗 Создана слабая ссылка на НЕИЗВЕСТНЫЙ тип {self._callback_name}")
+            log.debug(f"Создана слабая ссылка на неизвестный тип {self._callback_name}")
     
     def _safe_get_name(self, callback: Callable) -> str:
         """
@@ -87,21 +83,18 @@ class _WeakCallback:
         Returns:
             str: Имя callback'а или "unknown"
         """
-        # Пробуем получить __name__ безопасно
         base_name = getattr(callback, '__name__', None)
         if base_name is None:
             base_name = str(callback)
         
         # Если это метод, добавляем имя класса
         if inspect.ismethod(callback):
-            # У методов есть __self__ и __class__
             obj = callback.__self__
             class_name = getattr(obj, '__class__', None)
             if class_name is not None:
                 class_name = getattr(class_name, '__name__', 'Unknown')
                 return f"{class_name}.{base_name}"
         elif inspect.isfunction(callback):
-            # Для функций просто возвращаем имя
             return base_name
         
         return str(base_name)
@@ -112,60 +105,54 @@ class _WeakCallback:
         
         Returns:
             Callable если объект жив, иначе None
-            
-        Логирование:
-            - DEBUG: при успешном получении живого callback
-            - DEBUG: при обнаружении мёртвого callback
         """
         if self._is_method:
             # Для методов: получаем объект
             if self._obj_ref is None:
-                log.debug(f"💀 Ссылка на объект метода {self._callback_name} отсутствует")
+                log.debug(f"Ссылка на объект метода {self._callback_name} отсутствует")
                 return None
                 
             obj = self._obj_ref()
             
             if obj is None:
-                log.debug(f"💀 Объект метода {self._callback_name} удалён сборщиком мусора")
+                log.debug(f"Объект метода {self._callback_name} удалён")
                 return None
             
             # Получаем метод по имени
             if self._method_name is None:
-                log.debug(f"💀 Имя метода {self._callback_name} отсутствует")
+                log.debug(f"Имя метода {self._callback_name} отсутствует")
                 return None
                 
             method = getattr(obj, self._method_name, None)
             
             if method is None:
-                log.debug(f"💀 Метод {self._method_name} не найден в объекте {obj}")
+                log.debug(f"Метод {self._method_name} не найден в объекте")
                 return None
             
-            # Проверяем, что это действительно вызываемый объект
             if callable(method):
-                log.debug(f"✨ Живой метод {self._callback_name}")
+                log.debug(f"Живой метод {self._callback_name}")
                 return method
             else:
-                log.debug(f"💀 Атрибут {self._method_name} не является вызываемым")
+                log.debug(f"Атрибут {self._method_name} не является вызываемым")
                 return None
         
         else:
             # Для функций: получаем функцию
             if self._func_ref is None:
-                log.debug(f"💀 Ссылка на функцию {self._callback_name} отсутствует")
+                log.debug(f"Ссылка на функцию {self._callback_name} отсутствует")
                 return None
                 
             func = self._func_ref()
             
             if func is None:
-                log.debug(f"💀 Функция {self._callback_name} удалена сборщиком мусора")
+                log.debug(f"Функция {self._callback_name} удалена")
                 return None
             
-            # Проверяем, что это действительно вызываемый объект
             if callable(func):
-                log.debug(f"✨ Живая функция {self._callback_name}")
+                log.debug(f"Живая функция {self._callback_name}")
                 return func
             else:
-                log.debug(f"💀 Объект {self._callback_name} не является вызываемым")
+                log.debug(f"Объект {self._callback_name} не является вызываемым")
                 return None
     
     def is_alive(self) -> bool:
@@ -188,11 +175,11 @@ class _WeakCallback:
     
     def __repr__(self) -> str:
         """Строковое представление для отладки."""
-        status = "ЖИВ" if self.is_alive() else "МЁРТВ"
+        status = "жив" if self.is_alive() else "мёртв"
         if self._is_method:
-            return f"_WeakCallback(МЕТОД {self._callback_name}, {status})"
+            return f"_WeakCallback(метод {self._callback_name}, {status})"
         else:
-            return f"_WeakCallback(ФУНКЦИЯ {self._callback_name}, {status})"
+            return f"_WeakCallback(функция {self._callback_name}, {status})"
 
 
 # Для обратной совместимости и более простого использования

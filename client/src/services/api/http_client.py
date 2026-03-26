@@ -106,7 +106,7 @@ class HttpClient:
             # Парсим JSON
             try:
                 data = response.json()
-                log.debug(f"GET {path} -> {response.status_code}, получено {len(str(data))} байт")
+                log.api(f"GET {path} -> {response.status_code}, получено {len(str(data))} байт")
                 return data
             except ValueError as e:
                 log.error(f"Некорректный JSON в ответе от {path}: {e}")
@@ -160,10 +160,6 @@ class HttpClient:
                 status_code=status,
                 response_body=response.text[:500] if response.text else None
             )
-        
-        # 2xx и 3xx — нормальные статусы, логируем на debug
-        elif self._debug_mode:
-            log.debug(f"GET {path} -> {status}")
     
     def close(self) -> None:
         """Закрывает HTTP сессию."""

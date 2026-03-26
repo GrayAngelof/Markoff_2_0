@@ -36,8 +36,6 @@ class ConnectionController(BaseController):
         super().__init__(bus)
         
         # SYSTEM - конкретный компонент приложения
-        log.system("ConnectionController инициализирован")
-        
         self._is_online: Optional[bool] = None  # None = статус еще не известен
         self._initial_status_received = False
         
@@ -47,6 +45,8 @@ class ConnectionController(BaseController):
         # Подписки - LINK категория
         log.link("Подписка на ConnectionChanged")
         self._subscribe(ConnectionChanged, self._bound_on_connection_changed)
+
+        log.system("ConnectionController инициализирован")
     
     def _on_connection_changed(self, event: Event[ConnectionChanged]) -> None:
         """

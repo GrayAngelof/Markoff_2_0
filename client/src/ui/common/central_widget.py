@@ -108,7 +108,7 @@ class CentralWidget:
         self._splitter.insertWidget(1, widget)
         self._splitter.setSizes([300, 700])
         
-        log.system("Правая панель заменена")
+        log.info("Правая панель заменена")
         log.debug(f"Новый виджет: {widget.__class__.__name__}")
     
     def get_tree_view(self) -> TreeView:

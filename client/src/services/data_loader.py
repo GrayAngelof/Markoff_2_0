@@ -78,7 +78,7 @@ class DataLoader:
         self._graph = graph
         self._utils = LoaderUtils()
         
-        # Конфигурация для NodeLoader (DI)
+        # Конфигурация для NodeLoader
         child_loaders = {
             NodeType.BUILDING: lambda a, pid: a.get_buildings(pid),
             NodeType.FLOOR: lambda a, pid: a.get_floors(pid),
@@ -97,7 +97,7 @@ class DataLoader:
         self._node_loader = NodeLoader(api, graph, child_loaders, detail_loaders)
         self._dict_loader = DictionaryLoader(api, graph)
         
-        log.data("DataLoader инициализирован с конфигурацией DI")
+        log.system("DataLoader инициализирован")
     
     # ===== Вспомогательный метод для эмиссии событий =====
     
@@ -122,7 +122,7 @@ class DataLoader:
             Any: Результат функции загрузки
         """
         node_display = f"{node_type}#{node_id}"
-        log.debug(f"Начало загрузки {node_display}")
+        log.info(f"Начало загрузки {node_display}")
         log.debug(f"Функция: {fn.__name__ if hasattr(fn, '__name__') else fn}")
         
         # Эмитим событие начала загрузки

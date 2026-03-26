@@ -32,7 +32,7 @@ class LoaderUtils:
             'detail_checks': 0,
             'detail_cache_hits': 0,
         }
-        log.data("LoaderUtils инициализирован")
+        log.system("LoaderUtils инициализирован")
     
     def has_details(self, entity: Any, node_type: NodeType) -> bool:
         """

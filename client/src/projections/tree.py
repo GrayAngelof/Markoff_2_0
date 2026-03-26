@@ -41,13 +41,13 @@ class TreeProjection:
         self._building_repo = building_repo
         self._floor_repo = floor_repo
         self._room_repo = room_repo
-        log.data("TreeProjection инициализирована")
+        log.system("TreeProjection инициализирована")
     
     def get_root_nodes(self) -> List[TreeNode]:
         """
         Возвращает корневые узлы (комплексы) для первоначального отображения.
         """
-        log.info("get_root_nodes: Загрузка корневых узлов")
+        log.info("Загрузка корневых узлов")
         
         complexes = self._complex_repo.get_all()
         log.debug(f"get_root_nodes: Найдено комплексов: {len(complexes)}")
@@ -72,7 +72,7 @@ class TreeProjection:
             )
             root_nodes.append(node)
         
-        log.info(f"get_root_nodes: Построено корневых узлов: {len(root_nodes)}")
+        log.info(f"Построено корневых узлов: {len(root_nodes)}")
         return root_nodes
     
     def build_children_from_payload(

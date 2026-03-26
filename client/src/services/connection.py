@@ -28,6 +28,8 @@ class ConnectionService:
         self._running = False
         self._stop_event = threading.Event()
     
+        log.system(f"ConnectionService инициализирован")  
+        
     def start(self) -> None:
         """Запускает периодическую проверку (один поток)."""
         if self._running:
@@ -70,7 +72,7 @@ class ConnectionService:
             self._check()
             self._stop_event.wait(self._interval)
         
-        log.debug("Поток ConnectionService завершён")
+        log.success("Поток ConnectionService завершён")
     
     def _check(self) -> None:
         """Внутренняя проверка. Генерирует событие при изменении статуса."""

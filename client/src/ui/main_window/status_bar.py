@@ -52,7 +52,7 @@ class StatusBar(QStatusBar):
         # Подписываемся на события
         self._subscribe_to_events()
         
-        log.system("StatusBar создан")
+        log.success("StatusBar создан")
     
     def _create_connection_indicator(self) -> None:
         """Создает индикатор соединения."""
@@ -73,7 +73,7 @@ class StatusBar(QStatusBar):
         error = event.data.error if hasattr(event.data, 'error') else None
         error_msg = error if error else ("Сервер недоступен" if not is_online else "")
         
-        log.debug(f"Получено ConnectionChanged: online={is_online}, error={error_msg}")
+        log.info(f"Получено ConnectionChanged: online={is_online}")
         
         # Эмитим сигнал (потокобезопасно)
         self._signals.connection_status_changed.emit(is_online, error_msg)
@@ -114,4 +114,4 @@ class StatusBar(QStatusBar):
     def cleanup(self) -> None:
         """Очищает ресурсы перед закрытием."""
         self._message_timer.stop()
-        log.debug("StatusBar очищен")
+        log.data("StatusBar очищен")

@@ -85,7 +85,7 @@ class TreeController(BaseController):
     def set_app_window(self, app_window: AppWindow) -> None:
         """Устанавливает ссылку на фасад окна (для подмены панелей)."""
         self._app_window = app_window
-        log.debug("AppWindow установлен")
+        log.system("AppWindow установлен")
     
     # ===== Загрузка корневых узлов =====
     
@@ -96,12 +96,12 @@ class TreeController(BaseController):
         complexes = self._loader._graph.get_all(NodeType.COMPLEX)
         
         if complexes:
-            log.cache(f"load_root_nodes: Комплексы уже загружены: {len(complexes)} шт.")
+            log.cache(f"Комплексы уже загружены: {len(complexes)} шт.")
             self._on_complexes_loaded(complexes)
         else:
-            log.api("load_root_nodes: Загрузка комплексов через API")
+            log.api("Загрузка комплексов через API")
             complexes = self._loader.load_complexes()
-            log.data(f"load_root_nodes: Загружено комплексов: {len(complexes)}")
+            log.data(f"Загружено комплексов: {len(complexes)}")
             for c in complexes:
                 log.debug(f"load_root_nodes: Комплекс #{c.id}: {c.name} (корпусов: {c.buildings_count})")
     
@@ -117,19 +117,17 @@ class TreeController(BaseController):
         node_id = event.data.node_id
         payload = event.data.payload
         
-        log.debug(f"_on_data_loaded: {node_type}#{node_id}, count={event.data.count}")
-        
         # Корневые узлы (комплексы)
         if node_type == "complex" and node_id == 0:
-            log.info("_on_data_loaded: Получены комплексы, создаем TreeView")
+            log.info("Получены комплексы, создаем TreeView")
             self._on_complexes_loaded(payload)
             return
         
         # Дети узла
-        log.info(f"_on_data_loaded: Получены дети для {node_type}#{node_id}")
+        log.info(f"Получены дети для {node_type}#{node_id}, {event.data.count} шт")
         
         if self._tree_model is None:
-            log.error("_on_data_loaded: TreeModel не инициализирован")
+            log.error("TreeModel не инициализирован")
             return
         
         # Находим родительский узел
@@ -137,7 +135,7 @@ class TreeController(BaseController):
         parent_node = self._find_tree_node(parent_identifier)
         
         if parent_node is None:
-            log.error(f"_on_data_loaded: Родительский узел {node_type}#{node_id} не найден")
+            log.error(f"Родительский узел {node_type}#{node_id} не найден")
             return
         
         log.debug(f"_on_data_loaded: Родитель {parent_node.type}#{parent_node.id}, детей сейчас: {parent_node.child_count()}")
@@ -150,7 +148,7 @@ class TreeController(BaseController):
         # Определяем тип детей
         child_type = self._get_child_type(NodeType(node_type))
         if not child_type:
-            log.warning(f"_on_data_loaded: Неизвестный тип детей для {node_type}")
+            log.warning(f"Неизвестный тип детей для {node_type}")
             return
         
         # Проекция создает TreeNode
@@ -164,9 +162,9 @@ class TreeController(BaseController):
         # Модель вставляет узлы
         if children_nodes:
             self._tree_model.insert_children(parent_node, children_nodes)
-            log.success(f"_on_data_loaded: Вставлено {len(children_nodes)} детей")
+            log.success(f"Вставлено {len(children_nodes)} детей")
         else:
-            log.debug(f"_on_data_loaded: Нет детей для вставки")
+            log.warning(f"Нет детей для вставки")
             parent_node._has_children = False
     
     def _on_complexes_loaded(self, complexes: List[Any]) -> None:
@@ -174,7 +172,7 @@ class TreeController(BaseController):
         Создает TreeView после загрузки комплексов.
         """
         if self._app_window is None:
-            log.error("_on_complexes_loaded: AppWindow не установлен")
+            log.error("AppWindow не установлен")
             return
         
         for c in complexes:
@@ -192,14 +190,14 @@ class TreeController(BaseController):
         tree_view.setModel(self._tree_model)
         tree_view.set_event_bus(self._bus)
         
-        log.system(f"_on_complexes_loaded: TreeView обновлен с {len(root_nodes)} корневыми узлами")
+        log.system(f"TreeView обновлен с {len(root_nodes)} корневыми узлами")
     
     # ===== Обработка событий от UI =====
     
     def _on_node_selected(self, event: Event[NodeSelected]) -> None:
         """Обрабатывает выбор узла."""
         node = event.data.node
-        log.info(f"_on_node_selected: Выбран {node.node_type.value}#{node.node_id}")
+        log.info(f"Выбран {node.node_type.value}#{node.node_id}")
         
         old_selection = self._current_selection
         self._current_selection = node
@@ -210,7 +208,7 @@ class TreeController(BaseController):
         try:
             details = self._loader.load_details(node.node_type, node.node_id)
             if details is None:
-                log.warning(f"_on_node_selected: Нет деталей для {node.node_type.value}#{node.node_id}")
+                log.warning(f"Нет деталей для {node.node_type.value}#{node.node_id}")
                 return
             
             context = self._context_service.get_context(node)
@@ -219,10 +217,10 @@ class TreeController(BaseController):
                 payload=details,
                 context=context
             ))
-            log.data(f"_on_node_selected: Детали загружены")
+            log.data(f"Детали загружены")
             
         except Exception as e:
-            log.error(f"_on_node_selected: Ошибка: {e}")
+            log.error(f"Ошибка: {e}")
             self._emit_error(node, e)
     
     def _on_node_expanded(self, event: Event[NodeExpanded]) -> None:
@@ -231,7 +229,7 @@ class TreeController(BaseController):
         Вставка происходит через _on_data_loaded.
         """
         node = event.data.node
-        log.info(f"_on_node_expanded: Раскрыт {node.node_type.value}#{node.node_id}")
+        log.info(f"Раскрыт {node.node_type.value}#{node.node_id}")
         
         # Сохраняем состояние
         was_expanded = node in self._expanded_nodes
@@ -246,23 +244,22 @@ class TreeController(BaseController):
         if self._tree_model is not None:
             parent_node = self._find_tree_node(node)
             if parent_node and parent_node.child_count() > 0:
-                log.debug(f"_on_node_expanded: Дети уже загружены (уже {parent_node.child_count()} детей)")
+                log.info(f"Дети уже загружены ({parent_node.child_count()} детей)")
                 return
         
         # Определяем тип детей
         child_type = self._get_child_type(node.node_type)
         if not child_type:
-            log.debug(f"_on_node_expanded: Узел не может иметь детей")
+            log.info(f"Узел не может иметь детей")
             return
         
         # ТОЛЬКО ЗАГРУЗКА — данные придут через DataLoaded
-        log.debug(f"_on_node_expanded: Инициируем загрузку детей типа {child_type.value}")
         self._loader.load_children(node.node_type, node.node_id, child_type)
     
     def _on_node_collapsed(self, event: Event[NodeCollapsed]) -> None:
         """Обрабатывает сворачивание узла."""
         node = event.data.node
-        log.info(f"_on_node_collapsed: Свернут {node.node_type.value}#{node.node_id}")
+        log.info(f"Свернут {node.node_type.value}#{node.node_id}")
         
         was_expanded = node in self._expanded_nodes
         self._expanded_nodes.discard(node)

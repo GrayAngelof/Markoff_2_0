@@ -134,4 +134,4 @@ class BaseController:
         self._subscriptions.clear()
         self._wrappers.clear()
         
-        self._logger.debug(f"{self.__class__.__name__} очищен")
+        self._logger.data(f"{self.__class__.__name__} очищен")

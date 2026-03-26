@@ -42,7 +42,7 @@ class DictionaryLoader:
         """
         self._api = api
         self._graph = graph
-        log.system("DictionaryLoader создан")
+        log.system("DictionaryLoader инициализирован")
     
     def load_counterparty(self, counterparty_id: NodeID) -> Optional[Counterparty]:
         """

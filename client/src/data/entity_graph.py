@@ -67,7 +67,7 @@ class EntityGraph:
             self._store, self._relations, self._validity
         )
         
-        log.success("EntityGraph инициализирован")
+        log.system("EntityGraph инициализирован")
     
     # ============================================
     # ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ

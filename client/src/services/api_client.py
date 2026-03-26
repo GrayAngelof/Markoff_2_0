@@ -76,7 +76,7 @@ class ApiClient:
                      используется localhost:8000 или API_URL из окружения.
         """
         self._http = HttpClient(base_url)
-        log.api(f"ApiClient инициализирован, базовый URL: {self._http._base_url}")
+        log.system(f"ApiClient инициализирован, базовый URL: {self._http._base_url}")
     
     # ===== Списочные методы =====
     
@@ -312,13 +312,13 @@ class ApiClient:
         """
         try:
             self._http.get(Endpoints.health(), timeout=timeout)
-            log.debug("Сервер доступен")
+            log.link("Сервер доступен")
             return True
         except (ConnectionError, TimeoutError):
-            log.debug("Сервер недоступен")
+            log.error("Сервер недоступен")
             return False
         except Exception as e:
-            log.debug(f"Неожиданная ошибка при проверке соединения: {e}")
+            log.error(f"Неожиданная ошибка при проверке соединения: {e}")
             return False
     
     def get_server_info(self) -> dict:

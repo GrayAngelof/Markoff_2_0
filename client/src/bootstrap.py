@@ -89,9 +89,9 @@ class ApplicationBootstrap:
     def _init_core(self) -> None:
         """Инициализация ядра."""
         self._bus = EventBus()
-        self._bus.set_debug(True)  # Включаем отладку для разработки
+        self._bus.set_debug(True)
         
-        log.system("EventBus создан, отладка включена")
+        log.success("EventBus создан")
     
     def _init_data(self) -> None:
         """Инициализация слоя данных."""
@@ -106,18 +106,18 @@ class ApplicationBootstrap:
         self._counterparty_repo = CounterpartyRepository(self._graph)
         self._responsible_person_repo = ResponsiblePersonRepository(self._graph)
         
-        log.data("EntityGraph и репозитории созданы")
+        log.success("EntityGraph и репозитории созданы")
         log.debug(f"Репозитории: Complex, Building, Floor, Room, Counterparty, ResponsiblePerson")
     
     def _init_services(self) -> None:
         """Инициализация сервисного слоя (СОЗДАНИЕ, без запуска)."""
         # API клиент
         self._api = ApiClient()
-        log.api("ApiClient создан")
+        log.success("ApiClient создан")
         
         # DataLoader
         self._loader = DataLoader(self._bus, self._api, self._graph)
-        log.data("DataLoader создан")
+        log.success("DataLoader создан")
         
         # ContextService
         self._context_service = ContextService(
@@ -128,11 +128,11 @@ class ApplicationBootstrap:
             self._counterparty_repo,
             self._responsible_person_repo
         )
-        log.data("ContextService создан")
+        log.success("ContextService создан")
         
         # ConnectionService (только создаем, НЕ ЗАПУСКАЕМ)
         self._connection_service = ConnectionService(self._bus, self._api)
-        log.api("ConnectionService создан (ожидает запуска)")
+        log.success("ConnectionService создан")
     
     def _init_projections(self) -> None:
         """Инициализация проекций."""
@@ -143,11 +143,10 @@ class ApplicationBootstrap:
             floor_repo=self._floor_repo,
             room_repo=self._room_repo
         )
-        log.data("TreeProjection создан")
+        log.success("TreeProjection создан")
     
     def _init_controllers(self) -> None:
         """Инициализация контроллеров."""
-        # TreeController (теперь получает tree_projection)
         self._tree_controller = TreeController(
             bus=self._bus,
             loader=self._loader,
@@ -170,7 +169,7 @@ class ApplicationBootstrap:
         # ConnectionController
         self._connection_controller = ConnectionController(self._bus)
         
-        log.system("Контроллеры созданы: Tree, Details, Refresh, Connection")
+        log.info("Контроллеры созданы: Tree, Details, Refresh, Connection")
     
     def _init_ui(self) -> None:
         """Инициализация UI (здесь StatusBar ПОДПИСЫВАЕТСЯ на события)."""
@@ -180,7 +179,7 @@ class ApplicationBootstrap:
         # Передаем AppWindow в контроллеры
         self._tree_controller.set_app_window(self._app_window)
         
-        log.system("AppWindow создан, подписки на события настроены")
+        log.success("AppWindow создан, подписки на события настроены")
     
     def _start_services(self) -> None:
         """Запускает фоновые сервисы ПОСЛЕ того, как UI подписался."""
@@ -214,7 +213,7 @@ class ApplicationBootstrap:
             self._details_controller.cleanup()
             self._refresh_controller.cleanup()
             self._connection_controller.cleanup()
-            log.system("Контроллеры очищены")
+            log.success("Контроллеры очищены")
             
             # Очищаем граф
             self._graph.clear()

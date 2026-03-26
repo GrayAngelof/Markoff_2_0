@@ -47,12 +47,12 @@ class TreeView(QTreeView):
         self.expanded.connect(self._on_expanded)
         self.collapsed.connect(self._on_collapsed)
         
-        log.debug("TreeView создан")
+        log.success("TreeView создан")
     
     def set_event_bus(self, bus: EventBus) -> None:
         """Устанавливает шину событий."""
         self._bus = bus
-        log.debug("EventBus установлен")
+        log.system("EventBus установлен")
     
     def set_model(self, model) -> None:
         """Устанавливает модель и подключает сигнал выбора."""
@@ -96,9 +96,3 @@ class TreeView(QTreeView):
             if self._bus and isinstance(node, TreeNode):
                 log.api(f"Узел выбран: {node.type}#{node.id}")
                 self._bus.emit(NodeSelected(node=node.get_identifier()))
-
-    def _log_update(self):
-        """Вспомогательный метод для логирования обновлений."""
-        self._update_count += 1
-        log.debug(f"Обновление #{self._update_count}")
-        # traceback.print_stack()  # раскомментировать для поиска источника

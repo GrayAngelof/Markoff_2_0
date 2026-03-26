@@ -24,7 +24,7 @@ class Toolbar(QToolBar):
         self._create_mode_button()
         
         # DEBUG - создание UI компонента
-        log.debug("Toolbar создан")
+        log.success("Toolbar создан")
     
     def _create_refresh_button(self) -> None:
         """Создает кнопку обновления."""
@@ -34,7 +34,7 @@ class Toolbar(QToolBar):
         self.addWidget(self._refresh_btn)
         self.addSeparator()
         
-        log.debug("Кнопка обновления добавлена")
+        log.info("Кнопка обновления добавлена")
     
     def _create_mode_button(self) -> None:
         """Создает кнопку переключения режима."""
@@ -44,4 +44,4 @@ class Toolbar(QToolBar):
         # TODO: добавить действие для переключения режима
         self.addWidget(self._mode_btn)
         
-        log.debug("Кнопка переключения режима добавлена")
+        log.info("Кнопка переключения режима добавлена")

@@ -39,7 +39,6 @@ from src.shared.validation import validate_positive_int
 from .schema import get_child_type, get_parent_type
 from utils.logger import get_logger
 
-
 # ============================================
 # КОНСТАНТЫ
 # ============================================
@@ -127,8 +126,7 @@ def _validate_relations_schema() -> None:
                 f"хотя является родителем {child_type.value}"
             )
     
-    log.info("Схема RelationIndex валидна")
-
+    log.info(f"RelationIndex схема валидна: {len(_CHILD_TYPES)} типов")  
 
 # Выполняем валидацию при импорте
 _validate_relations_schema()
@@ -171,7 +169,7 @@ class RelationIndex:
             child_type: {} for child_type in _CHILD_TYPES
         }
         
-        log.info(
+        log.system(
             f"RelationIndex инициализирован: "
             f"родителей={len(_PARENT_TYPES)}, детей={len(_CHILD_TYPES)}"
         )
@@ -429,7 +427,7 @@ class RelationIndex:
             for child_type in self._parents:
                 self._parents[child_type].clear()
             
-            log.debug("RelationIndex очищен")
+            log.cache("RelationIndex очищен")
     
     def get_stats(self) -> RelationStats:
         """

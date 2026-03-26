@@ -107,8 +107,7 @@ def _validate_schema() -> None:
 
 # Выполняем валидацию при импорте модуля
 _validate_schema()
-log.system("Схема графа валидна")
-
+log.info(f"RelationIndex схема валидна: {len(PARENT_ID_FIELD)} типов")  
 
 # ============================================
 # ОБЕРТКИ НАД core.hierarchy

@@ -41,7 +41,7 @@ def setup_application() -> QApplication:
     app.setApplicationDisplayName("Markoff 2.0")
     app.setOrganizationName("Markoff")
     
-    log.system("QApplication создан и настроен")
+    log.success("QApplication создан и настроен")
     return app
 
 

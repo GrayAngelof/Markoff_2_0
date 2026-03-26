@@ -78,7 +78,7 @@ class EntityStore:
             NodeType.RESPONSIBLE_PERSON: {},
         }
         
-        log.data("EntityStore инициализирован")
+        log.system("EntityStore инициализирован")
     
     # ============================================
     # ОСНОВНЫЕ ОПЕРАЦИИ
@@ -98,7 +98,6 @@ class EntityStore:
         with self._lock:
             self._entities[node_type][entity_id] = entity
             self._timestamps[node_type][entity_id] = datetime.now()
-            log.debug(f"PUT {node_type.value}#{entity_id}")
     
     def get(self, node_type: NodeType, entity_id: int) -> Optional[Any]:
         """

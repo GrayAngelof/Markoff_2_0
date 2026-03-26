@@ -63,7 +63,7 @@ class ContextService:
         self._counterparty_repo = counterparty_repo
         self._person_repo = person_repo
         
-        log.data("ContextService инициализирован")
+        log.system("ContextService инициализирован")
     
     # ===== Основной метод =====
     

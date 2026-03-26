@@ -55,8 +55,8 @@ class LoadStateIndex:
             NodeType.RESPONSIBLE_PERSON: {},
         }
         
-        log.data("LoadStateIndex инициализирован")
-    
+        log.system(f"LoadStateIndex инициализирован: {len(self._states)} типов")  
+
     # ===== Основные методы =====
     
     def get_state(self, node_type: NodeType, node_id: int) -> LoadState:

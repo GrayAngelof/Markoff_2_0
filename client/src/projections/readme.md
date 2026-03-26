@@ -263,3 +263,273 @@ graph = self._graph.get(NodeType.BUILDING, ...)
 # ============================================
 # КОНЕЦ СПЕЦИФИКАЦИИ
 # ============================================
+
+## 📚 **ОПИСАНИЕ СЛОЯ PROJECTIONS**
+
+В соответствии с архитектурой, проекции реализованы как **чистые преобразователи данных**, которые принимают на вход сырые данные из репозиториев или событий и возвращают структуры, готовые для отображения в UI. Слой обеспечивает изоляцию UI от формата хранения данных и предоставляет единое место для всех преобразований.
+
+Код организован в следующую структуру каталогов:
+
+```
+projections/
+├── __init__.py                    # Публичное API (экспорт TreeProjection)
+└── tree.py                        # Проекция дерева (преобразование в TreeNode)
+```
+
+---
+
+## 📦 **Публичное API (минималистичный подход)**
+
+Projections экспортирует **только самое необходимое**. Всё остальное — внутренняя реализация:
+
+```python
+# Основная проекция (экспортируется из projections)
+from src.projections import TreeProjection
+
+# Внутренние методы не экспортируются и не предназначены для внешнего использования
+# from src.projections.tree import _get_display_name  # ❌ НЕПРАВИЛЬНО
+```
+
+---
+
+## 🔹 **TreeProjection — проекция дерева**
+
+```python
+from src.projections import TreeProjection
+
+projection = TreeProjection(complex_repo, building_repo, floor_repo, room_repo)
+```
+
+| Метод | Возврат | Описание |
+|-------|---------|----------|
+| `get_root_nodes()` | `List[TreeNode]` | Создает корневые узлы (комплексы) для первоначального отображения |
+| `build_children_from_payload(payload, child_type, parent_node)` | `List[TreeNode]` | Создает дочерние узлы из загруженных данных (единое место создания узлов) |
+
+**Принципы работы:**
+- Проекция **не имеет состояния** — каждый вызов начинается с чистого листа
+- Проекция **не знает о загрузке данных** — только преобразует то, что получила
+- Проекция **не знает о EventBus** — не подписывается на события
+- Проекция **не знает о UI** — возвращает структуры данных, а не виджеты
+- Проекция **не принимает решений** — только преобразует
+
+---
+
+## 🔹 **get_root_nodes() — создание корневых узлов**
+
+```python
+def get_root_nodes(self) -> List[TreeNode]:
+    """
+    Возвращает корневые узлы (комплексы) для первоначального отображения.
+    
+    Алгоритм:
+    1. Получить все комплексы из репозитория
+    2. Для каждого комплекса:
+       - Сформировать отображаемое имя (с количеством корпусов, если есть)
+       - Создать TreeNode с типом NodeType.COMPLEX
+    3. Вернуть список корневых узлов
+    """
+```
+
+**Пример использования:**
+```python
+# В TreeController._on_complexes_loaded
+root_nodes = self._tree_projection.get_root_nodes()
+self._tree_model = TreeModel(root_nodes)
+```
+
+**Логирование:**
+- `log.info("get_root_nodes: Загрузка корневых узлов")`
+- `log.debug(f"get_root_nodes: Найдено комплексов: {len(complexes)}")`
+- `log.debug(f"get_root_nodes: Комплекс #{complex_data.id}: {complex_data.name}, корпусов: {complex_data.buildings_count}")`
+- `log.info(f"get_root_nodes: Построено корневых узлов: {len(root_nodes)}")`
+
+---
+
+## 🔹 **build_children_from_payload() — создание дочерних узлов**
+
+```python
+def build_children_from_payload(
+    self,
+    payload: List[Any],
+    child_type: NodeType,
+    parent_node: TreeNode
+) -> List[TreeNode]:
+    """
+    Создает TreeNode из загруженных данных детей.
+    
+    Единственное место, где создаются узлы дерева.
+    
+    Args:
+        payload: Список данных детей (из DataLoaded)
+        child_type: Тип детей (BUILDING, FLOOR, ROOM)
+        parent_node: Родительский узел (обязателен для установки parent связи!)
+    
+    Returns:
+        List[TreeNode]: Список дочерних узлов, отсортированный по имени
+    """
+```
+
+**Алгоритм:**
+1. Для каждого элемента в payload:
+   - Определить наличие детей (для стрелочки) на основе `floors_count` / `rooms_count`
+   - Сформировать отображаемое имя через `_get_display_name()`
+   - Создать TreeNode с указанием родителя (`parent=parent_node`)
+2. Отсортировать полученные узлы по имени (алфавитный порядок, без учета регистра)
+3. Вернуть список узлов
+
+**Пример использования:**
+```python
+# В TreeController._on_data_loaded
+children_nodes = self._tree_projection.build_children_from_payload(
+    payload=payload,
+    child_type=child_type,
+    parent_node=parent_node
+)
+self._tree_model.insert_children(parent_node, children_nodes)
+```
+
+**Логирование:**
+- `log.debug(f"build_children_from_payload: Создание {len(payload)} узлов типа {child_type.value} для родителя {parent_node.type}#{parent_node.id}")`
+- `log.debug(f"build_children_from_payload: Создано {len(nodes)} узлов, отсортировано по имени")`
+
+---
+
+## 🔹 **Внутренние методы (приватные)**
+
+### **_get_display_name() — формирование отображаемого имени**
+
+```python
+def _get_display_name(
+    self,
+    node_type: NodeType,
+    data,
+    base_attr: str,
+    has_children: bool,
+    count_attr: Optional[str] = None
+) -> str:
+    """
+    Формирует отображаемое имя узла.
+    
+    Args:
+        node_type: Тип узла
+        data: Данные узла
+        base_attr: Атрибут для базового имени ('name' для Building, 'number' для Floor)
+        has_children: Есть ли дети
+        count_attr: Атрибут для счетчика ('floors_count' или 'rooms_count')
+    
+    Returns:
+        str: Отображаемое имя (например, "Корпус А (5)" или "Этаж 1")
+    """
+```
+
+**Логика:**
+- Для этажей (FLOOR) — форматирует номер через `_format_floor_number()`
+- Если есть дети и указан count_attr — добавляет счетчик в скобках
+
+### **_format_floor_number() — форматирование номера этажа**
+
+```python
+def _format_floor_number(self, number) -> str:
+    """
+    Форматирует номер этажа в читаемый текст.
+    
+    Примеры:
+        -1 → "Подвал 1"
+         0 → "Цокольный этаж"
+         5 → "Этаж 5"
+    """
+```
+
+---
+
+## 🔹 **Ключевые архитектурные решения**
+
+| Решение | Обоснование |
+|---------|-------------|
+| **Проекция без состояния** | Каждый вызов независим, легко тестировать, нет побочных эффектов |
+| **Единое место создания TreeNode** | `build_children_from_payload()` — только здесь создаются узлы дерева |
+| **Обязательная передача parent_node** | Гарантирует корректную связь родитель-потомок |
+| **Сортировка по имени** | Алфавитный порядок для удобства пользователя |
+| **Отсутствие логики загрузки** | Проекция только преобразует, не решает, когда и что загружать |
+| **Отсутствие зависимости от EventBus** | Проекция не подписывается на события, только вызывается контроллером |
+| **Отсутствие зависимости от UI** | Возвращает TreeNode, а не виджеты |
+
+---
+
+## 🔹 **Поток данных**
+
+```
+[DataLoader] → загружает данные → DataLoaded
+                                    ↓
+[TreeController] → получает DataLoaded
+                                    ↓
+[TreeController] → вызывает build_children_from_payload(payload, child_type, parent_node)
+                                    ↓
+[TreeProjection] → создает TreeNode (с parent_node!)
+                                    ↓
+[TreeProjection] → сортирует по имени
+                                    ↓
+[TreeController] → вызывает tree_model.insert_children(parent_node, children_nodes)
+                                    ↓
+[TreeModel] → вставляет узлы
+                                    ↓
+[TreeView] → отображает
+```
+
+---
+
+## 🚫 **Что НЕЛЬЗЯ делать с Projections**
+
+| Действие | Почему |
+|----------|--------|
+| **Хранить состояние в проекции** | Проекция должна быть чистой функцией |
+| **Подписываться на события** | Это ответственность контроллера |
+| **Вызывать DataLoader** | Проекция не загружает данные |
+| **Возвращать None** | Всегда возвращает список (может быть пустым) |
+| **Знать о EventBus** | Проекция не должна знать о шине событий |
+| **Знать о UI** | Возвращает данные, а не виджеты |
+| **Использовать `parent_node: Optional`** | Родитель должен быть обязательным |
+
+---
+
+## 📊 **Чек-лист: что есть в Projections**
+
+| Компонент | Статус |
+|-----------|--------|
+| `TreeProjection` — проекция дерева | ✅ |
+| `get_root_nodes()` — корневые узлы | ✅ |
+| `build_children_from_payload()` — создание детей из данных | ✅ |
+| `_get_display_name()` — формирование имени | ✅ |
+| `_format_floor_number()` — форматирование этажа | ✅ |
+| Сортировка по имени | ✅ |
+| Детальное логирование | ✅ |
+
+---
+
+## 💡 **Итог**
+
+Слой Projections спроектирован так, чтобы быть:
+
+- **Чистым** — без состояния, без побочных эффектов
+- **Предсказуемым** — одинаковый результат для одинаковых входных данных
+- **Тестируемым** — легко проверять изолированно
+- **Производительным** — только преобразование, без лишних операций
+- **Расширяемым** — легко добавить новую проекцию для других частей UI
+
+**Любой контроллер может использовать проекции:**
+```python
+from src.projections import TreeProjection
+
+# Создание проекции
+projection = TreeProjection(complex_repo, building_repo, floor_repo, room_repo)
+
+# Получение корневых узлов
+root_nodes = projection.get_root_nodes()
+
+# Создание детей из загруженных данных
+children = projection.build_children_from_payload(
+    payload=buildings_data,
+    child_type=NodeType.BUILDING,
+    parent_node=parent_node
+)
+```

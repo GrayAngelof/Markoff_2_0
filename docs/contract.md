@@ -133,19 +133,58 @@ core → models → data → services → controllers → ui
 from utils.logger import get_logger
 log = get_logger(__name__)
 
-log.success()  # ✅ успех
-log.info()     # ℹ️ информация
-log.warning()  # ⚠️ предупреждение
-log.error()    # ❌ ошибка
-log.debug()    # 🔧 отладка
-log.api()      # 📡 API запросы
-log.cache()    # 💾 кэш
-log.data()     # 📦 данные
+Категории и их уровни по умолчанию
+_default_levels = {
+  # КРИТИЧЕСКИЕ ОШИБКИ (ERROR)
+    "error": LogLevel.ERROR,        # Ошибки (исключения, сбои)
+    
+  # ПРЕДУПРЕЖДЕНИЯ (WARNING)
+    "warning": LogLevel.WARNING,    # Предупреждения (некритичные проблемы)
+    "db": LogLevel.WARNING,         # База данных (медленные запросы, ошибки)
+    
+  # ЖИЗНЕННЫЙ ЦИКЛ ПРИЛОЖЕНИЯ (INFO)
+    "startup": LogLevel.INFO,       # Запуск приложения (инициализация)
+    "shutdown": LogLevel.INFO,      # Остановка приложения (освобождение ресурсов)
+    
+  # ИНФРАСТРУКТУРА (INFO)
+    "system": LogLevel.INFO,        # Система (конфигурация, окружение)
+    "api": LogLevel.INFO,           # API запросы (входящие/исходящие, статус коды)
+    "link": LogLevel.INFO,          # Ссылки и соединения (подключения к сервисам)
+    
+  # БИЗНЕС-ЛОГИКА (INFO)
+    "data": LogLevel.INFO,          # Данные (загрузка, сохранение, трансформация)
+    "success": LogLevel.INFO,       # Успешные операции
+    "info": LogLevel.INFO,          # Общая информация
+    
+  # ПРОИЗВОДИТЕЛЬНОСТЬ
+    "performance": LogLevel.INFO,   # Метрики производительности
+      with log.measure_time("..."):   # Логирует время выполнения
+    
+  # ОТЛАДКА (DEBUG)
+    "debug": LogLevel.DEBUG,        # Отладка (подробная диагностика)
+    "cache": LogLevel.DEBUG,        # Кэш (попадания/промахи, инвалидация)
+}
+
+Иконки для разных уровней и категорий
+"ERROR": "❌"
+"WARNING": "⚠️"
+"INFO": "ℹ️"
+"SUCCESS": "✅"
+"DEBUG": "🔧"
+"API": "📡"
+"DATA": "📦"
+"CACHE": "💾"
+"DB": "🗄️"
+"SYSTEM": "⚙️"
+"PERFORMANCE": "⏱️"
+"STARTUP": "🚀"
+"SHUTDOWN": "👋"
+"LINK": "🔗"
 ```
 
 - Нет print()
 - Нет случайного логирования
-- Уровни используются осмысленно
+- Уровни используются осмысленно и в соответствии с контекстом
 
 ### **Статья 4.6. Иммутабельность**
 - Данные не меняются после создания

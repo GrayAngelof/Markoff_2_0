@@ -111,30 +111,43 @@ class TreeController(BaseController):
         Обрабатывает:
         - Загрузку комплексов → создание TreeView
         - Загрузку детей → создание TreeNode и вставка в модель
-        """
-        node_type = event.data.node_type
-        node_id = event.data.node_id
-        payload = event.data.payload
         
-        # Корневые узлы (комплексы)
-        if node_type == "complex" and node_id == 0:
+        Определение типа данных:
+        - Дети: payload — список (List[T]), count может быть любым
+        - Детали: payload — одиночный объект (не список), count = 1
+        """
+        data = event.data
+        
+        # ===== 1. Обработка комплексов (корневые узлы) =====
+        node_type_str = data.node_type if isinstance(data.node_type, str) else data.node_type.value
+        if node_type_str == "complex" and data.node_id == 0:
             log.info("Получены комплексы, создаем TreeView")
-            self._on_complexes_loaded(payload)
+            self._on_complexes_loaded(data.payload)
             return
         
-        # Дети узла
-        log.info(f"Получены дети для {node_type}#{node_id}, {event.data.count} шт")
+        # ===== 2. Определяем, что это: дети или детали =====
+        is_details = not isinstance(data.payload, list)
+        
+        if is_details:
+            # Детальные данные обрабатываются в DetailsController
+            # TreeController игнорирует их
+            log.debug(f"_on_data_loaded: детальные данные для {data.node_type}#{data.node_id}, пропускаем")
+            return
+        
+        # ===== 3. Обработка загрузки детей =====
+        log.info(f"Получены дети для {data.node_type}#{data.node_id}, {data.count} шт")
         
         if self._tree_model is None:
             log.error("TreeModel не инициализирован")
             return
         
         # Находим родительский узел
-        parent_identifier = NodeIdentifier(NodeType(node_type), node_id)
+        parent_type = NodeType(data.node_type) if isinstance(data.node_type, str) else data.node_type
+        parent_identifier = NodeIdentifier(parent_type, data.node_id)
         parent_node = self._find_tree_node(parent_identifier)
         
         if parent_node is None:
-            log.error(f"Родительский узел {node_type}#{node_id} не найден")
+            log.error(f"Родительский узел {data.node_type}#{data.node_id} не найден")
             return
         
         log.debug(f"_on_data_loaded: Родитель {parent_node.node_type.value}#{parent_node.id}, детей сейчас: {parent_node.child_count()}")
@@ -145,15 +158,17 @@ class TreeController(BaseController):
             return
         
         # Определяем тип детей
-        child_type = self._get_child_type(NodeType(node_type))
+        child_type = self._get_child_type(parent_type)
         if not child_type:
-            log.warning(f"Неизвестный тип детей для {node_type}")
+            log.warning(f"Неизвестный тип детей для {data.node_type}")
             return
         
         # Проекция создает TreeNode
         log.debug(f"_on_data_loaded: Вызов проекции для создания узлов типа {child_type.value}")
+        
+        # data.payload уже список (проверено выше)
         children_nodes = self._tree_projection.build_children_from_payload(
-            payload=payload,
+            payload=data.payload,
             child_type=child_type,
             parent_node=parent_node
         )
@@ -170,7 +185,6 @@ class TreeController(BaseController):
             ))
         else:
             log.warning(f"Нет детей для вставки")
-            parent_node._has_children = False
     
     def _on_complexes_loaded(self, complexes: List[Any]) -> None:
         """

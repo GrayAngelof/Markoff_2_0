@@ -2,7 +2,6 @@
 """
 Виджет дерева. Отображает TreeModel и эмитит события через EventBus.
 """
-import traceback
 
 from PySide6.QtWidgets import QTreeView
 from PySide6.QtCore import QModelIndex, Slot
@@ -25,6 +24,11 @@ class TreeView(QTreeView):
     - Отображение дерева через TreeModel
     - Эмиссию событий при действиях пользователя
     - Не содержит бизнес-логики
+    
+    События:
+    - clicked → NodeSelected (одинарный клик)
+    - expanded → NodeExpanded (раскрытие узла)
+    - collapsed → NodeCollapsed (сворачивание узла)
     """
     
     def __init__(self, parent=None):
@@ -47,18 +51,18 @@ class TreeView(QTreeView):
         # Подключаем сигналы Qt
         self.expanded.connect(self._on_expanded)
         self.collapsed.connect(self._on_collapsed)
+        self.clicked.connect(self._on_clicked)
         
         log.system("TreeView инициализирован")
     
     def set_event_bus(self, bus: EventBus) -> None:
         """Устанавливает шину событий."""
         self._bus = bus
-        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus._debug}")
+        log.system(f"EventBus инициализирован: id={id(self._bus)}")
     
     def set_model(self, model) -> None:
-        """Устанавливает модель и подключает сигнал выбора."""
+        """Устанавливает модель."""
         super().setModel(model)
-        self.selectionModel().selectionChanged.connect(self._on_selection_changed)
         
         # DEBUG - детальная информация о модели
         root_count = model.rowCount()
@@ -72,11 +76,24 @@ class TreeView(QTreeView):
                 log.debug(f"Первый корневой узел: '{data}'")
 
     @Slot(QModelIndex)
+    def _on_clicked(self, index: QModelIndex) -> None:
+        """
+        Обработчик клика по узлу.
+        
+        Эмитит NodeSelected при каждом клике на узел.
+        """
+        node = index.internalPointer()
+        if self._bus and isinstance(node, TreeNode):
+            log.api(f"Узел выбран (клик): {node.type}#{node.id}")
+            self._bus.emit(NodeSelected(node=node.get_identifier()))
+        else:
+            log.debug(f"Клик: node={node}, bus={self._bus is not None}")
+
+    @Slot(QModelIndex)
     def _on_expanded(self, index: QModelIndex) -> None:
         """Узел раскрыт — эмитим событие."""
         node = index.internalPointer()
         if self._bus and isinstance(node, TreeNode):
-            # API - действия пользователя в UI, связанные с навигацией
             log.api(f"Узел раскрыт: {node.type}#{node.id}")
             self._bus.emit(NodeExpanded(node=node.get_identifier()))
     
@@ -87,13 +104,3 @@ class TreeView(QTreeView):
         if self._bus and isinstance(node, TreeNode):
             log.api(f"Узел свернут: {node.type}#{node.id}")
             self._bus.emit(NodeCollapsed(node=node.get_identifier()))
-    
-    def _on_selection_changed(self, selected, deselected) -> None:
-        """Выбор изменен — эмитим событие."""
-        indexes = selected.indexes()
-        if indexes:
-            index = indexes[0]
-            node = index.internalPointer()
-            if self._bus and isinstance(node, TreeNode):
-                log.api(f"Узел выбран: {node.type}#{node.id}")
-                self._bus.emit(NodeSelected(node=node.get_identifier()))

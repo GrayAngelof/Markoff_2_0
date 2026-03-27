@@ -53,11 +53,6 @@ class DetailsPanel(QWidget):
         """
         self._bus = bus
         log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus._debug}")
-        
-        # Подписка на события
-        self._bus.subscribe(ShowDetailsPanel, self._on_show_placeholder)
-        
-        log.link("DetailsPanel: подписка на ShowPlaceholder")
     
     def _setup_ui(self) -> None:
         """Создает структурный каркас панели."""
@@ -101,18 +96,6 @@ class DetailsPanel(QWidget):
     def _setup_default_state(self) -> None:
         """Устанавливает начальное состояние панели."""
         # По умолчанию показываем заглушку, скрываем сетку
-        self._placeholder.setVisible(True)
-        self._info_grid.setVisible(False)
-    
-    def _on_show_placeholder(self, event) -> None:
-        """
-        Показывает заглушку (событие от контроллера).
-        
-        Args:
-            event: Событие ShowPlaceholder
-        """
-        log.debug("DetailsPanel: получен сигнал показать заглушку")
-        
         self._placeholder.setVisible(True)
         self._info_grid.setVisible(False)
     

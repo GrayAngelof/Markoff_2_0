@@ -157,6 +157,7 @@ class RelationIndex:
     
     def __init__(self) -> None:
         """Инициализирует пустые индексы."""
+        log.info("Инициализация RelationIndex")
         self._lock = RLock()
         
         # Прямые индексы: parent_type → {parent_id: set(child_ids)}

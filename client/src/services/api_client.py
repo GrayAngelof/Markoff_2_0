@@ -75,6 +75,7 @@ class ApiClient:
             base_url: Базовый URL сервера. Если не указан,
                      используется localhost:8000 или API_URL из окружения.
         """
+        log.info("Инициализация ApiClient")
         self._http = HttpClient(base_url)
         log.system(f"ApiClient инициализирован, базовый URL: {self._http._base_url}")
     

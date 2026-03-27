@@ -32,6 +32,7 @@ class DocumentsTab(QWidget):
         Args:
             parent: Родительский виджет
         """
+        log.info("Инициализация DocumentsTab")
         super().__init__(parent)
         
         log.debug("DocumentsTab: создание структурного каркаса")
@@ -39,7 +40,8 @@ class DocumentsTab(QWidget):
         self._setup_ui()
         
         log.debug("DocumentsTab: структурный каркас создан")
-    
+        log.system("DocumentsTab инициализирован")
+
     def _setup_ui(self) -> None:
         """Создает структурный каркас вкладки."""
         layout = QVBoxLayout(self)

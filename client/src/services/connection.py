@@ -20,6 +20,7 @@ class ConnectionService:
     """Сервис периодической проверки доступности сервера."""
     
     def __init__(self, bus: EventBus, api: ApiClient, interval_ms: int = 600000):
+        log.info("Инициализация ConnectionService")
         self._bus = bus
         log.system("EventBus инициализирован")
         self._api = api

@@ -18,6 +18,7 @@ class Toolbar(QToolBar):
     """
     
     def __init__(self):
+        log.info("Инициализация Toolbar")
         super().__init__("Панель инструментов")
         
         self._create_refresh_button()

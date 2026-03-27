@@ -8,7 +8,7 @@ from typing import Optional
 from PySide6.QtWidgets import QApplication, QMainWindow
 
 from src.core import EventBus
-from src.core.events import NodeSelected, NodeExpanded, NodeCollapsed, RefreshRequested
+from src.core.events import NodeSelected, NodeExpanded, NodeCollapsed
 
 from src.data import EntityGraph
 from src.data import (
@@ -56,7 +56,7 @@ class ApplicationBootstrap:
         log.info("=" * 60)
         log.info("Запуск инициализации компонентов")
         log.info("=" * 60)
-        
+
         self._app = app
         
         # Инициализация слоев по порядку с замером времени
@@ -176,11 +176,12 @@ class ApplicationBootstrap:
         """Инициализация UI (здесь StatusBar ПОДПИСЫВАЕТСЯ на события)."""
         # Создаем фасад окна — здесь StatusBar подписывается на ConnectionChanged
         self._app_window = AppWindow(self._bus)
-        
+        log.success("AppWindow создан")
+
         # Передаем AppWindow в контроллеры
         self._tree_controller.set_app_window(self._app_window)
         
-        log.success("AppWindow создан, подписки на события настроены")
+
     
     def _start_services(self) -> None:
         """Запускает фоновые сервисы ПОСЛЕ того, как UI подписался."""

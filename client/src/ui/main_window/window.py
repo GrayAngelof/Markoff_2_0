@@ -27,6 +27,7 @@ class MainWindow(QMainWindow):
     """
     
     def __init__(self):
+        log.info("Инициализация MainWindow")
         super().__init__()
         
         # Базовые настройки окна
@@ -34,4 +35,4 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1024, 768)
         self.resize(1024, 768)
         
-        log.system("Главное окно инициализировано")
+        log.system("MainWindow инициализировано")

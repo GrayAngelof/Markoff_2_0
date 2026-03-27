@@ -29,6 +29,7 @@ class HeaderWidget(QWidget):
         Args:
             parent: Родительский виджет
         """
+        log.info("Инициализация HeaderWidget")
         super().__init__(parent)
         
         log.debug("HeaderWidget: создание структурного каркаса")
@@ -36,7 +37,8 @@ class HeaderWidget(QWidget):
         self._setup_ui()
         
         log.debug("HeaderWidget: структурный каркас создан")
-    
+        log.system("HeaderWidget инициализирован")
+
     def _setup_ui(self) -> None:
         """Создает структурный каркас шапки."""
         # Основной вертикальный layout

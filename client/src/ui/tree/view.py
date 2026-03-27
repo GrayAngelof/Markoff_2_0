@@ -28,6 +28,7 @@ class TreeView(QTreeView):
     """
     
     def __init__(self, parent=None):
+        log.info("Инициализация TreeView")
         super().__init__(parent)
         
         self._bus: Optional[EventBus] = None

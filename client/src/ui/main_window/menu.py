@@ -19,6 +19,7 @@ class MenuBar(QMenuBar):
     """
     
     def __init__(self):
+        log.info("Инициализация MenuBar")
         super().__init__()
         
         self._create_file_menu()

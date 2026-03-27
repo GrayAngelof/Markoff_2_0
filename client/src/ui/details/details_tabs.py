@@ -33,6 +33,7 @@ class DetailsTabs(QTabWidget):
         Args:
             parent: Родительский виджет
         """
+        log.info("Инициализация DetailsTabs")
         super().__init__(parent)
         
         log.debug("DetailsTabs: создание структурного каркаса")
@@ -40,26 +41,31 @@ class DetailsTabs(QTabWidget):
         self._setup_tabs()
         
         log.debug("DetailsTabs: структурный каркас создан")
-    
+        log.system("DetailsTabs инициализирован")
+
     def _setup_tabs(self) -> None:
         """Создает структурный каркас вкладок."""
         # Вкладка физики
         self._physics_tab = PhysicsTab()
         self.addTab(self._physics_tab, "📊 Физика")
-        
+        log.success("PhysicsTab создан")
+
         # Вкладка юриков
         self._legal_tab = LegalTab()
         self.addTab(self._legal_tab, "⚖️ Юрики")
-        
+        log.success("LegalTab создан")
+
         # Вкладка пожарной безопасности
         self._safety_tab = SafetyTab()
         self.addTab(self._safety_tab, "🔥 Пожарка")
-        
+        log.success("SafetyTab создан")
+
         # Вкладка документов
         self._documents_tab = DocumentsTab()
         self.addTab(self._documents_tab, "📄 Документы")
-        
-        log.debug(f"DetailsTabs: создано {self.count()} вкладок")
+        log.success("DocumentsTab создан")
+
+        log.success(f"DetailsTabs: создано {self.count()} вкладок")
     
     # ===== Геттеры (для будущего использования) =====
     

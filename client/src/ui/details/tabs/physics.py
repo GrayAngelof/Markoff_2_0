@@ -32,6 +32,7 @@ class PhysicsTab(QWidget):
         Args:
             parent: Родительский виджет
         """
+        log.info("Инициализация PhysicsTab")
         super().__init__(parent)
         
         log.debug("PhysicsTab: создание структурного каркаса")
@@ -39,7 +40,8 @@ class PhysicsTab(QWidget):
         self._setup_ui()
         
         log.debug("PhysicsTab: структурный каркас создан")
-    
+        log.system("PhysicsTab инициализирован")
+
     def _setup_ui(self) -> None:
         """Создает структурный каркас вкладки."""
         layout = QVBoxLayout(self)

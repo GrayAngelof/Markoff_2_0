@@ -28,6 +28,7 @@ class InfoGrid(QWidget):
         Args:
             parent: Родительский виджет
         """
+        log.info("Инициализация InfoGrid")
         super().__init__(parent)
         
         log.debug("InfoGrid: создание структурного каркаса")
@@ -35,7 +36,8 @@ class InfoGrid(QWidget):
         self._setup_ui()
         
         log.debug("InfoGrid: структурный каркас создан")
-    
+        log.system("InfoGrid инициализирован")
+
     def _setup_ui(self) -> None:
         """Создает структурный каркас сетки."""
         # Сетка (пока пустая)

@@ -43,6 +43,7 @@ class LoadStateIndex:
     
     def __init__(self):
         """Инициализирует индекс состояния загрузки."""
+        log.info("Инициализация LoadStateIndex")
         self._lock = RLock()
         
         # Состояние для каждого типа узла: {id: LoadState}

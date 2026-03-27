@@ -33,6 +33,7 @@ class StatusBar(QStatusBar):
     """
     
     def __init__(self, bus: EventBus):
+        log.info("Инициализация StatusBar")
         super().__init__()
         
         self._bus = bus

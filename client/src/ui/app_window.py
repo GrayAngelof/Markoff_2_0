@@ -36,9 +36,11 @@ class AppWindow:
     """
     
     def __init__(self, bus: EventBus):
+        log.info("Инициализация AppWindow")
         # Создаем пустую оболочку
         self._window = MainWindow()
-        
+        log.success("MainWindow создан")
+
         # Создаем постоянные компоненты
         self._menu = MenuBar()
         log.success("MenuBar создан")
@@ -59,7 +61,7 @@ class AppWindow:
         self._window.setStatusBar(self._status_bar)
         self._window.setCentralWidget(self._central.central_widget)
         
-        log.success("AppWindow создан")
+        log.system("AppWindow инициализирован")
     
     def get_window(self) -> QMainWindow:
         """Возвращает QMainWindow для отображения."""

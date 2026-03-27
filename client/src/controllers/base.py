@@ -34,14 +34,18 @@ class BaseController:
         Args:
             bus: Шина событий
         """
-        self._bus = bus
-        log.system("EventBus инициализирован")
-        # Храним unsubscribe функции
-        self._subscriptions: List[Callable[[], None]] = []
-        # Храним wrapper'ы, чтобы они не были удалены GC
-        self._wrappers: List[Callable] = []
         # Используем __name__ для правильного пути модуля
         self._logger = get_logger(__name__)
+
+        self._bus = bus
+        self._logger.system("EventBus инициализирован")
+        
+        # Храним unsubscribe функции
+        self._subscriptions: List[Callable[[], None]] = []
+        
+        # Храним wrapper'ы, чтобы они не были удалены GC
+        self._wrappers: List[Callable] = []
+
         
         # DEBUG - базовый класс, не конечный компонент
         self._logger.system(f"{self.__class__.__name__} инициализирован")

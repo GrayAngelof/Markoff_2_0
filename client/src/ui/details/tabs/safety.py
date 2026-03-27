@@ -32,6 +32,7 @@ class SafetyTab(QWidget):
         Args:
             parent: Родительский виджет
         """
+        log.info("Инициализация SafetyTab")
         super().__init__(parent)
         
         log.debug("SafetyTab: создание структурного каркаса")
@@ -39,7 +40,8 @@ class SafetyTab(QWidget):
         self._setup_ui()
         
         log.debug("SafetyTab: структурный каркас создан")
-    
+        log.system("SafetyTab инициализирован")
+
     def _setup_ui(self) -> None:
         """Создает структурный каркас вкладки."""
         layout = QVBoxLayout(self)

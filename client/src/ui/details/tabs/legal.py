@@ -32,6 +32,7 @@ class LegalTab(QWidget):
         Args:
             parent: Родительский виджет
         """
+        log.info("Инициализация LegalTab")
         super().__init__(parent)
         
         log.debug("LegalTab: создание структурного каркаса")
@@ -39,7 +40,8 @@ class LegalTab(QWidget):
         self._setup_ui()
         
         log.debug("LegalTab: структурный каркас создан")
-    
+        log.system("LegalTab инициализирован")
+
     def _setup_ui(self) -> None:
         """Создает структурный каркас вкладки."""
         layout = QVBoxLayout(self)

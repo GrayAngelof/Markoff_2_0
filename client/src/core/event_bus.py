@@ -67,6 +67,7 @@ class EventBus:
         Args:
             debug: Включить детальное логирование
         """
+        log.info("Инициализация EventBus")
         # Реестр подписок: тип события -> список слабых ссылок на callback'и
         self._subscribers: Dict[Type[EventData], List[weakref.ref]] = {}
         

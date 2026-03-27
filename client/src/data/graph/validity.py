@@ -154,6 +154,7 @@ class ValidityIndex:
         Args:
             event_bus: Шина событий для уведомлений об инвалидации
         """
+        log.info("Инициализация ValidityIndex")
         self._bus = event_bus
         self._lock = RLock()
         

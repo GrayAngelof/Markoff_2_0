@@ -5,7 +5,7 @@ DataLoader — фасад загрузки данных.
 Единственный публичный компонент загрузчика.
 Отвечает за:
 - Проверку кэша (делегирует в EntityGraph)
-- Эмиссию событий (DataLoading, DataLoaded, DataError)
+- Эмиссию событий (DataLoaded, DataError)
 - Оркестрацию вызовов NodeLoader и DictionaryLoader
 
 НЕ отвечает за:
@@ -18,12 +18,11 @@ from typing import List, Optional, Any, Callable, Dict
 from dataclasses import dataclass, field
 
 from src.core import EventBus, NodeType, NodeIdentifier
-from src.core.types.nodes import NodeID 
+from src.core.types.nodes import NodeID
 from src.core.events import (
-    DataLoading, DataLoaded, DataError
+    DataLoaded,
+    DataError,
 )
-
-from src.core.serializers import format_display
 from src.models import Complex, Building, Floor, Room, Counterparty, ResponsiblePerson
 from src.data import EntityGraph
 from src.services.api_client import ApiClient
@@ -72,11 +71,9 @@ class DataLoader:
             api: HTTP клиент
             graph: Граф сущностей (единый источник правды)
         """
-        log.system("Инициализация DataLoader")
+        log.system("DataLoader инициализация")
         
         self._bus = bus
-        log.system("EventBus инициализирован")
-        
         self._graph = graph
         self._utils = LoaderUtils()
         
@@ -97,7 +94,7 @@ class DataLoader:
         self._node_loader = NodeLoader(api, graph, child_loaders, detail_loaders)
         self._dict_loader = DictionaryLoader(api, graph)
         
-        log.system("DataLoader инициализирован")
+        log.success("DataLoader инициализирован")
     
     # ===== Вспомогательный метод для эмиссии событий =====
     
@@ -112,6 +109,10 @@ class DataLoader:
         """
         Обёртка для единообразной эмиссии событий загрузки.
         
+        Эмитит:
+        - DataLoaded при успехе
+        - DataError при ошибке
+        
         Args:
             node_type: Тип загружаемого узла (строка)
             node_id: ID загружаемого узла
@@ -122,10 +123,7 @@ class DataLoader:
             Any: Результат функции загрузки
         """
         node_display = f"{node_type}#{node_id}"
-        log.info(f"Начало загрузки {node_display}")
-        
-        # Эмитим событие начала загрузки
-        self._bus.emit(DataLoading(node_type=node_type, node_id=node_id))
+        log.info(f"Загрузка {node_display}")
         
         try:
             # Вызываем функцию загрузки
@@ -137,7 +135,7 @@ class DataLoader:
                 log.data(f"Загружено {count} элементов для {node_display}")
             elif result is not None:
                 count = 1
-                log.data(f"Загружен {type(result).__name__}#{getattr(result, 'id', '?')} для {node_display}")
+                log.data(f"Загружен {type(result).__name__} для {node_display}")
             else:
                 count = 0
                 log.data(f"Результат загрузки {node_display}: None")
@@ -150,7 +148,7 @@ class DataLoader:
                 count=count
             ))
             
-            log.data(f"Успешно загружено {count} элементов для {node_display}")
+            log.success(f"Загрузка {node_display} завершена")
             return result
             
         except Exception as e:
@@ -389,8 +387,6 @@ class DataLoader:
                         responsible_persons=persons
                     )
                     log.data(f"Загружено {len(persons)} контактов для владельца {owner.short_name}")
-                else:
-                    log.warning(f"У владельца {owner.short_name} нет контактов")
             else:
                 log.warning(f"Владелец #{building.owner_id} для корпуса #{building_id} не найден")
         
@@ -414,7 +410,7 @@ class DataLoader:
         """
         result = self._graph.get_ancestors(node_type, node_id)
         if result:
-            log.warning(f"Найдено {len(result)} предков для {node_type.value}#{node_id}")
+            log.debug(f"Найдено {len(result)} предков для {node_type.value}#{node_id}")
         return result
     
     # ===== Перезагрузка данных =====
@@ -431,6 +427,7 @@ class DataLoader:
         
         # Инвалидируем в графе
         self._graph.invalidate(node_type, node_id)
+        log.cache(f"Узел {node_display} инвалидирован")
         
         # Загружаем заново
         self.load_details(node_type, node_id)
@@ -449,7 +446,7 @@ class DataLoader:
         
         # Инвалидируем всю ветку
         count = self._graph.invalidate_branch(node_type, node_id)
-        log.info(f"Инвалидировано {count} сущностей в ветке {node_display}")
+        log.cache(f"Инвалидировано {count} сущностей в ветке {node_display}")
         
         # Загружаем корневой узел заново
         self.load_details(node_type, node_id)
@@ -469,20 +466,25 @@ class DataLoader:
             'loader': self._node_loader.get_stats() if hasattr(self._node_loader, 'get_stats') else {},
             'utils': self._utils.get_stats(),
         }
-        log.info(f"Статистика DataLoader: utils cache_size={stats['utils']['cache_size']}")
         return stats
     
     def print_stats(self) -> None:
         """Выводит статистику в консоль."""
         stats = self.get_stats()
         
-        log.info("Статистика DataLoader:")
-        log.info(f"  LoaderUtils:")
-        log.info(f"    detail_checks: {stats['utils']['detail_checks']}")
-        log.info(f"    detail_cache_hits: {stats['utils']['detail_cache_hits']}")
-        log.info(f"    cache_size: {stats['utils']['cache_size']}")
+        log.info("=== DataLoader Statistics ===")
+        log.info(f"LoaderUtils:")
+        log.info(f"  detail_checks: {stats['utils']['detail_checks']}")
+        log.info(f"  detail_cache_hits: {stats['utils']['detail_cache_hits']}")
+        log.info(f"  cache_size: {stats['utils']['cache_size']}")
         
         if stats['loader']:
-            log.info(f"  NodeLoader:")
+            log.info(f"NodeLoader:")
             for key, value in stats['loader'].items():
-                log.info(f"    {key}: {value}")
+                log.info(f"  {key}: {value}")
+        log.info("=" * 30)
+    
+    def cleanup(self) -> None:
+        """Очищает ресурсы."""
+        self.clear_cache()
+        log.shutdown("DataLoader очищен")

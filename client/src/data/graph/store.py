@@ -56,6 +56,7 @@ class EntityStore:
     
     def __init__(self):
         """Инициализирует пустое хранилище."""
+        log.info("Инициализация EntityStore")
         self._lock = RLock()
         
         # Основное хранилище: тип узла -> {id: объект}

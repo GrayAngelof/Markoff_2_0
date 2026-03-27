@@ -28,6 +28,7 @@ class CentralWidget:
     """
     
     def __init__(self) -> None:
+        log.info("Инициализация CentralWidget")
         """Инициализирует центральный виджет."""
         self._container = QWidget()
         self._setup_layout()

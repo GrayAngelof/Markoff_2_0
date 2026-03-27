@@ -32,6 +32,7 @@ class PlaceholderWidget(QWidget):
         Args:
             parent: Родительский виджет
         """
+        log.info("Инициализация PlaceholderWidget")
         super().__init__(parent)
         
         log.debug("PlaceholderWidget: создание структурного каркаса")
@@ -39,7 +40,8 @@ class PlaceholderWidget(QWidget):
         self._setup_ui()
         
         log.debug("PlaceholderWidget: структурный каркас создан")
-    
+        log.system("PlaceholderWidget инициализирован")
+
     def _setup_ui(self) -> None:
         """Создает структурный каркас заглушки."""
         # Основной layout с центрированием

@@ -15,7 +15,6 @@ from src.core.types import Event, NodeIdentifier, NodeType
 from src.core.events import (
     NodeSelected, NodeExpanded, NodeCollapsed,
     NodeDetailsLoaded, ChildrenLoaded,
-    CurrentSelectionChanged, ExpandedNodesChanged,
     DataLoaded, DataError
 )
 from src.services import DataLoader, ContextService
@@ -55,6 +54,7 @@ class TreeController(BaseController):
         context_service: ContextService,
         tree_projection: TreeProjection
     ):
+        log.info("Инициализация TreeController")  
         super().__init__(bus)
         self._loader = loader
         self._context_service = context_service
@@ -73,7 +73,7 @@ class TreeController(BaseController):
         self._bound_on_node_collapsed = self._on_node_collapsed
         self._bound_on_data_loaded = self._on_data_loaded
         
-        # Подписки
+        # Подписки (только на актуальные события)
         log.link("Подписка на события дерева")
         self._subscribe(NodeSelected, self._bound_on_node_selected)
         self._subscribe(NodeExpanded, self._bound_on_node_expanded)
@@ -136,7 +136,7 @@ class TreeController(BaseController):
             log.error(f"Родительский узел {node_type}#{node_id} не найден")
             return
         
-        log.debug(f"_on_data_loaded: Родитель {parent_node.type}#{parent_node.id}, детей сейчас: {parent_node.child_count()}")
+        log.debug(f"_on_data_loaded: Родитель {parent_node.type.value}#{parent_node.id}, детей сейчас: {parent_node.child_count()}")
         
         # Если дети уже есть — выходим (защита от дублирования)
         if parent_node.child_count() > 0:
@@ -161,6 +161,12 @@ class TreeController(BaseController):
         if children_nodes:
             self._tree_model.insert_children(parent_node, children_nodes)
             log.success(f"Вставлено {len(children_nodes)} детей")
+            
+            # Эмитим событие о загрузке детей (для TreeModel или других слушателей)
+            self._bus.emit(ChildrenLoaded(
+                parent=parent_identifier,
+                children=children_nodes
+            ))
         else:
             log.warning(f"Нет детей для вставки")
             parent_node._has_children = False
@@ -189,15 +195,16 @@ class TreeController(BaseController):
     # ===== Обработка событий от UI =====
     
     def _on_node_selected(self, event: Event[NodeSelected]) -> None:
-        """Обрабатывает выбор узла."""
+        """
+        Обрабатывает выбор узла.
+        
+        ВАЖНО: TreeController НЕ эмитит CurrentSelectionChanged.
+        Состояние хранится здесь, но не дублируется в событиях.
+        """
         node = event.data.node
         log.info(f"Выбран {node.node_type.value}#{node.node_id}")
         
-        old_selection = self._current_selection
         self._current_selection = node
-        
-        if old_selection != node:
-            self._bus.emit(CurrentSelectionChanged(selection=node))
         
         try:
             details = self._loader.load_details(node.node_type, node.node_id)
@@ -229,11 +236,6 @@ class TreeController(BaseController):
         was_expanded = node in self._expanded_nodes
         self._expanded_nodes.add(node)
         
-        if not was_expanded:
-            self._bus.emit(ExpandedNodesChanged(
-                expanded_nodes=self._expanded_nodes.copy()
-            ))
-        
         # Проверяем, есть ли уже дети (чтобы не загружать повторно)
         if self._tree_model is not None:
             parent_node = self._find_tree_node(node)
@@ -254,14 +256,7 @@ class TreeController(BaseController):
         """Обрабатывает сворачивание узла."""
         node = event.data.node
         log.info(f"Свернут {node.node_type.value}#{node.node_id}")
-        
-        was_expanded = node in self._expanded_nodes
         self._expanded_nodes.discard(node)
-        
-        if was_expanded:
-            self._bus.emit(ExpandedNodesChanged(
-                expanded_nodes=self._expanded_nodes.copy()
-            ))
     
     def _get_child_type(self, parent_type: NodeType) -> Optional[NodeType]:
         """Определяет тип детей по типу родителя."""

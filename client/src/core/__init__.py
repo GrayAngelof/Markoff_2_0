@@ -9,12 +9,21 @@
     from src.core.events import NodeSelected, DataLoaded
     from src.core.hierarchy import get_child_type
     from src.core.serializers import identifier_to_key
-    from src.core.exceptions import NotFoundError, SerializationError
+    from src.core.types.exceptions import NotFoundError, SerializationError
     from src.core.interfaces import Repository
+
+Список событий (12):
+    - NodeSelected, NodeExpanded, NodeCollapsed, TabChanged
+    - RefreshRequested, ShowDetailsPanel
+    - DataLoaded, DataError, DataInvalidated
+    - ChildrenLoaded, NodeDetailsLoaded
+    - ConnectionChanged
 """
+
 from .types import NodeType, NodeIdentifier
 from .event_bus import EventBus
-from .types.exceptions import CoreError, NotFoundError, ValidationError
+from .types.exceptions import CoreError, NotFoundError, ValidationError, SerializationError
+from .interfaces import Repository
 
 __all__ = [
     # Базовые типы
@@ -28,4 +37,8 @@ __all__ = [
     "CoreError",
     "NotFoundError",
     "ValidationError",
+    "SerializationError",
+    
+    # Интерфейсы
+    "Repository",
 ]

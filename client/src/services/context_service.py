@@ -56,6 +56,7 @@ class ContextService:
             counterparty_repo: Репозиторий контрагентов
             person_repo: Репозиторий ответственных лиц
         """
+        log.info("Инициализация ContextService")
         self._complex_repo = complex_repo
         self._building_repo = building_repo
         self._floor_repo = floor_repo

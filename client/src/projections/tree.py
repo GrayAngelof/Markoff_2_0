@@ -37,6 +37,7 @@ class TreeProjection:
         floor_repo: FloorRepository,
         room_repo: RoomRepository
     ):
+        log.info("Инициализация TreeProjection")
         self._complex_repo = complex_repo
         self._building_repo = building_repo
         self._floor_repo = floor_repo

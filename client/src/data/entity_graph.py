@@ -55,6 +55,7 @@ class EntityGraph:
         Args:
             event_bus: Шина событий для уведомлений об инвалидации
         """
+        log.info("Инициализация EntityGraph")
         self._bus = event_bus
         self._lock = RLock()
         

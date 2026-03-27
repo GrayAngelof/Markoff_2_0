@@ -52,7 +52,7 @@ class DetailsPanel(QWidget):
             bus: Шина событий
         """
         self._bus = bus
-        log.system("EventBus инициализирован")
+        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus._debug}")
         
         # Подписка на события
         self._bus.subscribe(ShowDetailsPanel, self._on_show_placeholder)

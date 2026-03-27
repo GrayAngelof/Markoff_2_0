@@ -47,6 +47,8 @@ class RefreshController(BaseController):
             loader: Загрузчик данных
         """
         super().__init__(bus)
+        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus._debug}")
+        
         self._loader = loader
         
         # Состояние (устанавливается извне через сеттеры)
@@ -57,7 +59,6 @@ class RefreshController(BaseController):
         self._bound_on_refresh_requested = self._on_refresh_requested
         
         # Подписки (LINK категория)
-        log.link("Подписка на RefreshRequested")
         self._subscribe(RefreshRequested, self._bound_on_refresh_requested)
         
         log.success("RefreshController создан")

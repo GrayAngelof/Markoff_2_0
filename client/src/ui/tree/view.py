@@ -53,7 +53,7 @@ class TreeView(QTreeView):
     def set_event_bus(self, bus: EventBus) -> None:
         """Устанавливает шину событий."""
         self._bus = bus
-        log.system("EventBus инициализирован")
+        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus._debug}")
     
     def set_model(self, model) -> None:
         """Устанавливает модель и подключает сигнал выбора."""

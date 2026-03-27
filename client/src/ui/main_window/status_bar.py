@@ -37,7 +37,8 @@ class StatusBar(QStatusBar):
         super().__init__()
         
         self._bus = bus
-        log.system("EventBus инициализирован")
+        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus._debug}")
+        
         self._signals = StatusBarSignals()
         self._message_timer = QTimer()
         self._message_timer.setSingleShot(True)

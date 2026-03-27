@@ -56,6 +56,8 @@ class TreeController(BaseController):
     ):
         log.info("Инициализация TreeController")  
         super().__init__(bus)
+        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus._debug}")
+        
         self._loader = loader
         self._context_service = context_service
         self._tree_projection = tree_projection
@@ -74,13 +76,12 @@ class TreeController(BaseController):
         self._bound_on_data_loaded = self._on_data_loaded
         
         # Подписки (только на актуальные события)
-        log.link("Подписка на события дерева")
         self._subscribe(NodeSelected, self._bound_on_node_selected)
         self._subscribe(NodeExpanded, self._bound_on_node_expanded)
         self._subscribe(NodeCollapsed, self._bound_on_node_collapsed)
         self._subscribe(DataLoaded, self._bound_on_data_loaded)
         
-        log.success("TreeController создан")
+        log.system("TreeController инициализирован")
     
     def set_app_window(self, app_window: AppWindow) -> None:
         """Устанавливает ссылку на фасад окна (для подмены панелей)."""
@@ -136,7 +137,7 @@ class TreeController(BaseController):
             log.error(f"Родительский узел {node_type}#{node_id} не найден")
             return
         
-        log.debug(f"_on_data_loaded: Родитель {parent_node.type.value}#{parent_node.id}, детей сейчас: {parent_node.child_count()}")
+        log.debug(f"_on_data_loaded: Родитель {parent_node.node_type.value}#{parent_node.id}, детей сейчас: {parent_node.child_count()}")
         
         # Если дети уже есть — выходим (защита от дублирования)
         if parent_node.child_count() > 0:

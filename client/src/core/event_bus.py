@@ -90,6 +90,24 @@ class EventBus:
         if debug:
             log.debug("Режим отладки включен")
     
+    def _get_callback_info(self, callback: Callable) -> tuple[str, str]:
+        """
+        Возвращает информацию о callback для логирования.
+        
+        Returns:
+            tuple: (тип_ссылки, описание_обработчика)
+        """
+        if inspect.ismethod(callback):
+            obj = callback.__self__
+            class_name = obj.__class__.__name__ if obj else "Unknown"
+            handler_desc = f"{class_name}.{callback.__name__}"
+            ref_type = "слабая (метод)"
+        else:
+            handler_desc = getattr(callback, '__name__', str(callback))
+            ref_type = "слабая (функция)"
+        
+        return ref_type, handler_desc
+    
     def subscribe(self, event_type: Type[EventData], callback: EventHandler) -> Callable[[], None]:
         """
         Подписывает обработчик на указанный тип события.
@@ -105,20 +123,14 @@ class EventBus:
         callback_id = self._next_id
         self._next_id += 1
         
+        # Получаем информацию о callback для логирования
+        ref_type, handler_desc = self._get_callback_info(callback)
+        
         # Определяем тип callback и создаём слабую ссылку
         if inspect.ismethod(callback):
-            # Это метод класса
             ref = weakref.WeakMethod(callback)
-            if self._debug:
-                obj = callback.__self__
-                class_name = obj.__class__.__name__ if obj else "Unknown"
-                log.link(f"Подписка метода {class_name}.{callback.__name__} на {event_type.__name__}")
         else:
-            # Это обычная функция
             ref = weakref.ref(callback)
-            if self._debug:
-                function_name = getattr(callback, '__name__', str(callback))
-                log.link(f"Подписка функции {function_name} на {event_type.__name__}")
         
         self._callbacks[callback_id] = ref
         
@@ -127,7 +139,8 @@ class EventBus:
         
         self._subscribers[event_type].append(ref)
         
-        log.link(f"Подписка на {event_type.__name__} оформлена")
+        # Логируем подписку с информацией о типе ссылки
+        log.link(f"Подписка {handler_desc} на {event_type.__name__} [{ref_type}]")
         
         def unsubscribe() -> None:
             """Функция отписки."""
@@ -135,7 +148,7 @@ class EventBus:
                 self._subscribers[event_type].remove(ref)
             self._callbacks.pop(callback_id, None)
             self._stats['total_unsubscribes'] += 1
-            log.link(f"Отписка от {event_type.__name__}")
+            log.link(f"Отписка {handler_desc} от {event_type.__name__}")
         
         return unsubscribe
     

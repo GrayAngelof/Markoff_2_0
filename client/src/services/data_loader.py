@@ -74,6 +74,8 @@ class DataLoader:
         log.system("DataLoader инициализация")
         
         self._bus = bus
+        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus._debug}")
+        
         self._graph = graph
         self._utils = LoaderUtils()
         

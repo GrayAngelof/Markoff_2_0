@@ -2,7 +2,17 @@
 """
 Инициализация всех компонентов приложения.
 Собирает вместе Core, Models, Data, Services, Controllers и передает в UI.
+
+Порядок инициализации (строго сверху вниз):
+1. Core (EventBus) — ядро, не зависит от других
+2. Data (EntityGraph, Repositories) — хранение данных
+3. Services (ApiClient, DataLoader, ContextService, ConnectionService) — бизнес-логика
+4. Projections (TreeProjection) — преобразование данных для UI
+5. Controllers (TreeController, DetailsController, ...) — координация
+6. UI (AppWindow) — отображение (создается ПОСЛЕ контроллеров, но настраивается ДО запуска)
+7. Запуск фоновых сервисов ПОСЛЕ подписки UI
 """
+
 from typing import Optional
 
 from PySide6.QtWidgets import QApplication, QMainWindow
@@ -38,12 +48,14 @@ log = get_logger(__name__)
 
 class ApplicationBootstrap:
     """
-    Загрузчик всех компонентов приложения.
+    Загрузчик всех компонентов приложения — композиционный корень.
     
     Отвечает за:
-    - Создание экземпляров всех слоев
-    - Настройку зависимостей (DI)
+    - Создание экземпляров всех слоев в правильном порядке
+    - Настройку зависимостей (Dependency Injection)
     - Передачу зависимостей в UI
+    - Запуск фоновых сервисов ПОСЛЕ того, как UI подписался на события
+    - Очистку ресурсов при завершении
     """
     
     def __init__(self, app: QApplication):
@@ -148,6 +160,7 @@ class ApplicationBootstrap:
     
     def _init_controllers(self) -> None:
         """Инициализация контроллеров."""
+        # TreeController
         self._tree_controller = TreeController(
             bus=self._bus,
             loader=self._loader,
@@ -155,16 +168,16 @@ class ApplicationBootstrap:
             tree_projection=self._tree_projection
         )
         
-        # DetailsController
+        # DetailsController (DetailsPanel будет установлен позже)
         self._details_controller = DetailsController(
-            self._bus,
-            self._loader
+            bus=self._bus,
+            loader=self._loader
         )
         
         # RefreshController
         self._refresh_controller = RefreshController(
-            self._bus,
-            self._loader
+            bus=self._bus,
+            loader=self._loader
         )
         
         # ConnectionController
@@ -173,27 +186,33 @@ class ApplicationBootstrap:
         log.info("Контроллеры созданы: Tree, Details, Refresh, Connection")
     
     def _init_ui(self) -> None:
-        """Инициализация UI (здесь StatusBar ПОДПИСЫВАЕТСЯ на события)."""
-        # Создаем фасад окна — здесь StatusBar подписывается на ConnectionChanged
+        """Инициализация UI."""
+        # 1. Создаем фасад окна (AppWindow сам подписывается на ShowDetailsPanel)
         self._app_window = AppWindow(self._bus)
         log.success("AppWindow создан")
-
-        # Передаем AppWindow в контроллеры
+        
+        # 2. Передаем AppWindow в TreeController (для доступа к TreeView)
         self._tree_controller.set_app_window(self._app_window)
         
-
+        # 3. Передаем DetailsPanel в DetailsController
+        details_panel = self._app_window.get_details_panel()
+        self._details_controller.set_details_panel(details_panel)
+        
+        log.debug("Связи UI → контроллеры установлены")
     
     def _start_services(self) -> None:
         """Запускает фоновые сервисы ПОСЛЕ того, как UI подписался."""
-        # Запускаем ConnectionService
+        # 1. Запускаем ConnectionService
         self._connection_service.start()
         log.api("ConnectionService запущен")
         
-        # ЗАПУСКАЕМ ЗАГРУЗКУ КОМПЛЕКСОВ
+        # 2. Запускаем загрузку комплексов
         log.info("Инициируем загрузку комплексов...")
         self._tree_controller.load_root_nodes()
         
         log.info("Все фоновые сервисы запущены")
+    
+    # ===== Публичные методы =====
     
     def get_window(self) -> QMainWindow:
         """Возвращает главное окно для отображения."""

@@ -38,15 +38,15 @@ class ConnectionController(BaseController):
         """
         log.info("Инициализация ConnectionController")
         super().__init__(bus)
+        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus._debug}")
         
         self._is_online: Optional[bool] = None  # None = статус еще не известен
         self._initial_status_received = False
         
         # Подписка на изменение статуса соединения
-        log.link("Подписка на ConnectionChanged")
         self._subscribe(ConnectionChanged, self._on_connection_changed)
 
-        log.success("ConnectionController создан")
+        log.system("ConnectionController инициализирован")
     
     def _on_connection_changed(self, event: Event[ConnectionChanged]) -> None:
         """

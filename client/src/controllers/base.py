@@ -34,21 +34,16 @@ class BaseController:
         Args:
             bus: Шина событий
         """
-        # Используем __name__ для правильного пути модуля
-        self._logger = get_logger(__name__)
+        # Логгер для конкретного контроллера (будет переопределен в наследнике)
+        self._logger = get_logger(self.__class__.__name__)
 
         self._bus = bus
-        self._logger.system("EventBus инициализирован")
         
         # Храним unsubscribe функции
         self._subscriptions: List[Callable[[], None]] = []
         
         # Храним wrapper'ы, чтобы они не были удалены GC
         self._wrappers: List[Callable] = []
-
-        
-        # DEBUG - базовый класс, не конечный компонент
-        self._logger.system(f"{self.__class__.__name__} инициализирован")
     
     def _subscribe(
         self,
@@ -63,9 +58,10 @@ class BaseController:
             callback: Функция-обработчик
         """
         callback_name = getattr(callback, '__name__', str(callback))
+        controller_name = self.__class__.__name__
         
         # LINK категория для подписок (установка связей между компонентами)
-        self._logger.link(f"Подписка на {event_type.__name__} -> {callback_name}")
+        self._logger.link(f"[{controller_name}] Подписка на {event_type.__name__} -> {callback_name}")
         
         # Создаем wrapper, который будет проверять тип
         def wrapper(event: Event) -> None:
@@ -76,7 +72,7 @@ class BaseController:
                 callback(typed_event)
             else:
                 self._logger.warning(
-                    f"Ожидался {event_type.__name__}, получен {type(event.data).__name__}"
+                    f"[{controller_name}] Ожидался {event_type.__name__}, получен {type(event.data).__name__}"
                 )
         
         # Сохраняем wrapper, чтобы он не был удален GC
@@ -86,7 +82,7 @@ class BaseController:
         unsubscribe = self._bus.subscribe(event_type, wrapper)
         self._subscriptions.append(unsubscribe)
         
-        self._logger.link(f"Подписка на {event_type.__name__} оформлена")
+        self._logger.link(f"[{controller_name}] Подписка на {event_type.__name__} оформлена")
     
     def _emit_error(
         self,
@@ -104,14 +100,15 @@ class BaseController:
         """
         error_msg = str(error)
         error_type = error.__class__.__name__
+        controller_name = self.__class__.__name__
         
         self._logger.error(
-            f"Ошибка в {self.__class__.__name__}: {error_type} - {error_msg}"
+            f"[{controller_name}] Ошибка: {error_type} - {error_msg}"
         )
         
         # Собираем контекст
         context = {
-            'controller': self.__class__.__name__,
+            'controller': controller_name,
             'error_type': error_type,
         }
         if extra_context:
@@ -129,9 +126,10 @@ class BaseController:
     def cleanup(self) -> None:
         """Отписывается от всех событий и освобождает ресурсы."""
         unsubscribe_count = len(self._subscriptions)
+        controller_name = self.__class__.__name__
         
         if unsubscribe_count > 0:
-            self._logger.link(f"Отписка от {unsubscribe_count} событий")
+            self._logger.link(f"[{controller_name}] Отписка от {unsubscribe_count} событий")
         
         for unsubscribe in self._subscriptions:
             unsubscribe()
@@ -139,4 +137,4 @@ class BaseController:
         self._subscriptions.clear()
         self._wrappers.clear()
         
-        self._logger.data(f"{self.__class__.__name__} очищен")
+        self._logger.data(f"[{controller_name}] Очищен")

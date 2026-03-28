@@ -1,57 +1,58 @@
-# data/graph/consistency.py
+# client/src/data/graph/consistency.py
 """
 Проверка консистентности графа.
 
 Вынесено из EntityGraph для соблюдения SRP.
+Проверяет целостность всех индексов и связей между сущностями.
 """
 
-from typing import Dict, Any, List
-from threading import RLock
-from src.core.types import NodeType
+# ===== ИМПОРТЫ =====
+from typing import Any, Dict, List
+
 from src.core.hierarchy import get_child_type
+from src.core.types import NodeType
 from utils.logger import get_logger
 
+
+# ===== КОНСТАНТЫ =====
 log = get_logger(__name__)
 
 
+# ===== КЛАСС =====
 class ConsistencyChecker:
     """
     Проверяет консистентность всех индексов графа.
-    
-    Выявляет проблемы:
-        - Сущности в store, но не валидные
-        - Связи, указывающие на несуществующие объекты
-        - Висячие объекты без связей
-        - Несоответствие прямых и обратных индексов
+
+    Выявляет:
+    - Сущности в store, но не валидные
+    - Связи, указывающие на несуществующие объекты
+    - Висячие объекты без связей
+    - Несоответствие прямых и обратных индексов
     """
-    
-    def __init__(self, store, relations, validity):
+
+    # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
+    def __init__(self, store, relations, validity) -> None:
         self._store = store
         self._relations = relations
         self._validity = validity
-    
+
+    # ---- ПУБЛИЧНОЕ API ----
     def check(self) -> Dict[str, Any]:
         """Выполняет полную проверку консистентности."""
         issues = []
-        
-        # 1. Проверка валидности
+
         self._check_validity_consistency(issues)
-        
-        # 2. Проверка связей (существование объектов)
         self._check_relation_targets(issues)
-        
-        # 3. Проверка обратных связей
         self._check_parent_back_references(issues)
-        
-        # 4. Проверка соответствия прямых и обратных индексов
         self._check_index_consistency(issues)
-        
+
         return {
             'consistent': len(issues) == 0,
             'issues': issues,
-            'issues_count': len(issues)
+            'issues_count': len(issues),
         }
-    
+
+    # ---- ВНУТРЕННИЕ МЕТОДЫ ----
     def _check_validity_consistency(self, issues: List[str]) -> None:
         """Проверяет, что у каждого объекта в store есть валидность."""
         for node_type in self._store.get_all_types():
@@ -60,18 +61,18 @@ class ConsistencyChecker:
                     issues.append(
                         f"Сущность {node_type.value}#{entity_id} в store, но не валидна"
                     )
-    
+
     def _check_relation_targets(self, issues: List[str]) -> None:
         """Проверяет, что все связи ведут на существующие объекты."""
-        # ... логика из EntityGraph.check_consistency
+        # TODO: реализовать проверку
         pass
-    
+
     def _check_parent_back_references(self, issues: List[str]) -> None:
         """Проверяет, что у каждого ребенка есть обратная связь."""
-        # ... логика из EntityGraph.check_consistency
+        # TODO: реализовать проверку
         pass
-    
+
     def _check_index_consistency(self, issues: List[str]) -> None:
         """Проверяет соответствие прямых и обратных индексов."""
-        # ... логика из EntityGraph.check_consistency
+        # TODO: реализовать проверку
         pass

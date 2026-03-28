@@ -13,45 +13,28 @@
 
 Никакой бизнес-логики: фильтрация по статусу, поиск по номеру — только в сервисах!
 """
+
+# ===== ИМПОРТЫ =====
 from typing import List
+
 from src.core import NodeType, NotFoundError
 from src.models import Room
 from .base import BaseRepository
 
 
+# ===== КЛАСС =====
 class RoomRepository(BaseRepository[Room]):
-    """
-    Репозиторий для работы с помещениями.
-    
-    Только базовые операции доступа к данным.
-    """
-    
-    def __init__(self, graph):
+    """Репозиторий для работы с помещениями."""
+
+    def __init__(self, graph) -> None:
         super().__init__(graph, NodeType.ROOM)
-    
-    # ===== Навигация по графу (это доступ, а не бизнес-логика) =====
-    
+
+    # ---- НАВИГАЦИЯ ПО ГРАФУ ----
     def get_by_floor(self, floor_id: int) -> List[int]:
         """
         Возвращает ID всех помещений этажа.
-        
+
         Это навигация по графу, а не бизнес-логика.
         Возвращаются ID, а не объекты — ленивая загрузка.
-        
-        Args:
-            floor_id: ID этажа
-            
-        Returns:
-            List[int]: Список ID помещений
         """
         return self._graph.get_children(NodeType.FLOOR, floor_id)
-    
-    # ===== Базовые операции (наследуются от BaseRepository) =====
-    # get(id) -> Room (или NotFoundError)
-    # get_all() -> List[Room]
-    # get_ids() -> List[int]
-    # exists(id) -> bool
-    # add(entity) -> None
-    # remove(id) -> None
-    # is_valid(id) -> bool
-    # invalidate(id) -> bool

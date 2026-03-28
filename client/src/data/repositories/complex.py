@@ -13,45 +13,28 @@
 
 Никакой бизнес-логики: фильтрация по владельцу, поиск по имени — только в сервисах!
 """
+
+# ===== ИМПОРТЫ =====
 from typing import List
-from src.core import NodeType, NotFoundError
+
+from src.core import NodeType
 from src.models import Complex
 from .base import BaseRepository
 
 
+# ===== КЛАСС =====
 class ComplexRepository(BaseRepository[Complex]):
-    """
-    Репозиторий для работы с комплексами.
-    
-    Только базовые операции доступа к данным.
-    """
-    
-    def __init__(self, graph):
+    """Репозиторий для работы с комплексами."""
+
+    def __init__(self, graph) -> None:
         super().__init__(graph, NodeType.COMPLEX)
-    
-    # ===== Навигация по графу (это доступ, а не бизнес-логика) =====
-    
+
+    # ---- НАВИГАЦИЯ ПО ГРАФУ ----
     def get_building_ids(self, complex_id: int) -> List[int]:
         """
         Возвращает ID всех корпусов комплекса.
-        
+
         Это навигация по графу, а не бизнес-логика.
         Возвращаются ID, а не объекты — ленивая загрузка.
-        
-        Args:
-            complex_id: ID комплекса
-            
-        Returns:
-            List[int]: Список ID корпусов
         """
         return self._graph.get_children(NodeType.COMPLEX, complex_id)
-    
-    # ===== Базовые операции (наследуются от BaseRepository) =====
-    # get(id) -> Complex (или NotFoundError)
-    # get_all() -> List[Complex]
-    # get_ids() -> List[int]
-    # exists(id) -> bool
-    # add(entity) -> None
-    # remove(id) -> None
-    # is_valid(id) -> bool
-    # invalidate(id) -> bool

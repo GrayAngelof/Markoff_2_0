@@ -1,55 +1,56 @@
 # client/src/ui/details/tabs/physics.py
 """
-Вкладка физики панели детальной информации.
-На данном этапе — пустой контейнер.
+Вкладка физических параметров панели детальной информации.
+
+На данном этапе — пустой контейнер с заглушкой.
 """
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+# ===== ИМПОРТЫ =====
+from typing import Final, Optional
+
 from PySide6.QtCore import Qt
-from typing import Optional
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from utils.logger import get_logger
 
+
+# ===== КОНСТАНТЫ =====
 log = get_logger(__name__)
 
 
+# ===== КЛАСС =====
 class PhysicsTab(QWidget):
     """
-    Вкладка физики (статистика, метрики).
-    
-    На данном этапе:
-    - Только структурный каркас
-    - Содержит текстовую заглушку
+    Вкладка физических параметров (статистика, метрики).
+
+    На данном этапе — только структурный каркас с заглушкой.
     """
-    
-    # Сообщение-заглушка
-    _PLACEHOLDER_TEXT = "📊 Статистика будет здесь"
-    
+
+    # Локальная константа — текст заглушки для вкладки физических параметров
+    _PLACEHOLDER_TEXT: Final[str] = "Статистика будет здесь"
+
+    # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
     def __init__(self, parent: Optional[QWidget] = None) -> None:
-        """
-        Инициализирует вкладку физики.
-        
-        Args:
-            parent: Родительский виджет
-        """
+        """Инициализирует вкладку физических параметров."""
         log.info("Инициализация PhysicsTab")
         super().__init__(parent)
-        
+
         log.debug("PhysicsTab: создание структурного каркаса")
-        
+
         self._setup_ui()
-        
+
         log.debug("PhysicsTab: структурный каркас создан")
         log.system("PhysicsTab инициализирован")
 
+    # ---- ВНУТРЕННИЕ МЕТОДЫ ----
     def _setup_ui(self) -> None:
-        """Создает структурный каркас вкладки."""
+        """Создаёт структурный каркас вкладки."""
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
+
         label = QLabel(self._PLACEHOLDER_TEXT)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
+
         layout.addWidget(label)
-        
+
         log.debug("PhysicsTab: UI каркас создан")

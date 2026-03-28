@@ -1,15 +1,20 @@
 # client/src/view_models/lists.py
 """
 View Models для списков (корпуса, этажи, помещения).
+
+Содержат компактные представления сущностей для отображения в списках.
 """
 
+# ===== ИМПОРТЫ =====
 from dataclasses import dataclass
 from typing import Optional
 
 
+# ===== VIEW MODELS =====
 @dataclass(frozen=True, slots=True)
 class BuildingListItem:
     """Элемент списка корпусов."""
+
     id: int
     name: str
     floors_count: int
@@ -18,6 +23,7 @@ class BuildingListItem:
 @dataclass(frozen=True, slots=True)
 class FloorListItem:
     """Элемент списка этажей."""
+
     id: int
     number: int
     rooms_count: int
@@ -26,6 +32,7 @@ class FloorListItem:
 @dataclass(frozen=True, slots=True)
 class RoomListItem:
     """Элемент списка помещений."""
+
     id: int
     number: str
     area: Optional[float] = None

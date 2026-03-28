@@ -1,3 +1,4 @@
+# client/src/services/converters.py
 """
 Преобразование JSON ответов API в модели данных.
 
@@ -12,36 +13,26 @@
 - Переиспользовать конвертеры в разных местах
 """
 
-from typing import List, Optional, Any, TypeVar
+# ===== ИМПОРТЫ =====
+from typing import Any, List, Optional, TypeVar
 
 from src.models import (
-    Complex, Building, Floor, Room,
-    Counterparty, ResponsiblePerson
+    Building,
+    Complex,
+    Counterparty,
+    Floor,
+    ResponsiblePerson,
+    Room,
 )
 
 
-# ===== Тип для generic =====
+# ===== ТИПЫ =====
 T = TypeVar('T')
 
 
-# ===== Физическая структура =====
-
+# ===== ФИЗИЧЕСКАЯ СТРУКТУРА =====
 def to_complex_list(data: List[dict]) -> List[Complex]:
-    """
-    Преобразует список JSON объектов в список Complex.
-    
-    Args:
-        data: Список словарей от API /physical/
-        
-    Returns:
-        List[Complex]: Список комплексов
-        
-    Пример:
-        >>> data = [{"id": 1, "name": "Северный", "buildings_count": 3}]
-        >>> complexes = to_complex_list(data)
-        >>> complexes[0].name
-        'Северный'
-    """
+    """Преобразует список JSON объектов в список Complex."""
     return [Complex.from_dict(item) for item in data]
 
 
@@ -61,15 +52,7 @@ def to_room_list(data: List[dict]) -> List[Room]:
 
 
 def to_complex(data: Optional[dict]) -> Optional[Complex]:
-    """
-    Преобразует JSON объект в Complex (с деталями).
-    
-    Args:
-        data: Словарь от API /physical/complexes/{id}
-        
-    Returns:
-        Optional[Complex]: Комплекс или None, если данных нет
-    """
+    """Преобразует JSON объект в Complex (с деталями)."""
     return Complex.from_dict(data) if data else None
 
 
@@ -88,8 +71,7 @@ def to_room(data: Optional[dict]) -> Optional[Room]:
     return Room.from_dict(data) if data else None
 
 
-# ===== Справочники =====
-
+# ===== СПРАВОЧНИКИ =====
 def to_counterparty(data: Optional[dict]) -> Optional[Counterparty]:
     """Преобразует JSON объект в Counterparty."""
     return Counterparty.from_dict(data) if data else None
@@ -100,19 +82,15 @@ def to_responsible_person_list(data: List[dict]) -> List[ResponsiblePerson]:
     return [ResponsiblePerson.from_dict(item) for item in data]
 
 
-# ===== Универсальные конвертеры =====
-
+# ===== УНИВЕРСАЛЬНЫЕ КОНВЕРТЕРЫ =====
 def safe_convert(data: Any, converter, default: Any = None) -> Any:
     """
     Безопасное преобразование с обработкой None.
-    
+
     Args:
         data: Данные для преобразования
         converter: Функция преобразования
         default: Значение по умолчанию при None
-        
-    Returns:
-        Any: Результат преобразования или default
     """
     if data is None:
         return default

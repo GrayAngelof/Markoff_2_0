@@ -13,49 +13,46 @@ ContextService — сбор контекста для UI.
 - Загрузку данных (это DataLoader)
 """
 
-from typing import Optional, Dict, Any, List
-from src.core import NodeType, NodeIdentifier
+# ===== ИМПОРТЫ =====
+from typing import Any, Dict, List, Optional, Tuple
+
+from src.core import NodeIdentifier, NodeType
 from src.data import (
-    ComplexRepository,
     BuildingRepository,
-    FloorRepository,
-    RoomRepository,
+    ComplexRepository,
     CounterpartyRepository,
-    ResponsiblePersonRepository
+    FloorRepository,
+    ResponsiblePersonRepository,
+    RoomRepository,
 )
 from src.models import Counterparty, ResponsiblePerson
 from utils.logger import get_logger
 
+
+# ===== КОНСТАНТЫ =====
 log = get_logger(__name__)
 
 
+# ===== КЛАСС =====
 class ContextService:
     """
     Сервис для сбора контекста узла.
-    
+
     Используется контроллерами для получения имён родителей
     и связанных данных перед отправкой в UI.
     """
-    
+
+    # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
     def __init__(
         self,
         complex_repo: ComplexRepository,
         building_repo: BuildingRepository,
         floor_repo: FloorRepository,
-        room_repo: RoomRepository, 
+        room_repo: RoomRepository,
         counterparty_repo: CounterpartyRepository,
-        person_repo: ResponsiblePersonRepository
-    ):
-        """
-        Инициализирует сервис контекста.
-        
-        Args:
-            complex_repo: Репозиторий комплексов
-            building_repo: Репозиторий корпусов
-            floor_repo: Репозиторий этажей
-            counterparty_repo: Репозиторий контрагентов
-            person_repo: Репозиторий ответственных лиц
-        """
+        person_repo: ResponsiblePersonRepository,
+    ) -> None:
+        """Инициализирует сервис контекста."""
         log.info("Инициализация ContextService")
         self._complex_repo = complex_repo
         self._building_repo = building_repo
@@ -63,18 +60,14 @@ class ContextService:
         self._room_repo = room_repo
         self._counterparty_repo = counterparty_repo
         self._person_repo = person_repo
-        
+
         log.system("ContextService инициализирован")
-    
-    # ===== Основной метод =====
-    
+
+    # ---- ПУБЛИЧНОЕ API ----
     def get_context(self, node: NodeIdentifier) -> Dict[str, Any]:
         """
         Возвращает контекст для узла.
-        
-        Args:
-            node: Идентификатор узла
-            
+
         Returns:
             Словарь с ключами:
             - complex_name: имя комплекса (если есть)
@@ -84,10 +77,9 @@ class ContextService:
             - responsible_persons: список ответственных лиц (если есть)
         """
         context: Dict[str, Any] = {}
-        
-        # Получаем всех предков через репозитории
+
         ancestors = self._get_ancestors(node)
-        
+
         for anc_type, anc_id in ancestors:
             if anc_type == NodeType.COMPLEX:
                 try:
@@ -95,107 +87,93 @@ class ContextService:
                     context['complex_name'] = complex_obj.name
                 except Exception as e:
                     log.warning(f"Не удалось получить комплекс {anc_id}: {e}")
-                    
+
             elif anc_type == NodeType.BUILDING:
                 try:
                     building_obj = self._building_repo.get(anc_id)
                     context['building_name'] = building_obj.name
                 except Exception as e:
                     log.warning(f"Не удалось получить корпус {anc_id}: {e}")
-                    
+
             elif anc_type == NodeType.FLOOR:
                 try:
                     floor_obj = self._floor_repo.get(anc_id)
                     context['floor_num'] = floor_obj.number
                 except Exception as e:
                     log.warning(f"Не удалось получить этаж {anc_id}: {e}")
-        
+
         return context
-    
+
     def get_building_context(self, building_id: int) -> Dict[str, Any]:
         """
         Возвращает полный контекст для корпуса (включая владельца).
-        
-        Args:
-            building_id: ID корпуса
-            
+
         Returns:
             Словарь с контекстом корпуса
         """
         context = {}
-        
+
         try:
             building = self._building_repo.get(building_id)
-            
-            # Добавляем имя корпуса
+
             context['building_name'] = building.name
-            
-            # Получаем комплекс
+
             if building.complex_id:
                 try:
                     complex_obj = self._complex_repo.get(building.complex_id)
                     context['complex_name'] = complex_obj.name
                 except Exception as e:
                     log.warning(f"Не удалось получить комплекс {building.complex_id}: {e}")
-            
-            # Получаем владельца
+
             if building.owner_id:
                 try:
                     owner = self._counterparty_repo.get(building.owner_id)
                     context['owner'] = owner
-                    
-                    # Получаем ответственных лиц
+
                     persons = self._person_repo.get_by_counterparty(owner.id)
                     context['responsible_persons'] = persons
-                    
+
                 except Exception as e:
                     log.warning(f"Не удалось получить владельца {building.owner_id}: {e}")
-                    
+
         except Exception as e:
             log.error(f"Не удалось получить контекст корпуса {building_id}: {e}")
-        
+
         return context
-    
+
     def get_owner_context(self, counterparty_id: int) -> Dict[str, Any]:
         """
         Возвращает контекст владельца (контрагент + ответственные лица).
-        
-        Args:
-            counterparty_id: ID контрагента
-            
+
         Returns:
             Словарь с контекстом владельца
         """
         context = {}
-        
+
         try:
             owner = self._counterparty_repo.get(counterparty_id)
             context['owner'] = owner
-            
+
             persons = self._person_repo.get_by_counterparty(counterparty_id)
             context['responsible_persons'] = persons
-            
+
         except Exception as e:
             log.error(f"Не удалось получить контекст владельца {counterparty_id}: {e}")
-        
+
         return context
-    
-    # ===== Вспомогательные методы =====
-    
-    def _get_ancestors(self, node: NodeIdentifier) -> List[tuple]:
+
+    # ---- ВНУТРЕННИЕ МЕТОДЫ ----
+    def _get_ancestors(self, node: NodeIdentifier) -> List[Tuple[NodeType, int]]:
         """
         Получает всех предков узла.
-        
-        Args:
-            node: Идентификатор узла
-            
+
         Returns:
             Список кортежей (тип, ID) в порядке от ближайшего к дальнему
         """
         ancestors = []
         current_type = node.node_type
         current_id = node.node_id
-        
+
         while True:
             if current_type == NodeType.BUILDING:
                 try:
@@ -207,8 +185,8 @@ class ContextService:
                     continue
                 except Exception:
                     break
-                    
-            elif current_type == NodeType.FLOOR:
+
+            if current_type == NodeType.FLOOR:
                 try:
                     floor = self._floor_repo.get(current_id)
                     if floor.building_id:
@@ -218,8 +196,8 @@ class ContextService:
                     continue
                 except Exception:
                     break
-                    
-            elif current_type == NodeType.ROOM:
+
+            if current_type == NodeType.ROOM:
                 try:
                     room = self._room_repo.get(current_id)
                     if room.floor_id:
@@ -229,7 +207,7 @@ class ContextService:
                     continue
                 except Exception:
                     break
-            
+
             break
-        
+
         return ancestors

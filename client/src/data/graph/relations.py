@@ -9,7 +9,7 @@ RelationIndex обеспечивает O(1) доступ к иерархии "р
 Прямые индексы: parent_type → {parent_id: set(child_ids)}
 Обратные индексы: child_type → {child_id: (parent_type, parent_id)}
 
-Потребители:
+Потребители: 
     - entity_graph.py (фасад) — через публичные методы
 """
 

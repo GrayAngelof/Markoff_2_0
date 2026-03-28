@@ -1,20 +1,24 @@
 # client/src/services/types.py
 """
 Типы данных для сервисного слоя.
+
+Содержит общие типы и структуры данных,
+используемые несколькими сервисами.
 """
 
+# ===== ИМПОРТЫ =====
 from dataclasses import dataclass, field
 from typing import List, Optional
+
 from src.models import Building, Counterparty, ResponsiblePerson
 
 
+# ===== ТИПЫ =====
 @dataclass(frozen=True, slots=True)
 class BuildingWithOwnerResult:
     """
     Результат загрузки корпуса с владельцем.
-    
-    Все поля могут быть None или пустыми, чтобы упростить создание.
-    
+
     Attributes:
         building: Загруженный корпус
         owner: Владелец корпуса (если есть)

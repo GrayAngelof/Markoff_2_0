@@ -60,7 +60,7 @@ class BaseController:
     def _subscribe(
         self,
         event_type: type[T],
-        callback: Callable[[T], None]  # Изменено: теперь принимает T (EventData), а не Event[T]
+        callback: Callable[[T], None]
     ) -> None:
         """
         Подписывается на событие с сохранением для отписки.
@@ -72,9 +72,9 @@ class BaseController:
 
         self._logger.link(f"[{controller_name}] Подписка на {event_type.__name__} -> {callback_name}")
 
-        def wrapper(event_data: EventData) -> None:  # Изменено: принимает EventData
+        def wrapper(event_data: EventData) -> None:
             if isinstance(event_data, event_type):
-                callback(event_data)  # Передаём напрямую данные события
+                callback(event_data)
             else:
                 self._logger.warning(
                     f"[{controller_name}] Ожидался {event_type.__name__}, "

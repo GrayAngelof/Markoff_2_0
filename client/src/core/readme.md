@@ -94,548 +94,217 @@ if can_have_children(NodeType.FLOOR):
 # КОНЕЦ СПЕЦИФИКАЦИИ
 # ============================================
 
-## 📚 ОПИСАНИЕ ЯДРА
-В соответствии с архитектурой, ядро реализовано как минимальный, но самодостаточный слой, обеспечивающий типобезопасность и слабую связанность через **type-based события**. Код организован в следующую структуру каталогов:
+
+# Core — описание слоя
+
+## Назначение
+
+Минимальный самодостаточный слой, обеспечивающий типобезопасность и слабую связанность через type-based события.
+
+**Строгая зависимость:** другие слои импортируют только из `core`. Обратные импорты запрещены.
+
+---
+
+## Структура
 
 ```
 core/
-├── __init__.py                    # Публичное API (минималистичный, 8 элементов)
-├── event_bus.py                   # Фасад шины событий (type-based)
-├── events.py                      # Классы всех событий (типизированные факты)
-├── hierarchy.py                   # Правила иерархии узлов
-├── serializers.py                 # Преобразования идентификаторов (public/private)
-│
-├── types/                         # Базовые типы и исключения
-│   ├── __init__.py
-│   ├── nodes.py                   # NodeType (str, Enum), NodeIdentifier (+slots)
-│   ├── event_structures.py        # EventData, Event (конверт с метаданными)
-│   └── exceptions.py              # Иерархия исключений (9 классов)
-│
-└── interfaces/                    # Базовые контракты
-    ├── __init__.py
-    └── repository.py              # Repository[T, ID] с явными исключениями
+├── __init__.py              # Публичное API
+├── event_bus.py             # Шина событий (фасад)
+├── events/
+│   ├── __init__.py          # Экспорт событий
+│   └── definitions.py       # Классы событий
+├── bus/                     # ПРИВАТНО — реализация шины
+├── ports/                   # Интерфейсы (Protocol)
+│   └── repository.py        # Repository[T, ID]
+├── rules/
+│   └── hierarchy.py         # Правила иерархии узлов
+└── types/
+    ├── nodes.py             # NodeType, NodeIdentifier
+    ├── event_structures.py  # EventData, Event
+    ├── exceptions.py        # Иерархия исключений
+    └── protocols.py         # Структурные типы
 ```
 
 ---
 
-## 📦 Публичное API (минималистичный подход)
+## Публичное API
 
-Core экспортирует **только самое необходимое**. Всё остальное импортируется из подмодулей:
-
-```python
-# Базовые типы и шина (экспортируются из core)
-from src.core import NodeType, NodeIdentifier, EventBus, CoreError, NotFoundError, ValidationError
-
-# События — из core.events
-from src.core.events import (
-    # UI события (факты)
-    NodeSelected, NodeExpanded, NodeCollapsed, TabChanged,
-    # Системные события (факты)
-    DataLoading, DataLoaded, DataError, ConnectionChanged,
-    # Команды
-    RefreshRequested,
-    # События состояния (для контроллеров)
-    CurrentSelectionChanged, ExpandedNodesChanged,
-    # События деталей
-    NodeDetailsLoaded, ChildrenLoaded, BuildingDetailsLoaded,
-    # События обновления
-    NodeReloaded, VisibleNodesReloaded, FullReloadCompleted,
-    # События соединения
-    NetworkActionsEnabled, NetworkActionsDisabled
-)
-
-# Правила иерархии — из core.hierarchy
-from src.core.hierarchy import get_child_type, can_have_children, validate_hierarchy
-
-# Сериализация — из core.serializers
-from src.core.serializers import identifier_to_key, key_to_identifier, try_parse_identifier, format_display
-
-# Дополнительные исключения — из core.types.exceptions
-from src.core.types.exceptions import SerializationError, ConnectionError, ApiError
-```
-
----
-
-## 🔹 Базовые типы (из `core.types`)
+### Импорт
 
 ```python
-from src.core import NodeType, NodeIdentifier, NodeID, NodeKey, ParentInfo
-```
+# Базовое
+from src.core import NodeType, NodeIdentifier, EventBus
 
-| Тип | Описание | Пример |
-|-----|----------|--------|
-| `NodeType` | Enum типов узлов (str, Enum) | `NodeType.COMPLEX`, `NodeType.BUILDING` |
-| `NodeID` | Алиас для int | `complex_id: NodeID = 42` |
-| `NodeKey` | Строковый ключ "тип:id" | `"complex:42"` |
-| `ParentInfo` | Кортеж (тип, id) родителя | `(NodeType.BUILDING, 101)` |
-| `NodeIdentifier` | Value Object (+slots, frozen) | `NodeIdentifier(NodeType.COMPLEX, 42)` |
-
-**Пример использования:**
-```python
-# Создание идентификатора
-node_id = NodeIdentifier(NodeType.COMPLEX, 42)
-
-# Доступ к атрибутам
-print(node_id.node_type)  # NodeType.COMPLEX
-print(node_id.node_id)    # 42
-
-# Форматирование для логов и UI (нет атрибута .display!)
-display = f"{node_id.node_type.value}#{node_id.node_id}"  # "complex#42"
-
-# Сравнение (работает благодаря frozen dataclass)
-another = NodeIdentifier(NodeType.COMPLEX, 42)
-assert node_id == another  # True
-```
-
----
-
-## 🔹 Структуры событий (из `core.types`)
-
-```python
-from src.core.types import EventData, Event
-```
-
-| Класс | Назначение |
-|-------|------------|
-| `EventData` | Базовый класс для всех фактов (событий) |
-| `Event[T]` | Generic конверт события с метаданными (source, timestamp) |
-
-**Пример использования:**
-```python
-from dataclasses import dataclass
-from typing import Optional, List, Set, TypeVar, Generic
-from src.core import NodeIdentifier, NodeType
-from src.core.types import EventData
-
-T = TypeVar('T')
-
-@dataclass(frozen=True, slots=True)
-class NodeSelected(EventData):
-    """Пользователь выбрал узел (ФАКТ, а не команда)."""
-    node: NodeIdentifier
-    payload: Optional[Any] = None
-
-@dataclass(frozen=True, slots=True)
-class NodeDetailsLoaded(EventData, Generic[T]):
-    """Детальная информация о узле загружена."""
-    node: NodeIdentifier
-    payload: T
-    context: dict
-
-@dataclass(frozen=True, slots=True)
-class CurrentSelectionChanged(EventData):
-    """Изменился текущий выбранный узел."""
-    selection: Optional[NodeIdentifier]
-
-@dataclass(frozen=True, slots=True)
-class ExpandedNodesChanged(EventData):
-    """Изменился список раскрытых узлов."""
-    expanded_nodes: Set[NodeIdentifier]
-
-# Конверт создаётся EventBus автоматически
-# event = Event(data=NodeSelected(node=...), source="tree_view", timestamp=...)
-```
-
----
-
-## 🔹 События (из `core.events`)
-
-```python
-from src.core.events import (
-    # === UI события (факты) ===
-    NodeSelected, NodeExpanded, NodeCollapsed, TabChanged,
-    
-    # === Системные события (факты) ===
-    DataLoading, DataLoaded, DataError, ConnectionChanged,
-    
-    # === Команды ===
-    RefreshRequested,
-    
-    # === События состояния (для контроллеров) ===
-    CurrentSelectionChanged, ExpandedNodesChanged,
-    
-    # === События деталей ===
-    NodeDetailsLoaded, ChildrenLoaded, BuildingDetailsLoaded,
-    
-    # === События обновления ===
-    NodeReloaded, VisibleNodesReloaded, FullReloadCompleted,
-    
-    # === События соединения ===
-    NetworkActionsEnabled, NetworkActionsDisabled
-)
-```
-
-### **Полная таблица событий**
-
-| Событие | Тип | Generic | Назначение |
-|---------|-----|---------|------------|
-| **UI события (факты)** |
-| `NodeSelected` | Факт | `T` | Пользователь выбрал узел |
-| `NodeExpanded` | Факт | — | Узел раскрыт |
-| `NodeCollapsed` | Факт | — | Узел свёрнут |
-| `TabChanged` | Факт | — | Переключена вкладка |
-| **Системные события (факты)** |
-| `DataLoading` | Факт | — | Началась загрузка данных |
-| `DataLoaded` | Факт | `T` | Данные загружены |
-| `DataError` | Факт | — | Ошибка загрузки |
-| `ConnectionChanged` | Факт | — | Статус соединения изменился |
-| **Команды** |
-| `RefreshRequested` | Команда | — | Запрос на обновление |
-| **События состояния (для контроллеров)** |
-| `CurrentSelectionChanged` | Факт | — | Изменился текущий выбранный узел |
-| `ExpandedNodesChanged` | Факт | — | Изменился список раскрытых узлов |
-| **События деталей** |
-| `NodeDetailsLoaded` | Факт | `T` | Детальная информация о узле загружена |
-| `ChildrenLoaded` | Факт | `T` | Дети узла загружены |
-| `BuildingDetailsLoaded` | Факт | — | Загружены детали корпуса с владельцем |
-| **События обновления** |
-| `NodeReloaded` | Факт | — | Узел перезагружен |
-| `VisibleNodesReloaded` | Факт | — | Все раскрытые узлы перезагружены |
-| `FullReloadCompleted` | Факт | — | Полная перезагрузка завершена |
-| **События соединения** |
-| `NetworkActionsEnabled` | Факт | — | Сетевые действия разрешены (онлайн) |
-| `NetworkActionsDisabled` | Факт | — | Сетевые действия запрещены (офлайн) |
-
-**Пример использования с Generic:**
-```python
-from src.core import EventBus, NodeIdentifier, NodeType
-from src.core.events import NodeSelected, NodeDetailsLoaded, ChildrenLoaded, BuildingDetailsLoaded
-
-bus = EventBus()
-
-# Подписка на типизированные события
-def on_details_loaded(event: Event[NodeDetailsLoaded[Building]]) -> None:
-    building = event.data.payload  # тип Building!
-    print(f"Загружено здание: {building.name}")
-
-def on_children_loaded(event: Event[ChildrenLoaded[Building]]) -> None:
-    buildings = event.data.children  # тип List[Building]!
-    print(f"Загружено {len(buildings)} зданий")
-
-def on_building_details(event: Event[BuildingDetailsLoaded]) -> None:
-    building = event.data.building
-    owner = event.data.owner
-    print(f"Здание {building.name}, владелец: {owner.short_name if owner else 'не указан'}")
-
-# Подписка
-bus.subscribe(NodeDetailsLoaded[Building], on_details_loaded)
-bus.subscribe(ChildrenLoaded[Building], on_children_loaded)
-bus.subscribe(BuildingDetailsLoaded, on_building_details)
-
-# Испускание
-bus.emit(NodeDetailsLoaded[Building](
-    node=NodeIdentifier(NodeType.BUILDING, 101),
-    payload=building,
-    context={'complex_name': 'Северный'}
-))
-bus.emit(BuildingDetailsLoaded(
-    building=building,
-    owner=owner,
-    responsible_persons=persons
-))
-```
-
----
-
-## 🔹 Исключения (из `core.types.exceptions`)
-
-```python
+# Исключения
 from src.core import CoreError, NotFoundError, ValidationError
-from src.core.types.exceptions import SerializationError, ConnectionError, ApiError
+
+# События
+from src.core.events import (
+    NodeSelected, NodeExpanded, NodeCollapsed, TabChanged,
+    RefreshRequested, ShowDetailsPanel,
+    DataLoaded, DataError, DataInvalidated,
+    ChildrenLoaded, NodeDetailsLoaded, ConnectionChanged
+)
+
+# Правила иерархии
+from src.core.rules.hierarchy import (
+    get_child_type, get_parent_type, can_have_children,
+    is_leaf, get_all_ancestors, get_all_descendants, validate_hierarchy
+)
+
+# Интерфейсы
+from src.core.ports.repository import Repository
 ```
+
+---
+
+## Компоненты
+
+### 1. Типы (`types/`)
+
+| Тип | Назначение |
+|-----|------------|
+| `NodeType` | Enum типов узлов: `COMPLEX`, `BUILDING`, `FLOOR`, `ROOM`, `COUNTERPARTY`, `RESPONSIBLE_PERSON` |
+| `NodeIdentifier` | Value object: `(node_type, node_id)`, frozen, slots |
+| `EventData` | Базовый класс для всех событий |
+| `Event[T]` | Конверт с метаданными: `source`, `timestamp` |
+
+**Пример:**
+```python
+node = NodeIdentifier(NodeType.BUILDING, 101)
+```
+
+---
+
+### 2. Исключения (`types/exceptions.py`)
 
 | Исключение | Назначение |
 |------------|------------|
 | `CoreError` | Базовое для всех ошибок ядра |
-| `NotFoundError` | Объект не найден (repository.get) |
-| `ValidationError` | Ошибка валидации данных |
-| `SerializationError` | Ошибка парсинга ключей |
-| `ConnectionError` | Ошибка соединения с сервером |
-| `ApiError` | Ошибка при обращении к API |
+| `NotFoundError` | Объект не найден |
+| `ValidationError` | Ошибка валидации |
+| `SerializationError` | Ошибка парсинга |
+| `ConnectionError` | Ошибка сети |
+| `ApiError` | Ошибка API |
 | `ConfigurationError` | Ошибка конфигурации |
-| `HierarchyError` | Ошибка в иерархии |
-| `DuplicateError` | Дубликат объекта |
-
-**Пример использования:**
-```python
-from src.core import NotFoundError
-from src.core.serializers import key_to_identifier, SerializationError
-
-try:
-    identifier = key_to_identifier("invalid:key")
-except SerializationError as e:
-    print(f"Ошибка парсинга: {e}")
-
-try:
-    building = building_repo.get(999)
-except NotFoundError as e:
-    print(f"Ошибка: {e}")
-```
+| `HierarchyError` | Ошибка иерархии |
+| `DuplicateError` | Дубликат |
 
 ---
 
-## 🔹 Шина событий (из `core.event_bus`)
+### 3. События (`events/definitions.py`)
 
-```python
-from src.core import EventBus
-```
+#### UI события (факты)
+- `NodeSelected[T]` — выбран узел
+- `NodeExpanded` — раскрыт узел
+- `NodeCollapsed` — свёрнут узел
+- `TabChanged` — переключена вкладка
+
+#### Команды
+- `RefreshRequested` — запрос на обновление (mode: current/visible/full)
+- `ShowDetailsPanel` — показать панель деталей
+
+#### События данных
+- `DataLoaded[T]` — данные загружены
+- `DataError` — ошибка загрузки
+- `DataInvalidated` — данные устарели
+
+#### События деталей
+- `ChildrenLoaded[T]` — загружены дочерние элементы
+- `NodeDetailsLoaded[T]` — загружена детальная информация
+
+#### Системные
+- `ConnectionChanged` — изменился статус соединения
+
+---
+
+### 4. Шина событий (`EventBus`)
 
 | Метод | Описание |
 |-------|----------|
-| `subscribe(event_type, callback)` | Подписка по классу события, возвращает unsubscribe |
-| `emit(event_data, source=None)` | Испускание события с типизированными данными |
-| `get_stats()` | Статистика использования |
-| `clear()` | Очистить все подписки |
-| `set_debug(enabled)` | Включить/выключить режим отладки |
+| `subscribe(event_type, callback)` | Подписка, возвращает `unsubscribe()` |
+| `emit(event_data, source=None)` | Испускание события |
+| `clear()` | Очистка всех подписок |
+| `set_debug(enabled)` | Режим отладки |
 
-**Пример использования:**
+**Особенности:**
+- Подписка по типу события (класс)
+- Слабые ссылки — автоматическая очистка мёртвых обработчиков
+- Типобезопасные обработчики
+
 ```python
-from src.core import EventBus, NodeIdentifier, NodeType
-from src.core.events import (
-    DataLoaded, NodeSelected, NodeDetailsLoaded,
-    CurrentSelectionChanged, BuildingDetailsLoaded
-)
+bus = EventBus()
 
-bus = EventBus(debug=True)
+def handler(event: NodeSelected) -> None:
+    print(event.data.node.node_id)
 
-def on_data_loaded(event: Event[DataLoaded]) -> None:
-    print(f"Загружено {event.data.count} объектов")
-
-def on_node_selected(event: Event[NodeSelected]) -> None:
-    print(f"Выбран {event.data.node.node_type.value}#{event.data.node.node_id}")
-
-def on_selection_changed(event: Event[CurrentSelectionChanged]) -> None:
-    if event.data.selection:
-        print(f"Выбор изменён: {event.data.selection.node_type.value}#{event.data.selection.node_id}")
-    else:
-        print("Выбор сброшен")
-
-# Подписка
-unsub1 = bus.subscribe(DataLoaded, on_data_loaded)
-unsub2 = bus.subscribe(NodeSelected, on_node_selected)
-unsub3 = bus.subscribe(CurrentSelectionChanged, on_selection_changed)
-
-# Испускание
-bus.emit(DataLoaded(
-    node_type="complex", node_id=0, payload=complexes, count=5
-))
-bus.emit(NodeSelected(
-    node=NodeIdentifier(NodeType.BUILDING, 101)
-))
-bus.emit(CurrentSelectionChanged(
-    selection=NodeIdentifier(NodeType.BUILDING, 101)
-))
-
-# Отписка
-unsub1()
-unsub2()
-unsub3()
+unsub = bus.subscribe(NodeSelected, handler)
+bus.emit(NodeSelected(node=identifier))
+unsub()
 ```
 
 ---
 
-## 🔹 Правила иерархии (из `core.hierarchy`)
+### 5. Правила иерархии (`rules/hierarchy.py`)
 
+| Функция | Возврат |
+|---------|---------|
+| `get_child_type(parent_type)` | тип детей или `None` |
+| `get_parent_type(child_type)` | тип родителя или `None` |
+| `can_have_children(node_type)` | `bool` |
+| `is_leaf(node_type)` | `bool` |
+| `get_all_ancestors(node_type)` | `List[NodeType]` |
+| `get_all_descendants(node_type)` | `List[NodeType]` |
+| `validate_hierarchy(parent, child)` | `bool` |
+
+**Пример:**
 ```python
-from src.core.hierarchy import (
-    get_child_type, get_parent_type,
-    can_have_children, is_leaf,
-    get_all_ancestors, get_all_descendants,
-    validate_hierarchy
-)
-```
-
-| Функция | Описание | Пример |
-|---------|----------|--------|
-| `get_child_type(parent_type)` | Тип детей | `get_child_type(NodeType.COMPLEX) → BUILDING` |
-| `get_parent_type(child_type)` | Тип родителя | `get_parent_type(NodeType.ROOM) → FLOOR` |
-| `can_have_children(node_type)` | Может ли иметь детей | `can_have_children(NodeType.ROOM) → False` |
-| `is_leaf(node_type)` | Является ли листом | `is_leaf(NodeType.ROOM) → True` |
-| `get_all_ancestors(node_type)` | Все предки | `[FLOOR, BUILDING, COMPLEX]` |
-| `get_all_descendants(node_type)` | Все потомки | `[BUILDING, FLOOR, ROOM]` |
-| `validate_hierarchy(parent, child)` | Проверка связи | `validate_hierarchy(COMPLEX, BUILDING) → True` |
-
-**Пример использования:**
-```python
-from src.core import NodeType
-from src.core.hierarchy import get_child_type, can_have_children
-
-if can_have_children(NodeType.BUILDING):
-    child_type = get_child_type(NodeType.BUILDING)  # FLOOR
-    print(f"У здания могут быть {child_type.value}")
+get_child_type(NodeType.COMPLEX)        # BUILDING
+get_parent_type(NodeType.ROOM)          # FLOOR
+can_have_children(NodeType.ROOM)        # False
+get_all_ancestors(NodeType.ROOM)        # [FLOOR, BUILDING, COMPLEX]
 ```
 
 ---
 
-## 🔹 Сериализация (из `core.serializers`)
+### 6. Интерфейсы репозиториев (`ports/repository.py`)
 
 ```python
-from src.core.serializers import (
-    identifier_to_key,          # NodeIdentifier → "type:id"
-    key_to_identifier,          # "type:id" → NodeIdentifier (исключение)
-    try_parse_identifier,       # "type:id" → NodeIdentifier | None
-    format_display,             # NodeIdentifier → "TYPE#id"
-    format_display_from_parts,  # (type, id) → "TYPE#id"
-    parse_display,              # "TYPE#id" → NodeIdentifier (исключение)
-    try_parse_display           # "TYPE#id" → NodeIdentifier | None
-)
+class Repository(Protocol[T, ID]):
+    def get(self, id: ID) -> T: ...
+    def get_all(self) -> List[T]: ...
+    def add(self, entity: T) -> None: ...
+    def remove(self, id: ID) -> bool: ...
 ```
 
-| Функция | Возврат | Ошибка | Назначение |
-|---------|---------|--------|------------|
-| `identifier_to_key()` | `str` | нет | Ключ для внутренних индексов |
-| `key_to_identifier()` | `NodeIdentifier` | `SerializationError` | Строгий парсинг |
-| `try_parse_identifier()` | `Optional[NodeIdentifier]` | нет | Безопасный парсинг |
-| `format_display()` | `str` | нет | Для UI и логов |
-| `parse_display()` | `NodeIdentifier` | `SerializationError` | Строгий парсинг display |
-| `try_parse_display()` | `Optional[NodeIdentifier]` | нет | Безопасный парсинг display |
-
-**Пример использования:**
-```python
-from src.core import NodeIdentifier, NodeType
-from src.core.serializers import identifier_to_key, key_to_identifier, try_parse_identifier, format_display
-
-# Создание идентификатора
-node = NodeIdentifier(NodeType.BUILDING, 101)
-
-# Преобразование в ключ
-key = identifier_to_key(node)  # "building:101"
-
-# Обратное преобразование (строгое)
-restored = key_to_identifier(key)  # NodeIdentifier(BUILDING, 101)
-
-# Безопасное преобразование
-maybe = try_parse_identifier("invalid:key")  # None
-
-# Форматирование для отображения (без атрибута .display!)
-display = format_display(node)  # "BUILDING#101"
-# Или вручную:
-manual_display = f"{node.node_type.value.upper()}#{node.node_id}"  # "BUILDING#101"
-```
+**Контракт:**
+- `get()` выбрасывает `NotFoundError` при отсутствии
+- `remove()` возвращает `bool` (удалено/не найдено)
 
 ---
 
-## 🔹 Интерфейсы (из `core.interfaces`)
+## Приватные модули (не импортировать)
 
-```python
-from src.core import Repository
-```
-
-| Интерфейс | Описание |
-|-----------|----------|
-| `Repository[T, ID]` | Базовый контракт для репозиториев |
-
-**Методы:**
-- `get(id: ID) -> T` — возвращает сущность или выбрасывает `NotFoundError`
-- `get_all() -> List[T]` — все сущности (может быть пустым)
-- `add(entity: T) -> None` — добавляет или обновляет
-- `remove(id: ID) -> None` — удаляет или выбрасывает `NotFoundError`
-- `exists(id: ID) -> bool` — проверяет существование (без исключений)
-
-**Пример использования:**
-```python
-from src.core import Repository, NotFoundError
-
-class BuildingRepository(Repository[Building, int]):
-    def get(self, id: int) -> Building:
-        building = self._graph.get(NodeType.BUILDING, id)
-        if building is None:
-            raise NotFoundError(f"Building #{id} not found")
-        return building
-    
-    def remove(self, id: int) -> None:
-        if not self._graph.remove(NodeType.BUILDING, id):
-            raise NotFoundError(f"Building #{id} not found")
-```
+| Модуль | Причина |
+|--------|---------|
+| `core.bus` | Внутренняя реализация `EventBus` |
+| `core.types.protocols` | Внутренняя типизация |
 
 ---
 
-## 🚫 Что НЕЛЬЗЯ импортировать из core
+## Зависимости от других слоёв
 
-| Компонент | Почему |
-|-----------|--------|
-| `core.bus` | Приватная реализация, может меняться |
-| `core.types.exceptions` напрямую | Использовать через `from src.core.types.exceptions import ...` или через `core` для базовых |
-| Приватные функции `_make_node_key`, `_parse_node_key` | Внутренние, не для внешнего использования |
-| `NodeIdentifier.display` | **Атрибут не существует!** Используйте `format_display()` или явное форматирование |
+**Core не имеет зависимостей на другие слои приложения.**  
+Единственное исключение — `utils.logger`, допустимый как инфраструктурная утилита на всех слоях.
 
 ---
 
-## 🎯 Главное правило импорта
+## Итог
 
-```python
-# ✅ Правильно — через публичное API
-from src.core import NodeType, NodeIdentifier, EventBus
-from src.core.events import (
-    NodeSelected, DataLoaded, RefreshRequested,
-    CurrentSelectionChanged, NodeDetailsLoaded, BuildingDetailsLoaded
-)
-from src.core.hierarchy import get_child_type
-from src.core.serializers import identifier_to_key, key_to_identifier, format_display
-
-# ✅ Тоже правильно — явные импорты из подмодулей
-from src.core.types.exceptions import SerializationError, ConnectionError
-
-# ❌ Неправильно — приватные модули
-from src.core.bus.registry import _SubscriptionRegistry
-
-# ❌ Неправильно — внутренние функции
-from src.core.serializers import _make_node_key
-
-# ❌ Неправильно — несуществующий атрибут
-node.display  # AttributeError! Используйте format_display(node) или f"{node.node_type.value}#{node.node_id}"
-```
-
----
-
-## 📊 Чек-лист: что есть в core
-
-| Категория | Количество | Статус |
-|-----------|------------|--------|
-| Базовые типы | 5 (`NodeType`, `NodeIdentifier`, `NodeID`, `NodeKey`, `ParentInfo`) | ✅ |
-| Структуры событий | 2 (`EventData`, `Event`) | ✅ |
-| **Классы событий** | **22** (было 9, добавлено 13) | ✅ |
-| Исключения | 9 (`CoreError`, `NotFoundError`, `SerializationError`, ...) | ✅ |
-| Шина событий | 1 класс, 6 методов | ✅ |
-| Правила иерархии | 7 функций | ✅ |
-| Сериализация | 7 публичных функций | ✅ |
-| Интерфейсы | 1 (`Repository`) | ✅ |
-
-### **Добавленные события (13):**
-1. `CurrentSelectionChanged` — изменение выбранного узла
-2. `ExpandedNodesChanged` — изменение списка раскрытых узлов
-3. `NodeDetailsLoaded[T]` — детали узла загружены
-4. `ChildrenLoaded[T]` — дети узла загружены
-5. `BuildingDetailsLoaded` — детали корпуса с владельцем загружены
-6. `NodeReloaded` — узел перезагружен
-7. `VisibleNodesReloaded` — раскрытые узлы перезагружены
-8. `FullReloadCompleted` — полная перезагрузка завершена
-9. `NetworkActionsEnabled` — сетевые действия разрешены
-10. `NetworkActionsDisabled` — сетевые действия запрещены
-11. `NodeExpanded` (уже был, но активно используется)
-12. `NodeCollapsed` (уже был, но активно используется)
-13. `TabChanged` (уже был, но активно используется)
-
----
-
-## 💡 Итог
-
-Публичное API Core спроектировано так, чтобы быть:
-
-- **Типобезопасным** — никаких строк, только классы и enum; Generic для передачи данных разного типа
-- **Интуитивным** — `bus.subscribe(NodeDetailsLoaded[Building], handler)` — IDE подскажет
-- **Минималистичным** — экспортируется только 8 базовых элементов
-- **Стабильным** — приватные функции скрыты, обратная совместимость обеспечена
-- **Полным** — 22 события покрывают все потребности контроллеров и UI
-
-**Любой слой приложения может начать с:**
-```python
-from src.core import NodeType, NodeIdentifier, EventBus
-from src.core.events import (
-    NodeSelected, DataLoaded, RefreshRequested,
-    CurrentSelectionChanged, NodeDetailsLoaded, BuildingDetailsLoaded
-)
-from src.core.hierarchy import get_child_type
-from src.core.serializers import identifier_to_key, format_display
-from src.core.types.exceptions import NotFoundError
-```
+Слой предоставляет вышележащим слоям:
+- **Типобезопасную** коммуникацию через `EventBus`
+- **Value objects** для идентификации узлов
+- **Правила иерархии** без обращения к данным
+- **Базовые интерфейсы** для репозиториев
+- **Иерархию исключений** для единообразной обработки ошибок

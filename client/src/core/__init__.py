@@ -1,4 +1,3 @@
-# client/src/core/__init__.py
 """
 Публичное API ядра приложения.
 
@@ -8,7 +7,6 @@
     from src.core.types import NodeType, NodeIdentifier
     from src.core.events import NodeSelected, NodeExpanded, NodeCollapsed, TabChanged
     from src.core.rules.hierarchy import get_child_type
-    from src.core.converters.serializers import identifier_to_key
     from src.core.types.exceptions import NotFoundError, SerializationError
     from src.core.ports.repository import Repository
 
@@ -27,7 +25,7 @@ from .types import NodeType, NodeIdentifier
 from .event_bus import EventBus
 
 # Исключения
-from .types.exceptions import CoreError, NotFoundError, ValidationError, SerializationError
+from .types.exceptions import CoreError, NotFoundError, ValidationError
 
 # Интерфейсы (ports)
 from .ports.repository import Repository
@@ -60,7 +58,6 @@ __all__ = [
     "CoreError",
     "NotFoundError",
     "ValidationError",
-    "SerializationError",
     
     # Интерфейсы
     "Repository",

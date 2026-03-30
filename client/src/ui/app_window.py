@@ -14,7 +14,7 @@
 from PySide6.QtWidgets import QMainWindow
 
 from src.core import EventBus
-from src.core.events import ShowDetailsPanel
+from src.core.events.definitions import ShowDetailsPanel
 from src.core.types.event_structures import Event
 from src.ui.common.central_widget import CentralWidget
 from src.ui.main_window.menu import MenuBar

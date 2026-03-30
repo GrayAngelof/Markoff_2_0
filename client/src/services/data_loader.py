@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
 from src.core import EventBus, NodeIdentifier, NodeType
-from src.core.events import DataError, DataLoaded
+from src.core.events.definitions import DataError, DataLoaded
 from src.core.types.nodes import NodeID
 from src.data import EntityGraph
 from src.models import Building, Complex, Counterparty, Floor, ResponsiblePerson, Room

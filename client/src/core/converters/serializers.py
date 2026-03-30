@@ -1,4 +1,4 @@
-# client/src/core/serializers.py
+# client/src/core/converters/serializers.py
 """
 Преобразования идентификаторов между форматами.
 
@@ -16,9 +16,9 @@
 # ===== ИМПОРТЫ =====
 from typing import Optional
 
-from .types import NodeIdentifier, NodeType
-from .types.exceptions import SerializationError
-from .types.nodes import NodeID, NodeKey
+from ..types import NodeIdentifier, NodeType
+from ..types.exceptions import SerializationError
+from ..types.nodes import NodeID, NodeKey
 
 
 # ===== ВНУТРЕННИЕ ФУНКЦИИ =====

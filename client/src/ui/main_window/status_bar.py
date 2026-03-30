@@ -12,7 +12,7 @@ from PySide6.QtCore import QObject, QTimer, Signal, Slot
 from PySide6.QtWidgets import QLabel, QStatusBar
 
 from src.core import EventBus
-from src.core.events import ConnectionChanged
+from src.core.events.definitions import ConnectionChanged
 from utils.logger import get_logger
 
 

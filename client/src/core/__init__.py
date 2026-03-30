@@ -6,13 +6,13 @@
 Всё остальное импортируется из соответствующих подмодулей:
 
     from src.core.types import NodeType, NodeIdentifier
-    from src.core.events import NodeSelected, DataLoaded
-    from src.core.hierarchy import get_child_type
-    from src.core.serializers import identifier_to_key
+    from src.core.events import NodeSelected, NodeExpanded, NodeCollapsed, TabChanged
+    from src.core.rules.hierarchy import get_child_type
+    from src.core.converters.serializers import identifier_to_key
     from src.core.types.exceptions import NotFoundError, SerializationError
-    from src.core.interfaces import Repository
+    from src.core.ports.repository import Repository
 
-Список событий (12):
+Список событий:
     - NodeSelected, NodeExpanded, NodeCollapsed, TabChanged
     - RefreshRequested, ShowDetailsPanel
     - DataLoaded, DataError, DataInvalidated
@@ -20,10 +20,33 @@
     - ConnectionChanged
 """
 
+# Базовые типы
 from .types import NodeType, NodeIdentifier
+
+# Шина событий (фасад)
 from .event_bus import EventBus
+
+# Исключения
 from .types.exceptions import CoreError, NotFoundError, ValidationError, SerializationError
-from .interfaces import Repository
+
+# Интерфейсы (ports)
+from .ports.repository import Repository
+
+# События
+from .events import (
+    NodeSelected,
+    NodeExpanded,
+    NodeCollapsed,
+    TabChanged,
+    RefreshRequested,
+    ShowDetailsPanel,
+    DataLoaded,
+    DataError,
+    DataInvalidated,
+    ChildrenLoaded,
+    NodeDetailsLoaded,
+    ConnectionChanged,
+)
 
 __all__ = [
     # Базовые типы
@@ -33,7 +56,7 @@ __all__ = [
     # Шина событий
     "EventBus",
     
-    # Базовые исключения
+    # Исключения
     "CoreError",
     "NotFoundError",
     "ValidationError",
@@ -41,4 +64,18 @@ __all__ = [
     
     # Интерфейсы
     "Repository",
+    
+    # События
+    "NodeSelected",
+    "NodeExpanded",
+    "NodeCollapsed",
+    "TabChanged",
+    "RefreshRequested",
+    "ShowDetailsPanel",
+    "DataLoaded",
+    "DataError",
+    "DataInvalidated",
+    "ChildrenLoaded",
+    "NodeDetailsLoaded",
+    "ConnectionChanged",
 ]

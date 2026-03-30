@@ -102,7 +102,10 @@ class ApplicationBootstrap:
             self._details_controller.cleanup()
             self._refresh_controller.cleanup()
             self._connection_controller.cleanup()
-            log.success("Контроллеры очищены")
+            log.data("Контроллеры очищены")
+            
+            self._bus.clear()
+            log.data("Шина очищена")
 
             self._graph.clear()
             log.data("EntityGraph очищен")

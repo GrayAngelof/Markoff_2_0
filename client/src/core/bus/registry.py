@@ -11,10 +11,11 @@
 # ===== ИМПОРТЫ =====
 import time
 from collections import defaultdict
-from typing import Dict, List, Callable, Optional, Any
+from typing import Callable, Dict, List, Type
 
 from utils.logger import get_logger
 from .weak_callback import _WeakCallback
+from ..types.event_structures import Event, EventData
 
 
 # ===== КОНСТАНТЫ =====
@@ -35,15 +36,7 @@ class _SubscriptionRegistry:
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
     def __init__(self) -> None:
         """Инициализирует пустой реестр."""
-        # Основное хранилище: тип события → список _WeakCallback
-        self._subscribers: Dict[str, List[_WeakCallback]] = defaultdict(list)
-
-        # Статистика работы
-        self._stats = {
-            'total_registrations': 0,
-            'total_notifications': 0,
-            'total_cleaned': 0,
-        }
+        self._subscribers: Dict[Type[EventData], List[_WeakCallback]] = defaultdict(list)
 
         log.system("SubscriptionRegistry инициализирован")
 
@@ -52,85 +45,58 @@ class _SubscriptionRegistry:
         Полностью очищает все подписки.
 
         Returns:
-            int: Количество удалённых подписок
+            Количество удалённых подписок
         """
         total = sum(len(subs) for subs in self._subscribers.values())
         self._subscribers.clear()
         log.info(f"Реестр очищен: удалено {total} подписок")
         return total
 
-    def get_stats(self) -> Dict[str, Any]:
-        """
-        Возвращает статистику реестра.
-
-        Returns:
-            Dict: Статистика использования
-        """
-        # Подсчитываем живых подписчиков по типам
-        by_type = {}
-        total_alive = 0
-
-        for event_type in list(self._subscribers.keys()):
-            count = self.get_count(event_type)
-            if count > 0:
-                by_type[event_type] = count
-                total_alive += count
-
-        stats = {
-            'by_type': by_type,
-            'total': len(self._subscribers),
-            'active': total_alive,
-            'stats': self._stats.copy(),
-        }
-
-        log.debug(f"Статистика: {stats['active']} активных, удалено: {self._stats['total_cleaned']}")
-        return stats
-
     # ---- УПРАВЛЕНИЕ ПОДПИСКАМИ ----
-    def register(self, event_type: str, callback: Callable) -> Callable[[], None]:
+    def register(
+        self,
+        event_type: Type[EventData],
+        callback: Callable[[Event[EventData]], None],
+    ) -> Callable[[], None]:
         """
         Регистрирует подписку на событие.
 
         Returns:
-            Callable: Функция для отписки
+            Функция для отписки
         """
-        self._stats['total_registrations'] += 1
-
         weak_ref = _WeakCallback(callback)
         self._subscribers[event_type].append(weak_ref)
 
         callback_type = "метод" if weak_ref._is_method else "функция"
-        log.link(f"Зарегистрирован {callback_type} {weak_ref._callback_name} на {event_type}")
-        log.debug(f"Всего подписчиков на {event_type}: {len(self._subscribers[event_type])}")
+        log.link(f"Зарегистрирован {callback_type} {weak_ref._callback_name} на {event_type.__name__}")
+        log.debug(f"Всего подписчиков на {event_type.__name__}: {len(self._subscribers[event_type])}")
 
         def unsubscribe() -> None:
             """Удаляет эту подписку."""
             for i, existing_ref in enumerate(self._subscribers[event_type]):
                 if existing_ref is weak_ref:
                     self._subscribers[event_type].pop(i)
-                    log.link(f"Удалена подписка на {event_type}")
+                    log.link(f"Удалена подписка на {event_type.__name__}")
                     break
 
         return unsubscribe
 
     # ---- УВЕДОМЛЕНИЕ ПОДПИСЧИКОВ ----
-    def notify(self, event_type: str, event: Dict[str, Any]) -> int:
+    def notify(self, event_type: Type[EventData], event: Event[EventData]) -> int:
         """
         Уведомляет всех подписчиков о событии.
 
         Returns:
-            int: Количество очищенных мёртвых подписок
+            Количество очищенных мёртвых подписок
         """
-        self._stats['total_notifications'] += 1
-
         if event_type not in self._subscribers:
-            log.debug(f"Нет подписчиков на {event_type}")
+            log.debug(f"Нет подписчиков на {event_type.__name__}")
             return 0
 
         subscribers = list(self._subscribers[event_type])
         dead_indices = []
 
-        log.debug(f"Уведомление {len(subscribers)} подписчиков на {event_type}")
+        log.debug(f"Уведомление {len(subscribers)} подписчиков на {event_type.__name__}")
 
         for i, weak_ref in enumerate(subscribers):
             if not weak_ref.is_alive():
@@ -151,32 +117,31 @@ class _SubscriptionRegistry:
                 log.debug(f"Обработчик {callback_name} выполнен за {duration:.2f}мс")
 
             except Exception as e:
-                log.error(f"Ошибка в обработчике для {event_type}: {e}")
+                log.error(f"Ошибка в обработчике для {event_type.__name__}: {e}")
                 import traceback
                 traceback.print_exc()
 
-        # Удаляем мёртвые подписки (в обратном порядке, чтобы не сбивать индексы)
         if dead_indices:
-            for i in sorted(dead_indices, reverse=True):
-                self._subscribers[event_type].pop(i)
-
-            count = len(dead_indices)
-            self._stats['total_cleaned'] += count
-            log.debug(f"Удалено {count} мёртвых подписок из {event_type}")
-            return count
+            return self._cleanup(event_type, dead_indices)
 
         return 0
 
     # ---- ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ----
-    def get_subscribers(self, event_type: str) -> List[_WeakCallback]:
+    def _cleanup(self, event_type: Type[EventData], dead_indices: List[int]) -> int:
         """
-        Возвращает копию списка подписчиков на событие.
+        Удаляет мёртвые подписки по индексам.
 
-        Используется только для отладки.
+        Returns:
+            Количество удалённых подписок
         """
-        return list(self._subscribers.get(event_type, []))
+        for i in sorted(dead_indices, reverse=True):
+            self._subscribers[event_type].pop(i)
 
-    def get_count(self, event_type: str) -> int:
+        count = len(dead_indices)
+        log.debug(f"Удалено {count} мёртвых подписок из {event_type.__name__}")
+        return count
+
+    def get_count(self, event_type: Type[EventData]) -> int:
         """
         Возвращает количество живых подписчиков на событие.
 
@@ -194,14 +159,8 @@ class _SubscriptionRegistry:
             else:
                 dead_indices.append(i)
 
-        # Удаляем мёртвые
         if dead_indices:
-            for i in sorted(dead_indices, reverse=True):
-                self._subscribers[event_type].pop(i)
+            self._cleanup(event_type, dead_indices)
 
-            count = len(dead_indices)
-            self._stats['total_cleaned'] += count
-            log.debug(f"При подсчёте удалено {count} мёртвых подписок из {event_type}")
-
-        log.debug(f"На {event_type} {alive} живых подписчиков")
+        log.debug(f"На {event_type.__name__} {alive} живых подписчиков")
         return alive

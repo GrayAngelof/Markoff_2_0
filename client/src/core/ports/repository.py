@@ -1,4 +1,4 @@
-# client/src/core/interfaces/repository.py
+# client/src/core/ports/repository.py
 """
 Базовые интерфейсы для репозиториев.
 

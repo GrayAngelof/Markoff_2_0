@@ -110,30 +110,3 @@ class _WeakCallback:
         status = "жив" if self.is_alive() else "мёртв"
         kind = "метод" if self._is_method else "функция"
         return f"_WeakCallback({kind} {self._callback_name}, {status})"
-
-
-# ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
-# Сохранены для обратной совместимости. Используются редко.
-
-def is_method(callback: Callable) -> bool:
-    """Проверяет, является ли callback методом класса."""
-    return inspect.ismethod(callback)
-
-
-def is_function(callback: Callable) -> bool:
-    """Проверяет, является ли callback функцией."""
-    return inspect.isfunction(callback)
-
-
-def get_callback_name(callback: Callable) -> str:
-    """Безопасно получает имя callback'а."""
-    base_name = getattr(callback, '__name__', str(callback))
-
-    if inspect.ismethod(callback):
-        obj = callback.__self__
-        class_name = getattr(obj, '__class__', None)
-        if class_name:
-            class_name = getattr(class_name, '__name__', 'Unknown')
-            return f"{class_name}.{base_name}"
-
-    return str(base_name)

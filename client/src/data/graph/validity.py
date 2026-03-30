@@ -23,8 +23,8 @@ from threading import RLock
 from typing import Callable, Dict, Final, Iterable, List, Set, TypedDict
 
 from src.core import EventBus
-from src.core.events import DataInvalidated
-from src.core.hierarchy import get_child_type
+from src.core.events.definitions import DataInvalidated
+from src.core.rules.hierarchy import get_child_type
 from src.core.types import NodeType
 from src.shared.validation import validate_positive_int
 from utils.logger import get_logger

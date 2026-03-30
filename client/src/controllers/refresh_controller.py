@@ -14,7 +14,7 @@ RefreshController — управление обновлением данных.
 from typing import Optional, Set
 
 from src.core import EventBus
-from src.core.events import DataError, DataInvalidated, DataLoaded, RefreshRequested
+from src.core.events.definitions import DataError, DataInvalidated, DataLoaded, RefreshRequested
 from src.core.types import Event, NodeIdentifier
 from src.controllers.base import BaseController
 from src.services import DataLoader

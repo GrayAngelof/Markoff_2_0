@@ -13,7 +13,7 @@ import time
 from typing import Optional
 
 from src.core import EventBus
-from src.core.events import ConnectionChanged
+from src.core.events.definitions import ConnectionChanged
 from src.services.api_client import ApiClient
 from utils.logger import get_logger
 

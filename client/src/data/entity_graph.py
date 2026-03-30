@@ -13,7 +13,7 @@ from threading import RLock
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, TypedDict
 
 from src.core import EventBus
-from src.core.hierarchy import get_child_type, get_parent_type
+from src.core.rules.hierarchy import get_child_type, get_parent_type
 from src.core.types import NodeIdentifier, NodeType
 from src.core.types.nodes import NodeID
 from src.shared.comparison import has_changed

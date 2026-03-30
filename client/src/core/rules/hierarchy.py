@@ -1,4 +1,4 @@
-# client/src/core/hierarchy.py
+# client/src/core/rules/hierarchy.py
 """
 Правила иерархии объектов.
 
@@ -14,7 +14,7 @@
 from typing import List, Optional
 
 from utils.logger import get_logger
-from .types import NodeType
+from ..types import NodeType
 
 
 # ===== КОНСТАНТЫ =====

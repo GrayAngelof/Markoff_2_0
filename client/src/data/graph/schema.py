@@ -19,8 +19,8 @@
 # ===== ИМПОРТЫ =====
 from typing import Any, Dict, Final, Optional, cast
 
-from src.core.hierarchy import get_child_type as _get_child_type
-from src.core.hierarchy import get_parent_type as _get_parent_type
+from src.core.rules.hierarchy import get_child_type as _get_child_type
+from src.core.rules.hierarchy import get_parent_type as _get_parent_type
 from src.core.types import NodeType
 from src.core.types.protocols import HasNodeType
 from utils.logger import get_logger

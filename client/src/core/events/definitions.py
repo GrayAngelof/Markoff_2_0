@@ -1,4 +1,4 @@
-# client/src/core/events.py
+# client/src/core/events/definitions.py
 """
 Все события приложения.
 

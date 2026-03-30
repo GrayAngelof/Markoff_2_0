@@ -9,7 +9,7 @@
 # ===== ИМПОРТЫ =====
 from typing import Any, Dict, List
 
-from src.core.hierarchy import get_child_type
+from src.core.rules.hierarchy import get_child_type
 from src.core.types import NodeType
 from utils.logger import get_logger
 

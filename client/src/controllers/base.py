@@ -13,7 +13,7 @@
 from typing import Callable, List, Optional, TypeVar, cast
 
 from src.core import EventBus
-from src.core.events import DataError
+from src.core.events.definitions import DataError
 from src.core.types import Event, EventData, NodeIdentifier
 from utils.logger import get_logger
 

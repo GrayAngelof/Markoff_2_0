@@ -14,7 +14,7 @@
 from typing import List, Optional
 
 from utils.logger import get_logger
-from ..types import NodeType
+from ..types.nodes import NodeType
 
 
 # ===== КОНСТАНТЫ =====

@@ -22,7 +22,7 @@ from src.core.events.definitions import (
     NodeExpanded,
     NodeSelected,
 )
-from src.core.types import Event, NodeIdentifier, NodeType
+from src.core.types import NodeIdentifier, NodeType
 from src.controllers.base import BaseController
 from src.projections.tree import TreeProjection
 from src.services import ContextService, DataLoader
@@ -65,7 +65,7 @@ class TreeController(BaseController):
         """Инициализирует контроллер дерева."""
         log.info("Инициализация TreeController")
         super().__init__(bus)
-        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus._debug}")
+        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus.debug}")
 
         self._loader = loader
         self._context_service = context_service
@@ -94,15 +94,14 @@ class TreeController(BaseController):
 
     def load_root_nodes(self) -> None:
         """Загружает корневые узлы (комплексы) при старте приложения."""
-        complexes = self._loader._graph.get_all(NodeType.COMPLEX)
-
+        # Используем публичный метод, а не прямой доступ к _graph
+        complexes = self._loader.load_complexes()
+        
         if complexes:
-            log.cache(f"Комплексы уже загружены: {len(complexes)} шт.")
+            log.data(f"Загружено комплексов: {len(complexes)}")
             self._on_complexes_loaded(complexes)
         else:
-            log.api("Загрузка комплексов через API")
-            complexes = self._loader.load_complexes()
-            log.data(f"Загружено комплексов: {len(complexes)}")
+            log.warning("Не удалось загрузить комплексы")
 
     def get_current_selection(self) -> Optional[NodeIdentifier]:
         """Возвращает текущий выбранный узел."""
@@ -117,7 +116,7 @@ class TreeController(BaseController):
         return node in self._expanded_nodes
 
     # ---- ОБРАБОТЧИКИ СОБЫТИЙ ----
-    def _on_data_loaded(self, event: Event[DataLoaded]) -> None:
+    def _on_data_loaded(self, data: DataLoaded) -> None:  # Исправлено
         """
         ЕДИНСТВЕННОЕ МЕСТО, где создаются и вставляются узлы.
 
@@ -125,8 +124,6 @@ class TreeController(BaseController):
         - Загрузку комплексов → создание TreeView
         - Загрузку детей → создание TreeNode и вставка в модель
         """
-        data = event.data
-
         # 1. Обработка комплексов (корневые узлы)
         node_type_str = data.node_type if isinstance(data.node_type, str) else data.node_type.value
         if node_type_str == "complex" and data.node_id == 0:
@@ -184,13 +181,13 @@ class TreeController(BaseController):
         else:
             log.warning(f"Нет детей для вставки")
 
-    def _on_node_selected(self, event: Event[NodeSelected]) -> None:
+    def _on_node_selected(self, data: NodeSelected) -> None:  # Исправлено
         """
         Обрабатывает выбор узла.
 
         Состояние хранится здесь, не дублируется в событиях.
         """
-        node = event.data.node
+        node = data.node
         log.info(f"Выбран {node.node_type.value}#{node.node_id}")
 
         self._current_selection = node
@@ -213,12 +210,12 @@ class TreeController(BaseController):
             log.error(f"Ошибка: {e}")
             self._emit_error(node, e)
 
-    def _on_node_expanded(self, event: Event[NodeExpanded]) -> None:
+    def _on_node_expanded(self, data: NodeExpanded) -> None:  # Исправлено
         """
         ТОЛЬКО инициирует загрузку детей.
         Вставка происходит через _on_data_loaded.
         """
-        node = event.data.node
+        node = data.node
         log.info(f"Раскрыт {node.node_type.value}#{node.node_id}")
 
         self._expanded_nodes.add(node)
@@ -238,9 +235,9 @@ class TreeController(BaseController):
         # ТОЛЬКО ЗАГРУЗКА — данные придут через DataLoaded
         self._loader.load_children(node.node_type, node.node_id, child_type)
 
-    def _on_node_collapsed(self, event: Event[NodeCollapsed]) -> None:
+    def _on_node_collapsed(self, data: NodeCollapsed) -> None:  # Исправлено
         """Обрабатывает сворачивание узла."""
-        node = event.data.node
+        node = data.node
         log.info(f"Свернут {node.node_type.value}#{node.node_id}")
         self._expanded_nodes.discard(node)
 

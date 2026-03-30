@@ -11,7 +11,6 @@ from typing import Optional
 
 from src.core import EventBus
 from src.core.events.definitions import ConnectionChanged
-from src.core.types import Event
 from src.controllers.base import BaseController
 from utils.logger import get_logger
 
@@ -44,14 +43,14 @@ class ConnectionController(BaseController):
         log.system("ConnectionController инициализирован")
 
     # ---- ОБРАБОТЧИКИ СОБЫТИЙ ----
-    def _on_connection_changed(self, event: Event[ConnectionChanged]) -> None:
+    def _on_connection_changed(self, data: ConnectionChanged) -> None:  # Изменено: data вместо event
         """
         Обрабатывает изменение статуса соединения.
 
         Сохраняет статус и логирует только при реальном изменении.
         """
-        new_status = event.data.is_online
-        error = getattr(event.data, 'error', None)
+        new_status = data.is_online  # Изменено: data.is_online вместо event.data.is_online
+        error = getattr(data, 'error', None)
 
         log.debug(f"Получено ConnectionChanged: online={new_status}, error={error}")
 

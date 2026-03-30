@@ -1,4 +1,3 @@
-# client/src/ui/app_window.py
 """
 Фасад UI слоя.
 
@@ -15,7 +14,6 @@ from PySide6.QtWidgets import QMainWindow
 
 from src.core import EventBus
 from src.core.events.definitions import ShowDetailsPanel
-from src.core.types.event_structures import Event
 from src.ui.common.central_widget import CentralWidget
 from src.ui.main_window.menu import MenuBar
 from src.ui.main_window.status_bar import StatusBar
@@ -106,11 +104,14 @@ class AppWindow:
         return self._window
 
     # ---- ОБРАБОТЧИКИ СОБЫТИЙ ----
-    def _on_show_details_panel(self, event: Event[ShowDetailsPanel]) -> None:
+    def _on_show_details_panel(self, event_data: ShowDetailsPanel) -> None:
         """
         Обрабатывает событие показа панели деталей.
 
         Делегирует переключение видимости CentralWidget.
+
+        Args:
+            event_data: Данные события (ShowDetailsPanel)
         """
         log.debug("AppWindow: получено ShowDetailsPanel, переключаем панель")
         self._central.show_details_panel()

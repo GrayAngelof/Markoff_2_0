@@ -11,16 +11,16 @@
 # ===== ИМПОРТЫ =====
 import time
 from collections import defaultdict
-from typing import Callable, Dict, List, Type
+from typing import Callable, Dict, List, Type, TypeVar
 
 from utils.logger import get_logger
 from .weak_callback import _WeakCallback
-from ..types.event_structures import Event, EventData
+from ..types.event_structures import EventData
 
 
 # ===== КОНСТАНТЫ =====
 log = get_logger(__name__)
-
+T = TypeVar('T', bound=EventData)
 
 # ===== КЛАСС =====
 class _SubscriptionRegistry:
@@ -56,7 +56,7 @@ class _SubscriptionRegistry:
     def register(
         self,
         event_type: Type[EventData],
-        callback: Callable[[Event[EventData]], None],
+        callback: Callable[[T], None],
     ) -> Callable[[], None]:
         """
         Регистрирует подписку на событие.
@@ -82,7 +82,7 @@ class _SubscriptionRegistry:
         return unsubscribe
 
     # ---- УВЕДОМЛЕНИЕ ПОДПИСЧИКОВ ----
-    def notify(self, event_type: Type[EventData], event: Event[EventData]) -> int:
+    def notify(self, event_type: Type[EventData], event_data: EventData) -> int:
         """
         Уведомляет всех подписчиков о событии.
 
@@ -110,7 +110,7 @@ class _SubscriptionRegistry:
 
             try:
                 start_time = time.time()
-                callback(event)
+                callback(event_data)
                 duration = (time.time() - start_time) * 1000
 
                 callback_name = getattr(callback, '__name__', str(callback))

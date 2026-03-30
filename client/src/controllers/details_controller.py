@@ -22,7 +22,6 @@ from typing import Any, Optional
 
 from src.core import EventBus
 from src.core.events.definitions import NodeDetailsLoaded, NodeSelected, ShowDetailsPanel
-from src.core.types import Event
 from src.core.types.nodes import NodeIdentifier, NodeType
 from src.controllers.base import BaseController
 from src.services.data_loader import DataLoader
@@ -54,7 +53,7 @@ class DetailsController(BaseController):
         self._details_panel: Optional[DetailsPanel] = None
         self._current_node: Optional[NodeIdentifier] = None
 
-        self._subscribe(NodeSelected, self._on_node_selected)
+        self._subscribe(NodeSelected, self._on_node_selected)  # Теперь корректно
 
         log.success("DetailsController инициализирован")
 
@@ -72,13 +71,13 @@ class DetailsController(BaseController):
         log.link("DetailsController: DetailsPanel установлен")
 
     # ---- ОБРАБОТЧИКИ СОБЫТИЙ ----
-    def _on_node_selected(self, event: Event[NodeSelected]) -> None:
+    def _on_node_selected(self, data: NodeSelected) -> None:  # Изменено: event → data
         """
         Обрабатывает выбор узла в дереве.
 
         Эмитит ShowDetailsPanel и инициирует загрузку данных узла.
         """
-        node = event.data.node
+        node = data.node  # Изменено: event.data.node → data.node
         self._current_node = node
 
         log.info(f"DetailsController: выбран узел {node.node_type.value}#{node.node_id}")

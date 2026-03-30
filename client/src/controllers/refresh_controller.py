@@ -15,7 +15,7 @@ from typing import Optional, Set
 
 from src.core import EventBus
 from src.core.events.definitions import DataError, DataInvalidated, DataLoaded, RefreshRequested
-from src.core.types import Event, NodeIdentifier
+from src.core.types import NodeIdentifier  # Убран Event
 from src.controllers.base import BaseController
 from src.services import DataLoader
 from utils.logger import get_logger
@@ -68,14 +68,14 @@ class RefreshController(BaseController):
         return self._expanded_nodes.copy()
 
     # ---- ОБРАБОТЧИКИ СОБЫТИЙ ----
-    def _on_refresh_requested(self, event: Event[RefreshRequested]) -> None:
+    def _on_refresh_requested(self, refresh_data: RefreshRequested) -> None:  # Изменено: принимает RefreshRequested
         """
         Обрабатывает запрос на обновление.
 
         Поддерживает режимы: 'current', 'visible', 'full'.
         """
-        mode = event.data.mode
-        node = event.data.node
+        mode = refresh_data.mode  # Прямой доступ к атрибутам
+        node = refresh_data.node
 
         log.info(f"Запрос обновления: режим {mode}")
         if node:

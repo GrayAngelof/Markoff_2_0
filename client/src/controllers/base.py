@@ -14,7 +14,7 @@ from typing import Callable, List, Optional, TypeVar, cast
 
 from src.core import EventBus
 from src.core.events.definitions import DataError
-from src.core.types import Event, EventData, NodeIdentifier
+from src.core.types import EventData, NodeIdentifier
 from utils.logger import get_logger
 
 
@@ -60,7 +60,7 @@ class BaseController:
     def _subscribe(
         self,
         event_type: type[T],
-        callback: Callable[[Event[T]], None]
+        callback: Callable[[T], None]  # Изменено: теперь принимает T (EventData), а не Event[T]
     ) -> None:
         """
         Подписывается на событие с сохранением для отписки.
@@ -72,14 +72,13 @@ class BaseController:
 
         self._logger.link(f"[{controller_name}] Подписка на {event_type.__name__} -> {callback_name}")
 
-        def wrapper(event: Event) -> None:
-            if isinstance(event.data, event_type):
-                typed_event = cast(Event[T], event)
-                callback(typed_event)
+        def wrapper(event_data: EventData) -> None:  # Изменено: принимает EventData
+            if isinstance(event_data, event_type):
+                callback(event_data)  # Передаём напрямую данные события
             else:
                 self._logger.warning(
                     f"[{controller_name}] Ожидался {event_type.__name__}, "
-                    f"получен {type(event.data).__name__}"
+                    f"получен {type(event_data).__name__}"
                 )
 
         self._wrappers.append(wrapper)
@@ -114,8 +113,12 @@ class BaseController:
 
         full_error = f"{error_msg} [context: {context}]"
 
+        # Определяем тип узла для DataError
+        node_type = node.node_type.value if node else "unknown"
+        node_id = node.node_id if node else 0
+
         self._bus.emit(DataError(
-            node_type=node.node_type.value if node else "unknown",
-            node_id=node.node_id if node else 0,
+            node_type=node_type,
+            node_id=node_id,
             error=full_error,
         ))

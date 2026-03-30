@@ -9,35 +9,26 @@
 # ===== ИМПОРТЫ =====
 from typing import List, Optional, Protocol, TypeVar, runtime_checkable
 
-
 # ===== ТИПЫ =====
-# T — invariant: используется и как in, и как out (параметры методов и возврат)
 T = TypeVar('T')
-
-# ID — contravariant: используется только как in (параметры методов)
 ID = TypeVar('ID', contravariant=True)
 
 
 # ===== ИНТЕРФЕЙСЫ =====
-@runtime_checkable
 class Repository(Protocol[T, ID]):
     """
     Базовый интерфейс репозитория.
 
     Все репозитории в системе должны реализовывать этот контракт.
     Обеспечивает единообразие CRUD-операций над сущностями.
-
-    TypeVar'ы:
-        T — тип сущности (invariant)
-        ID — тип идентификатора (contravariant)
     """
 
-    def get(self, id: ID) -> Optional[T]:
+    def get(self, id: ID) -> T:
         """
         Возвращает сущность по ID.
 
-        Returns:
-            None если сущность не найдена
+        Raises:
+            NotFoundError: Если сущность не найдена
         """
         ...
 

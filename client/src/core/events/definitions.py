@@ -11,6 +11,7 @@
 
 # ===== ИМПОРТЫ =====
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Generic, List, Optional, Set, TypeVar
 
 from src.core.types.event_structures import EventData
@@ -19,6 +20,13 @@ from src.core.types.nodes import NodeIdentifier, NodeType
 
 # ===== ТИПЫ =====
 T = TypeVar('T')
+
+
+class DataLoadedKind(str, Enum):
+    """Тип загруженных данных."""
+
+    CHILDREN = "children"   # список детей (ленивая загрузка)
+    DETAILS = "details"     # детальная информация об объекте
 
 
 # ===== СОБЫТИЯ =====
@@ -44,20 +52,23 @@ class NodeCollapsed(EventData):
 
     node: NodeIdentifier
 
+
 @dataclass(frozen=True, slots=True)
 class CollapseAllRequested(EventData):
     """Запрос на сворачивание всех узлов дерева."""
-    pass
+
 
 @dataclass(frozen=True, slots=True)
 class CurrentSelectionChanged(EventData):
     """Изменился текущий выбранный узел."""
+
     selection: Optional[NodeIdentifier]
 
 
 @dataclass(frozen=True, slots=True)
 class ExpandedNodesChanged(EventData):
     """Изменился список раскрытых узлов."""
+
     expanded_nodes: Set[NodeIdentifier]
 
 
@@ -92,12 +103,22 @@ class ShowDetailsPanel(EventData):
 # ---- События данных (результаты загрузки) ----
 @dataclass(frozen=True, slots=True)
 class DataLoaded(EventData, Generic[T]):
-    """Данные загружены (из кэша или API)."""
+    """
+    Данные загружены (из кэша или API).
 
-    node_type: str
+    Attributes:
+        node_type: Тип узла
+        node_id: ID узла
+        payload: Загруженные данные (DTO или список DTO)
+        count: Количество загруженных элементов (для списков)
+        kind: Тип загруженных данных (CHILDREN или DETAILS)
+    """
+
+    node_type: NodeType
     node_id: int
     payload: T
     count: int = 1
+    kind: DataLoadedKind = DataLoadedKind.DETAILS
 
 
 @dataclass(frozen=True, slots=True)

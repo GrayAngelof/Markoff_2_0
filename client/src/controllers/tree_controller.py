@@ -18,6 +18,7 @@ from src.core.events.definitions import (
     CollapseAllRequested,
     CurrentSelectionChanged,
     DataLoaded,
+    DataLoadedKind,
     ExpandedNodesChanged,
     NodeCollapsed,
     NodeDetailsLoaded,
@@ -122,34 +123,33 @@ class TreeController(BaseController):
         ЕДИНСТВЕННОЕ МЕСТО, где создаются и вставляются узлы.
 
         Обрабатывает:
-        - Загрузку комплексов → создание TreeView
-        - Загрузку детей → создание TreeNode и вставка в модель
+        - Загрузку комплексов (корневые узлы)
+        - Загрузку детей (ленивая загрузка)
         """
         # 1. Обработка комплексов (корневые узлы)
-        node_type_str = data.node_type if isinstance(data.node_type, str) else data.node_type.value
-        if node_type_str == "complex" and data.node_id == 0:
-            log.info("Получены комплексы, создаем TreeView")
-            self._on_complexes_loaded(data.payload)
+        if data.node_type == NodeType.COMPLEX and data.node_id == 0:
+            if data.kind == DataLoadedKind.CHILDREN:
+                log.info("Получены комплексы, создаем TreeView")
+                self._on_complexes_loaded(data.payload)
             return
 
         # 2. Детальные данные обрабатываются в DetailsController — пропускаем
-        if not isinstance(data.payload, list):
-            log.debug(f"Детальные данные для {data.node_type}#{data.node_id}, пропускаем")
+        if data.kind == DataLoadedKind.DETAILS:
+            log.debug(f"Детальные данные для {data.node_type.value}#{data.node_id}, пропускаем")
             return
 
-        # 3. Обработка загрузки детей
-        log.info(f"Получены дети для {data.node_type}#{data.node_id}, {data.count} шт")
+        # 3. Обработка загрузки детей (kind == CHILDREN)
+        log.info(f"Получены дети для {data.node_type.value}#{data.node_id}, {data.count} шт")
 
         if self._tree_model is None:
             log.error("TreeModel не инициализирован")
             return
 
-        parent_type = NodeType(data.node_type) if isinstance(data.node_type, str) else data.node_type
-        parent_identifier = NodeIdentifier(parent_type, data.node_id)
+        parent_identifier = NodeIdentifier(data.node_type, data.node_id)
         parent_node = self._find_tree_node(parent_identifier)
 
         if parent_node is None:
-            log.error(f"Родительский узел {data.node_type}#{data.node_id} не найден")
+            log.error(f"Родительский узел {data.node_type.value}#{data.node_id} не найден")
             return
 
         # Защита от дублирования
@@ -157,9 +157,9 @@ class TreeController(BaseController):
             log.info(f"Дети уже загружены, пропускаем")
             return
 
-        child_type = self._get_child_type(parent_type)
+        child_type = self._get_child_type(data.node_type)
         if not child_type:
-            log.warning(f"Неизвестный тип детей для {data.node_type}")
+            log.warning(f"Неизвестный тип детей для {data.node_type.value}")
             return
 
         children_nodes = self._tree_projection.build_children_from_payload(

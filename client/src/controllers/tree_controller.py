@@ -15,8 +15,10 @@ from typing import Any, List, Optional, Set
 from src.core import EventBus
 from src.core.events.definitions import (
     ChildrenLoaded,
-    DataError,
+    CollapseAllRequested,
+    CurrentSelectionChanged,
     DataLoaded,
+    ExpandedNodesChanged,
     NodeCollapsed,
     NodeDetailsLoaded,
     NodeExpanded,
@@ -25,7 +27,7 @@ from src.core.events.definitions import (
 from src.core.types import NodeIdentifier, NodeType
 from src.controllers.base import BaseController
 from src.projections.tree import TreeProjection
-from src.services import ContextService, DataLoader
+from src.services import DataLoader
 from src.ui.app_window import AppWindow
 from src.ui.tree.model import TreeModel
 from src.ui.tree.view import TreeView
@@ -47,6 +49,7 @@ class TreeController(BaseController):
     - Хранение состояния (текущий выбор, раскрытые узлы)
     - Инициирование загрузки (но не вставку!)
     - Создание TreeView и подмену левой панели
+    - Эмиссию событий состояния для других контроллеров
 
     Принцип работы:
     - Раскрытие узла → вызывает DataLoader.load_children()
@@ -59,16 +62,13 @@ class TreeController(BaseController):
         self,
         bus: EventBus,
         loader: DataLoader,
-        context_service: ContextService,
         tree_projection: TreeProjection,
     ) -> None:
         """Инициализирует контроллер дерева."""
         log.info("Инициализация TreeController")
         super().__init__(bus)
-        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus.debug}")
 
         self._loader = loader
-        self._context_service = context_service
         self._tree_projection = tree_projection
         self._app_window: Optional[AppWindow] = None
         self._tree_model: Optional[TreeModel] = None
@@ -83,6 +83,7 @@ class TreeController(BaseController):
         self._subscribe(NodeExpanded, self._on_node_expanded)
         self._subscribe(NodeCollapsed, self._on_node_collapsed)
         self._subscribe(DataLoaded, self._on_data_loaded)
+        self._subscribe(CollapseAllRequested, self._on_collapse_all_requested)
 
         log.system("TreeController инициализирован")
 
@@ -94,29 +95,29 @@ class TreeController(BaseController):
 
     def load_root_nodes(self) -> None:
         """Загружает корневые узлы (комплексы) при старте приложения."""
-        # Используем публичный метод, а не прямой доступ к _graph
         complexes = self._loader.load_complexes()
-        
+
         if complexes:
             log.data(f"Загружено комплексов: {len(complexes)}")
             self._on_complexes_loaded(complexes)
         else:
             log.warning("Не удалось загрузить комплексы")
 
-    def get_current_selection(self) -> Optional[NodeIdentifier]:
-        """Возвращает текущий выбранный узел."""
-        return self._current_selection
-
-    def get_expanded_nodes(self) -> Set[NodeIdentifier]:
-        """Возвращает копию списка раскрытых узлов."""
-        return self._expanded_nodes.copy()
-
-    def is_expanded(self, node: NodeIdentifier) -> bool:
-        """Проверяет, раскрыт ли узел."""
-        return node in self._expanded_nodes
-
     # ---- ОБРАБОТЧИКИ СОБЫТИЙ ----
-    def _on_data_loaded(self, data: DataLoaded) -> None:  # Исправлено
+    def _on_collapse_all_requested(self, _event: CollapseAllRequested) -> None:
+        """Сворачивает все узлы дерева."""
+        log.info("Сворачивание всех узлов дерева")
+
+        if self._tree_view is None:
+            log.warning("TreeView не инициализирован")
+            return
+
+        self._tree_view.collapse_all()
+        self._expanded_nodes.clear()
+        self._emit_expanded_nodes_changed()
+        log.success("Все узлы свёрнуты")
+
+    def _on_data_loaded(self, data: DataLoaded) -> None:
         """
         ЕДИНСТВЕННОЕ МЕСТО, где создаются и вставляются узлы.
 
@@ -131,12 +132,9 @@ class TreeController(BaseController):
             self._on_complexes_loaded(data.payload)
             return
 
-        # 2. Определяем, что это: дети или детали
-        is_details = not isinstance(data.payload, list)
-
-        if is_details:
-            # Детальные данные обрабатываются в DetailsController
-            log.debug(f"_on_data_loaded: детальные данные для {data.node_type}#{data.node_id}, пропускаем")
+        # 2. Детальные данные обрабатываются в DetailsController — пропускаем
+        if not isinstance(data.payload, list):
+            log.debug(f"Детальные данные для {data.node_type}#{data.node_id}, пропускаем")
             return
 
         # 3. Обработка загрузки детей
@@ -156,7 +154,7 @@ class TreeController(BaseController):
 
         # Защита от дублирования
         if parent_node.child_count() > 0:
-            log.info(f"_on_data_loaded: Дети уже загружены, пропускаем")
+            log.info(f"Дети уже загружены, пропускаем")
             return
 
         child_type = self._get_child_type(parent_type)
@@ -181,16 +179,17 @@ class TreeController(BaseController):
         else:
             log.warning(f"Нет детей для вставки")
 
-    def _on_node_selected(self, data: NodeSelected) -> None:  # Исправлено
-        """
-        Обрабатывает выбор узла.
-
-        Состояние хранится здесь, не дублируется в событиях.
-        """
+    def _on_node_selected(self, data: NodeSelected) -> None:
+        """Обрабатывает выбор узла."""
         node = data.node
         log.info(f"Выбран {node.node_type.value}#{node.node_id}")
 
+        old_selection = self._current_selection
         self._current_selection = node
+
+        # Эмитим событие только если выбор изменился
+        if old_selection != node:
+            self._emit_current_selection_changed()
 
         try:
             details = self._loader.load_details(node.node_type, node.node_id)
@@ -198,11 +197,10 @@ class TreeController(BaseController):
                 log.warning(f"Нет деталей для {node.node_type.value}#{node.node_id}")
                 return
 
-            context = self._context_service.get_context(node)
             self._bus.emit(NodeDetailsLoaded(
                 node=node,
                 payload=details,
-                context=context,
+                context={},
             ))
             log.data(f"Детали загружены")
 
@@ -210,15 +208,14 @@ class TreeController(BaseController):
             log.error(f"Ошибка: {e}")
             self._emit_error(node, e)
 
-    def _on_node_expanded(self, data: NodeExpanded) -> None:  # Исправлено
-        """
-        ТОЛЬКО инициирует загрузку детей.
-        Вставка происходит через _on_data_loaded.
-        """
+    def _on_node_expanded(self, data: NodeExpanded) -> None:
+        """ТОЛЬКО инициирует загрузку детей. Вставка через _on_data_loaded."""
         node = data.node
         log.info(f"Раскрыт {node.node_type.value}#{node.node_id}")
 
+        was_empty = len(self._expanded_nodes) == 0
         self._expanded_nodes.add(node)
+        self._emit_expanded_nodes_changed()
 
         # Проверяем, есть ли уже дети (чтобы не загружать повторно)
         if self._tree_model is not None:
@@ -232,14 +229,29 @@ class TreeController(BaseController):
             log.info(f"Узел не может иметь детей")
             return
 
-        # ТОЛЬКО ЗАГРУЗКА — данные придут через DataLoaded
         self._loader.load_children(node.node_type, node.node_id, child_type)
 
-    def _on_node_collapsed(self, data: NodeCollapsed) -> None:  # Исправлено
+    def _on_node_collapsed(self, data: NodeCollapsed) -> None:
         """Обрабатывает сворачивание узла."""
         node = data.node
         log.info(f"Свернут {node.node_type.value}#{node.node_id}")
+
+        was_removed = node in self._expanded_nodes
         self._expanded_nodes.discard(node)
+
+        if was_removed:
+            self._emit_expanded_nodes_changed()
+
+    # ---- ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ ЭМИССИИ СОСТОЯНИЯ ----
+    def _emit_current_selection_changed(self) -> None:
+        """Эмитит событие об изменении текущего выбранного узла."""
+        self._bus.emit(CurrentSelectionChanged(selection=self._current_selection))
+        log.debug(f"Эмиттирован CurrentSelectionChanged: {self._current_selection}")
+
+    def _emit_expanded_nodes_changed(self) -> None:
+        """Эмитит событие об изменении списка раскрытых узлов."""
+        self._bus.emit(ExpandedNodesChanged(expanded_nodes=self._expanded_nodes.copy()))
+        log.debug(f"Эмиттирован ExpandedNodesChanged: {len(self._expanded_nodes)} узлов")
 
     # ---- ВНУТРЕННИЕ МЕТОДЫ ----
     def _on_complexes_loaded(self, complexes: List[Any]) -> None:
@@ -249,15 +261,16 @@ class TreeController(BaseController):
             return
 
         root_nodes = self._tree_projection.get_root_nodes()
-        tree_view = self._app_window.get_tree_view()
+        self._tree_view = self._app_window.get_tree_view()
 
         self._tree_model = TreeModel(root_nodes)
-        tree_view.setModel(self._tree_model)
-        tree_view.set_event_bus(self._bus)
+        self._tree_view.setModel(self._tree_model)
+        self._tree_view.set_event_bus(self._bus)
 
         log.system(f"TreeView обновлен с {len(root_nodes)} корневыми узлами")
 
-    def _get_child_type(self, parent_type: NodeType) -> Optional[NodeType]:
+    @staticmethod
+    def _get_child_type(parent_type: NodeType) -> Optional[NodeType]:
         """Определяет тип детей по типу родителя."""
         mapping = {
             NodeType.COMPLEX: NodeType.BUILDING,

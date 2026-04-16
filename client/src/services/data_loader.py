@@ -276,6 +276,7 @@ class DataLoader:
     def clear_cache(self) -> None:
         """Очищает все кэши в загрузчике."""
         self._utils.clear_cache()
+        self._graph.clear()
         log.cache("Кэш DataLoader очищен")
 
     def get_stats(self) -> Dict[str, Any]:

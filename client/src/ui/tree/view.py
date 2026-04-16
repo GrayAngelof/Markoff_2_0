@@ -102,3 +102,8 @@ class TreeView(QTreeView):
         if self._bus and isinstance(node, TreeNode):
             log.api(f"Узел свернут: {node.type}#{node.id}")
             self._bus.emit(NodeCollapsed(node=node.get_identifier()))
+
+    def collapse_all(self) -> None:
+        """Сворачивает все узлы дерева."""
+        self.collapseAll()
+        log.debug("Все узлы свёрнуты")

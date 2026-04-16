@@ -1,3 +1,4 @@
+# client/src/ui/app_window.py
 """
 Фасад UI слоя.
 
@@ -13,7 +14,7 @@
 from PySide6.QtWidgets import QMainWindow
 
 from src.core import EventBus
-from src.core.events.definitions import ShowDetailsPanel
+from src.core.events.definitions import RefreshRequested, ShowDetailsPanel
 from src.ui.common.central_widget import CentralWidget
 from src.ui.main_window.menu import MenuBar
 from src.ui.main_window.status_bar import StatusBar
@@ -36,7 +37,7 @@ class AppWindow:
     - Создание постоянных компонентов (MenuBar, Toolbar, StatusBar)
     - Создание CentralWidget (TreeView и DetailsPanel внутри)
     - Компоновку всех компонентов в окне
-    - Подписку на глобальные UI-события (ShowDetailsPanel)
+    - Подписку на глобальные UI-события (ShowDetailsPanel, RefreshRequested)
     - Предоставление геттеров для контроллеров
 
     НЕ отвечает за:
@@ -82,6 +83,10 @@ class AppWindow:
         self._bus.subscribe(ShowDetailsPanel, self._on_show_details_panel)
         log.link("AppWindow подписан на ShowDetailsPanel")
 
+        # Подключение сигналов UI к EventBus
+        self._toolbar.refresh_triggered.connect(self._on_refresh_triggered)
+        log.link("Toolbar.refresh_triggered подключён")
+
         # Компоновка
         self._window.setMenuBar(self._menu)
         self._window.addToolBar(self._toolbar)
@@ -109,9 +114,18 @@ class AppWindow:
         Обрабатывает событие показа панели деталей.
 
         Делегирует переключение видимости CentralWidget.
-
-        Args:
-            event_data: Данные события (ShowDetailsPanel)
         """
         log.debug("AppWindow: получено ShowDetailsPanel, переключаем панель")
         self._central.show_details_panel()
+
+    def _on_refresh_triggered(self, mode: str) -> None:
+        """
+        Обрабатывает клик по кнопке обновления.
+
+        Преобразует UI-сигнал в событие EventBus.
+
+        Args:
+            mode: Режим обновления ('current', 'visible', 'full')
+        """
+        log.info(f"Запрос обновления: режим {mode}")
+        self._bus.emit(RefreshRequested(mode=mode))

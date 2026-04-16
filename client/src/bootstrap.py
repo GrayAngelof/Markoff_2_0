@@ -177,7 +177,6 @@ class ApplicationBootstrap:
         self._tree_controller = TreeController(
             bus=self._bus,
             loader=self._loader,
-            context_service=self._context_service,
             tree_projection=self._tree_projection,
         )
 

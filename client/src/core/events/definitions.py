@@ -11,7 +11,7 @@
 
 # ===== ИМПОРТЫ =====
 from dataclasses import dataclass, field
-from typing import Generic, List, Optional, TypeVar
+from typing import Generic, List, Optional, Set, TypeVar
 
 from src.core.types.event_structures import EventData
 from src.core.types.nodes import NodeIdentifier, NodeType
@@ -43,6 +43,22 @@ class NodeCollapsed(EventData):
     """Пользователь свернул узел в дереве."""
 
     node: NodeIdentifier
+
+@dataclass(frozen=True, slots=True)
+class CollapseAllRequested(EventData):
+    """Запрос на сворачивание всех узлов дерева."""
+    pass
+
+@dataclass(frozen=True, slots=True)
+class CurrentSelectionChanged(EventData):
+    """Изменился текущий выбранный узел."""
+    selection: Optional[NodeIdentifier]
+
+
+@dataclass(frozen=True, slots=True)
+class ExpandedNodesChanged(EventData):
+    """Изменился список раскрытых узлов."""
+    expanded_nodes: Set[NodeIdentifier]
 
 
 @dataclass(frozen=True, slots=True)

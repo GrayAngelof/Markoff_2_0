@@ -78,10 +78,6 @@ class LoadStateIndex:
         with self._lock:
             return self._states[node_type].get(node_id, LoadState.NOT_LOADED) == LoadState.LOADED
 
-    def is_loading(self, node_type: NodeType, node_id: int) -> bool:
-        """Проверяет, идёт ли загрузка."""
-        with self._lock:
-            return self._states[node_type].get(node_id, LoadState.NOT_LOADED) == LoadState.LOADING
 
     # ---- УСТАНОВКА СОСТОЯНИЯ ----
     def set_state(self, node_type: NodeType, node_id: int, state: LoadState) -> None:

@@ -81,9 +81,6 @@ def to_responsible_person_list(data: List[dict]) -> List[ResponsiblePerson]:
     """Преобразует список JSON объектов в список ResponsiblePerson."""
     return [ResponsiblePerson.from_dict(item) for item in data]
 
-
-# ===== УНИВЕРСАЛЬНЫЕ КОНВЕРТЕРЫ =====
-def safe_convert(data: Any, converter, default: Any = None) -> Any:
     """
     Безопасное преобразование с обработкой None.
 

@@ -356,12 +356,6 @@ class EntityGraph:
             lambda: self._load_state.is_loaded(node_type, node_id)
         )
 
-    def is_children_loading(self, node_type: NodeType, node_id: int) -> bool:
-        """Проверяет, идёт ли загрузка детей для узла."""
-        return self._with_lock(
-            lambda: self._load_state.is_loading(node_type, node_id)
-        )
-
     def mark_children_loading(self, node_type: NodeType, node_id: int) -> bool:
         """Помечает начало загрузки детей."""
         log.info(f"Загрузка детей {node_type.value}#{node_id}")

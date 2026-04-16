@@ -26,7 +26,6 @@ from src.models import Building, Complex, Counterparty, Floor, ResponsiblePerson
 from src.services.api_client import ApiClient
 from src.services.loading.dictionary_loader import DictionaryLoader
 from src.services.loading.node_loader import NodeLoader
-from src.services.loading.utils import LoaderUtils
 from utils.logger import get_logger
 
 
@@ -65,10 +64,7 @@ class DataLoader:
         log.system("DataLoader инициализация")
 
         self._bus = bus
-        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus._debug}")
-
         self._graph = graph
-        self._utils = LoaderUtils()
 
         child_loaders = {
             NodeType.BUILDING: lambda a, pid: a.get_buildings(pid),
@@ -202,13 +198,6 @@ class DataLoader:
     def load_building_with_owner(self, building_id: NodeID) -> Optional[BuildingWithOwnerResult]:
         """
         Загружает корпус с его владельцем и ответственными лицами.
-
-        Алгоритм:
-        1. Проверяет кэш корпуса
-        2. Если есть и полный — использует
-        3. Если нет — загружает детали корпуса
-        4. Если у корпуса есть owner_id — загружает владельца
-        5. Если владелец загружен — загружает ответственных лиц
         """
         building = self.load_details(NodeType.BUILDING, building_id)
         if building is None:
@@ -219,34 +208,19 @@ class DataLoader:
 
         if building.owner_id:
             owner = self.load_counterparty(building.owner_id)
-
             if owner:
+                persons = self.load_responsible_persons(owner.id)
                 result = BuildingWithOwnerResult(
                     building=building,
                     owner=owner,
-                    responsible_persons=result.responsible_persons
+                    responsible_persons=persons
                 )
-
-                persons = self.load_responsible_persons(owner.id)
                 if persons:
-                    result = BuildingWithOwnerResult(
-                        building=building,
-                        owner=owner,
-                        responsible_persons=persons
-                    )
                     log.data(f"Загружено {len(persons)} контактов для владельца {owner.short_name}")
             else:
                 log.warning(f"Владелец #{building.owner_id} для корпуса #{building_id} не найден")
 
         log.data(f"Корпус #{building_id} загружен: владелец={result.owner is not None}, контактов={len(result.responsible_persons)}")
-        return result
-
-    # ---- НАВИГАЦИЯ ----
-    def get_ancestors(self, node_type: NodeType, node_id: NodeID) -> List[NodeIdentifier]:
-        """Возвращает всех предков узла (родитель, дедушка и т.д.)."""
-        result = self._graph.get_ancestors(node_type, node_id)
-        if result:
-            log.debug(f"Найдено {len(result)} предков для {node_type.value}#{node_id}")
         return result
 
     # ---- ПЕРЕЗАГРУЗКА ДАННЫХ ----
@@ -261,47 +235,11 @@ class DataLoader:
 
         log.info(f"Узел {node_display} перезагружен")
 
-    def reload_branch(self, node_type: NodeType, node_id: NodeID) -> None:
-        """Перезагружает всю ветку (инвалидирует рекурсивно и загружает)."""
-        node_display = f"{node_type.value}#{node_id}"
-
-        count = self._graph.invalidate_branch(node_type, node_id)
-        log.cache(f"Инвалидировано {count} сущностей в ветке {node_display}")
-
-        self.load_details(node_type, node_id)
-
-        log.info(f"Ветка {node_display} перезагружена")
-
     # ---- УПРАВЛЕНИЕ ----
     def clear_cache(self) -> None:
         """Очищает все кэши в загрузчике."""
-        self._utils.clear_cache()
         self._graph.clear()
         log.cache("Кэш DataLoader очищен")
-
-    def get_stats(self) -> Dict[str, Any]:
-        """Возвращает статистику работы загрузчика."""
-        stats = {
-            'loader': self._node_loader.get_stats() if hasattr(self._node_loader, 'get_stats') else {},
-            'utils': self._utils.get_stats(),
-        }
-        return stats
-
-    def print_stats(self) -> None:
-        """Выводит статистику в консоль."""
-        stats = self.get_stats()
-
-        log.info("=== DataLoader Statistics ===")
-        log.info(f"LoaderUtils:")
-        log.info(f"  detail_checks: {stats['utils']['detail_checks']}")
-        log.info(f"  detail_cache_hits: {stats['utils']['detail_cache_hits']}")
-        log.info(f"  cache_size: {stats['utils']['cache_size']}")
-
-        if stats['loader']:
-            log.info(f"NodeLoader:")
-            for key, value in stats['loader'].items():
-                log.info(f"  {key}: {value}")
-        log.info("=" * 30)
 
     # ---- ВНУТРЕННИЕ МЕТОДЫ ----
     def _with_events(
@@ -312,11 +250,7 @@ class DataLoader:
         *args,
         **kwargs
     ) -> Any:
-        """
-        Обёртка для единообразной эмиссии событий загрузки.
-
-        Эмитит DataLoaded при успехе, DataError при ошибке.
-        """
+        """Обёртка для единообразной эмиссии событий загрузки."""
         node_display = f"{node_type}#{node_id}"
         log.info(f"Загрузка {node_display}")
 

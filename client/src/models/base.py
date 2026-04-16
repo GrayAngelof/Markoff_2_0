@@ -22,11 +22,6 @@ class BaseDTO:
 
     id: int
 
-    def __post_init__(self) -> None:
-        """Валидирует ID после создания."""
-        if self.id <= 0:
-            raise ValueError(f"ID должен быть положительным числом, получено: {self.id}")
-
     def __repr__(self) -> str:
         """Возвращает строковое представление для отладки."""
         return f"{self.__class__.__name__}(id={self.id})"

@@ -106,8 +106,8 @@ class StatusBar(QStatusBar):
         Обработчик события (может вызываться из любого потока).
         Эмитит сигнал для безопасного обновления UI.
         """
-        is_online = event.data.is_online
-        error = event.data.error if hasattr(event.data, 'error') else None
+        is_online = event.is_online
+        error = event.error if hasattr(event, 'error') else None
         error_msg = error if error else (self._MESSAGE_OFFLINE if not is_online else "")
 
         log.info(f"Получено ConnectionChanged: online={is_online}")

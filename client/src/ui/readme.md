@@ -428,427 +428,285 @@ UI слой — это **чистый, пассивный, реактивный 
 # КОНЕЦ СПЕЦИФИКАЦИИ
 # ============================================
 
-## 📚 **ОПИСАНИЕ СЛОЯ UI**
+# UI — описание слоя
 
-В соответствии с архитектурой, UI слой — это **чистое, пассивное, реактивное представление приложения**. Он не содержит бизнес-логики, не загружает данные, не принимает решений. UI только отображает View Models, подписывается на события от контроллеров и эмитит UI-события при действиях пользователя.
+## Назначение
 
-Код организован в следующую структуру каталогов:
+Визуальное представление приложения на Qt. Отображает данные, генерирует пользовательские события, не содержит бизнес-логики.
+
+**Строгая зависимость:** только от `core` (события, типы) и `models` (DTO). Никакой бизнес-логики, загрузки данных или HTTP.
+
+---
+
+## Структура
 
 ```
 ui/
-├── __init__.py                    # Публичное API (экспорт AppWindow)
-├── app_window.py                  # Фасад UI слоя (сборка окна)
-│
-├── main_window/                   # Постоянные компоненты окна
+├── __init__.py              # Публичное API: AppWindow
+├── app_window.py            # AppWindow — фасад UI слоя
+├── common/
 │   ├── __init__.py
-│   ├── window.py                  # Пустая оболочка QMainWindow
-│   ├── menu.py                    # Главное меню (Файл, Справочники, Помощь)
-│   ├── toolbar.py                 # Панель инструментов (Обновить, Режим работы)
-│   └── status_bar.py              # Строка состояния (индикатор соединения)
-│
-├── common/                        # Общие компоненты
-│   ├── __init__.py
-│   └── central_widget.py          # Разделитель 30/70 с подменой панелей
-│
-├── tree/                          # Дерево объектов
-│   ├── __init__.py
-│   ├── node.py                    # TreeNode (структура узла)
-│   ├── model.py                   # TreeModel (QAbstractItemModel)
-│   └── view.py                    # TreeView (QTreeView, эмиссия событий)
-│
-└── details/                       # Панель деталей (в разработке)
-    ├── __init__.py
-    ├── panel.py                   # DetailsPanel (главная панель)
-    ├── header.py                  # HeaderWidget (иконка, заголовок, статус)
-    ├── placeholder.py             # PlaceholderWidget (заглушка)
-    ├── info_grid.py               # InfoGrid (сетка полей)
-    ├── tabs.py                    # DetailsTabs (вкладки)
-    └── display/                   # Логика отображения (в разработке)
+│   └── central_widget.py    # CentralWidget — разделитель 30/70
+├── tree/
+│   ├── __init__.py          # TreeView, TreeModel, TreeNode
+│   ├── view.py              # TreeView — отображение, эмиссия событий
+│   ├── model.py             # TreeModel — Qt модель (QAbstractItemModel)
+│   └── node.py              # TreeNode — узел дерева
+├── details/
+│   ├── __init__.py          # DetailsPanel
+│   ├── panel.py             # DetailsPanel — главный контейнер
+│   ├── details_tabs.py      # DetailsTabs — вкладки
+│   ├── header.py            # HeaderWidget — шапка
+│   ├── info_grid.py         # InfoGrid — сетка полей
+│   ├── placeholder.py       # PlaceholderWidget — заглушка
+│   └── tabs/                # Вкладки (пустые заглушки)
+│       ├── physics.py       # PhysicsTab
+│       ├── legal.py         # LegalTab
+│       ├── safety.py        # SafetyTab
+│       └── documents.py     # DocumentsTab
+└── main_window/
+    ├── __init__.py          # MainWindow
+    ├── window.py            # MainWindow — пустая оболочка
+    ├── menu.py              # MenuBar — главное меню
+    ├── toolbar.py           # Toolbar — панель инструментов
+    └── status_bar.py        # StatusBar — строка состояния
 ```
 
 ---
 
-## 📦 **Публичное API (минималистичный подход)**
+## Публичное API
 
-UI экспортирует **только фасад**. Всё остальное — внутренняя реализация:
-
-```python
-# Основной фасад (экспортируется из ui)
-from src.ui import AppWindow
-
-# Внутренние компоненты не экспортируются и не предназначены для внешнего использования
-# from src.ui.tree.view import TreeView  # ❌ НЕПРАВИЛЬНО
-# from src.ui.main_window.menu import MenuBar  # ❌ НЕПРАВИЛЬНО
-```
-
----
-
-## 🔹 **AppWindow — фасад UI слоя**
+### Импорт
 
 ```python
 from src.ui import AppWindow
-
-app_window = AppWindow(bus)
+from src.ui.tree import TreeView, TreeModel, TreeNode
+from src.ui.details import DetailsPanel
 ```
-
-| Метод | Возврат | Описание |
-|-------|---------|----------|
-| `__init__(bus)` | — | Создает окно, постоянные компоненты и CentralWidget |
-| `get_window()` | `QMainWindow` | Возвращает QMainWindow для отображения |
-| `set_right_panel(widget)` | — | Заменяет правую панель (вызывается контроллерами) |
-| `get_tree_view()` | `TreeView` | Возвращает TreeView для установки модели |
-
-**Ответственность:**
-- Создание пустого MainWindow
-- Создание постоянных компонентов (MenuBar, Toolbar, StatusBar)
-- Создание CentralWidget с TreeView (сразу) и заглушкой справа
-- Компоновка всех компонентов в окне
-- Предоставление методов для подмены панелей (прокси к CentralWidget)
-
-**НЕ отвечает за:**
-- Создание DetailsPanel
-- Решение, когда подменять панели
 
 ---
 
-## 🔹 **Постоянные компоненты (main_window/)**
+## Компоненты
 
-### **MainWindow — пустая оболочка**
+### 1. AppWindow (`app_window.py`) — фасад UI
 
-```python
-# ui/main_window/window.py
+Единственный композиционный корень UI слоя. Создаёт все компоненты и связывает их.
 
-class MainWindow(QMainWindow):
-    """
-    Пустая оболочка главного окна.
-    Отвечает только за настройку заголовка и размеров.
-    Не знает, какие компоненты будут добавлены.
-    """
-    
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Markoff 2.0")
-        self.setMinimumSize(1024, 768)
-        self.resize(1024, 768)
-```
-
-### **MenuBar — главное меню**
-
-```python
-# ui/main_window/menu.py
-
-class MenuBar(QMenuBar):
-    """
-    Главное меню приложения.
-    Создает пункты меню и эмитит события через EventBus.
-    
-    Структура:
-    - Файл → Выход (Ctrl+Q)
-    - Справочники → Типы помещений, Статусы помещений, ...
-    - Помощь → О программе
-    """
-```
-
-**Эмитит события:**
-- `MenuReferenceRequested(reference)` — при выборе справочника
-- `MenuHelpAbout` — при выборе "О программе"
-- `MenuFileExit` — при выборе "Выход"
-
-### **Toolbar — панель инструментов**
-
-```python
-# ui/main_window/toolbar.py
-
-class Toolbar(QToolBar):
-    """
-    Панель инструментов приложения.
-    Содержит кнопки быстрого доступа.
-    """
-```
-
-**Эмитит события:**
-- `RefreshRequested(mode="current")` — при нажатии на обновление
-- `ModeChanged(mode)` — при переключении режима (Read Only / Редактирование)
-
-### **StatusBar — строка состояния**
-
-```python
-# ui/main_window/status_bar.py
-
-class StatusBar(QStatusBar):
-    """
-    Строка состояния приложения.
-    Отображает статус соединения и временные сообщения.
-    """
-```
-
-**Подписывается на события:**
-- `ConnectionChanged` — обновляет индикатор соединения
-- `DataLoading` — показывает "Загрузка..."
-- `DataLoaded` — показывает "Готово"
-- `DataError` — показывает ошибку
-
----
-
-## 🔹 **CentralWidget — разделитель с подменой панелей**
-
-```python
-# ui/common/central_widget.py
-
-class CentralWidget:
-    """
-    Центральный виджет с разделителем 30/70.
-    
-    Создает QSplitter с TreeView (слева) и заглушкой (справа).
-    Предоставляет методы для подмены панелей.
-    
-    Методы:
-    - set_left(widget) — заменить левую панель
-    - set_right(widget) — заменить правую панель
-    - get_tree_view() — получить TreeView
-    - central_widget — получить QWidget для установки в MainWindow
-    """
-```
-
-**Важно:** Левая панель создается сразу как TreeView, без подмены. Правая панель — заглушка, которая будет заменена позже.
-
----
-
-## 🔹 **TreeView — виджет дерева**
-
-```python
-# ui/tree/view.py
-
-class TreeView(QTreeView):
-    """
-    Виджет дерева.
-    
-    Отвечает за:
-    - Отображение дерева через TreeModel
-    - Эмиссию событий при действиях пользователя
-    - Не содержит бизнес-логики
-    """
-```
-
-**Методы:**
 | Метод | Описание |
 |-------|----------|
-| `set_event_bus(bus)` | Устанавливает шину событий |
-| `set_model(model)` | Устанавливает модель и подключает сигнал выбора |
+| `__init__(bus)` | Создаёт все UI компоненты, подписывается на `ShowDetailsPanel` |
+| `get_tree_view()` | Возвращает `TreeView` для установки модели |
+| `get_details_panel()` | Возвращает `DetailsPanel` |
+| `get_window()` | Возвращает `QMainWindow` для отображения |
 
-**Эмитит события:**
-- `NodeSelected(node)` — при клике на узел
-- `NodeExpanded(node)` — при раскрытии узла
-- `NodeCollapsed(node)` — при сворачивании узла
+**Подписки:**
+- `ShowDetailsPanel` → вызывает `CentralWidget.show_details_panel()`
 
 ---
 
-## 🔹 **TreeModel — модель дерева для Qt**
+### 2. CentralWidget (`common/central_widget.py`)
 
-```python
-# ui/tree/model.py
+Центральный виджет с разделителем 30/70.
 
-class TreeModel(QAbstractItemModel):
-    """
-    Модель дерева для QTreeView.
-    
-    Предоставляет данные из TreeNode для отображения.
-    Не знает о загрузке данных и EventBus.
-    
-    Кастомные роли:
-    - ItemIdRole: ID узла
-    - ItemTypeRole: тип узла (complex, building, floor, room)
-    - ItemDataRole: исходные данные (модель)
-    """
-```
+| Метод | Описание |
+|-------|----------|
+| `show_details_panel()` | Переключает правую панель с заглушки на DetailsPanel |
+| `get_tree_view()` | Возвращает `TreeView` |
+| `get_details_panel()` | Возвращает `DetailsPanel` |
 
-**Публичные методы:**
+**Структура:**
+- Левая панель: `TreeView`
+- Правая панель: `QStackedWidget` (индекс 0: `PlaceholderWidget`, индекс 1: `DetailsPanel`)
+
+---
+
+### 3. Tree компоненты (`tree/`)
+
+#### TreeView (`view.py`)
+
+Виджет дерева. Отображает модель и эмитит события.
+
+| Сигнал Qt | Эмитит событие |
+|-----------|----------------|
+| `clicked` | `NodeSelected` |
+| `expanded` | `NodeExpanded` |
+| `collapsed` | `NodeCollapsed` |
+
+| Метод | Описание |
+|-------|----------|
+| `set_event_bus(bus)` | Устанавливает шину для эмиссии событий |
+| `set_model(model)` | Устанавливает модель |
+
+#### TreeModel (`model.py`)
+
+Qt модель дерева (`QAbstractItemModel`).
+
 | Метод | Описание |
 |-------|----------|
 | `set_root_nodes(nodes)` | Полная замена корневых узлов |
-| `insert_children(parent_node, children)` | Вставка дочерних узлов |
-| `remove_children(parent_node, row, count)` | Удаление дочерних узлов |
+| `insert_children(parent_node, children)` | Вставка детей |
+| `remove_children(parent_node, row, count)` | Удаление детей |
 | `node_changed(node)` | Уведомление об изменении узла |
-| `get_node_by_id(node_type, node_id)` | Получение узла из кэша |
+| `get_node_by_id(node_type, id)` | Поиск узла по типу и ID |
 
-**Кэш узлов:**
-```python
-self._node_cache: Dict[Tuple[NodeType, int], TreeNode] = {}
-```
-Обеспечивает O(1) доступ к узлам по типу и ID.
+**Кастомные роли:**
+- `ItemIdRole` → ID узла
+- `ItemTypeRole` → тип узла
+- `ItemDataRole` → исходные данные (модель)
 
----
+**Цвета узлов:**
+| Тип | Цвет |
+|-----|------|
+| `COMPLEX` | тёмно-синий |
+| `BUILDING` | тёмно-зелёный |
+| `FLOOR` | серый |
+| `ROOM` (free) | зелёный |
+| `ROOM` (occupied) | красный |
 
-## 🔹 **TreeNode — структура узла дерева**
+#### TreeNode (`node.py`)
 
-```python
-# ui/tree/node.py
+Узел дерева.
 
-class TreeNode:
-    """
-    Узел дерева.
-    
-    Единообразная структура для всех уровней:
-    - id: уникальный ID узла
-    - type: тип узла ("complex", "building", "floor", "room")
-    - name: отображаемое имя
-    - has_children: есть ли дети (для стрелочки)
-    
-    Также хранит:
-    - data: исходные данные (модель)
-    - parent: ссылка на родительский узел
-    - children: список дочерних узлов
-    """
-```
+| Свойство | Описание |
+|----------|----------|
+| `id` | ID узла |
+| `type` | Тип узла (строка) |
+| `name` | Отображаемое имя |
+| `has_children` | Есть ли дети |
+| `data` | Исходные данные (DTO) |
+| `parent` | Родительский узел |
+| `children` | Список детей |
 
-**Методы:**
 | Метод | Описание |
 |-------|----------|
-| `append_child(child)` | Добавляет одного ребенка |
-| `add_children(children)` | Добавляет несколько детей |
-| `child_at(row)` | Возвращает ребенка по индексу |
+| `append_child(child)` | Добавить ребёнка |
+| `add_children(children)` | Добавить нескольких детей |
+| `remove_child(child)` | Удалить ребёнка |
+| `remove_all_children()` | Удалить всех детей |
+| `child_at(row)` | Получить ребёнка по индексу |
 | `child_count()` | Количество детей |
 | `row()` | Индекс в родителе |
-| `get_identifier()` | Возвращает NodeIdentifier для событий |
-| `find_child_by_id(node_type, node_id)` | Рекурсивный поиск узла |
+| `get_identifier()` | `NodeIdentifier` |
+| `find_child_by_id(type, id)` | Поиск потомка |
 
 ---
 
-## 🔹 **Принципы работы UI слоя**
+### 4. DetailsPanel (`details/panel.py`)
 
-### **1. Пассивность**
-```python
-# ❌ Неправильно: UI решает, что делать
-def on_button_click(self):
-    self._loader.load_complexes()
+Правая панель детальной информации.
 
-# ✅ Правильно: UI сообщает о действии
-def on_button_click(self):
-    self._bus.emit(RefreshRequested(mode="full"))
+| Свойство | Описание |
+|----------|----------|
+| `header` | `HeaderWidget` |
+| `placeholder` | `PlaceholderWidget` |
+| `info_grid` | `InfoGrid` |
+| `tabs` | `DetailsTabs` |
+
+| Метод | Описание |
+|-------|----------|
+| `set_event_bus(bus)` | Устанавливает шину для подписки |
+
+**Структура:**
 ```
-
-### **2. Реактивность**
-```python
-# UI подписывается на события и обновляется
-def __init__(self):
-    self._bus.subscribe(StatisticsUpdated, self._on_statistics)
-
-def _on_statistics(self, event):
-    vm = event.data
-    self.label.setText(str(vm.total_buildings))
-```
-
-### **3. Нет состояния**
-```python
-# UI не хранит данные между обновлениями
-class PhysicsTab:
-    def __init__(self):
-        # ❌ Нет self._statistics
-        # ✅ Данные приходят в событиях, сразу отображаются
-        pass
-```
-
-### **4. Заглушки вместо None**
-```python
-# View Model всегда есть, даже если данных нет
-def _on_statistics(self, event):
-    vm = event.data
-    if vm.total_buildings == 0:
-        self.label.setText("—")  # заглушка
-    else:
-        self.label.setText(str(vm.total_buildings))
+DetailsPanel (QVBoxLayout)
+├── HeaderWidget
+├── ContentWidget
+│   ├── PlaceholderWidget (видим по умолчанию)
+│   ├── InfoGrid (скрыт)
+│   └── DetailsTabs
+└── Stretch
 ```
 
 ---
 
-## 🔹 **Поток данных**
+### 5. MainWindow компоненты (`main_window/`)
 
-```
-[Пользователь] кликает на узел
-    ↓
-[TreeView] эмитит NodeSelected
-    ↓
-[EventBus] доставляет событие
-    ↓
-[TreeController] подписан → сохраняет состояние
-[DetailsController] подписан → вызывает проекции → эмитит StatisticsUpdated
-    ↓
-[EventBus] доставляет StatisticsUpdated
-    ↓
-[PhysicsTab] получает → обновляет отображение
-```
+#### MainWindow (`window.py`)
 
-**UI НЕ знает:**
-- Кто обрабатывает NodeSelected
-- Как вычисляется StatisticsViewModel
-- Откуда берутся данные
+Пустая оболочка `QMainWindow`. Устанавливает заголовок и минимальные размеры.
 
-**UI ЗНАЕТ:**
-- На какие события подписываться
-- Как отображать View Models
-- Какие события эмитить
+#### MenuBar (`menu.py`)
 
----
+Главное меню:
+- Файл → Выход
+- Справочники → 5 пунктов (заглушки)
+- Помощь → О программе
 
-## 🚫 **Что НЕЛЬЗЯ делать в UI слое**
+#### Toolbar (`toolbar.py`)
 
-| Действие | Почему |
-|----------|--------|
-| **Вызывать контроллеры напрямую** | Нарушает слоистую архитектуру |
-| **Вызывать проекции напрямую** | Проекции — ответственность контроллеров |
-| **Вызывать DataLoader напрямую** | Загрузка данных — ответственность контроллеров |
-| **Хранить данные (кроме View Models)** | Данные должны быть в EntityGraph |
-| **Содержать бизнес-логику** | Бизнес-логика в DataLoader и контроллерах |
-| **Принимать решения о загрузке данных** | UI показывает заглушку, контроллер решает |
-| **Знать о репозиториях** | Только core, view_models, utils.logger |
-| **Создавать или подменять панели самостоятельно** | Контроллеры вызывают set_left_panel/set_right_panel |
+Панель инструментов:
+- Кнопка "Обновить"
+- Кнопка переключения режима (Read Only / Edit Mode)
+
+#### StatusBar (`status_bar.py`)
+
+Строка состояния:
+- Временные сообщения (3 секунды)
+- Индикатор соединения (✅ Онлайн / ❌ Офлайн)
+
+| Метод | Описание |
+|-------|----------|
+| `showTemporaryMessage(message, timeout_ms)` | Показать временное сообщение |
+
+**Подписки:** `ConnectionChanged` (потокобезопасно через сигналы Qt)
 
 ---
 
-## 📊 **Чек-лист: что есть в UI слое**
+## Поток событий (UI → контроллеры)
 
-| Компонент | Статус |
-|-----------|--------|
-| **AppWindow** — фасад | ✅ |
-| **MainWindow** — пустая оболочка | ✅ |
-| **MenuBar** — главное меню | ✅ |
-| **Toolbar** — панель инструментов | ✅ |
-| **StatusBar** — строка состояния | ✅ |
-| **CentralWidget** — разделитель | ✅ |
-| **TreeView** — виджет дерева | ✅ |
-| **TreeModel** — модель дерева | ✅ |
-| **TreeNode** — структура узла | ✅ |
-| Кэш узлов в TreeModel | ✅ |
-| Подмена панелей через AppWindow | ✅ |
-| Эмиссия UI-событий | ✅ |
-| Подписка на события контроллеров | ✅ |
-| **DetailsPanel** | ⏸️ В разработке |
-| **Вкладки** | ⏸️ В разработке |
+```
+Действие пользователя → Qt сигнал → TreeView → EventBus.emit()
+```
+
+| Действие | Qt сигнал | Событие |
+|----------|-----------|---------|
+| Клик по узлу | `clicked` | `NodeSelected` |
+| Раскрытие узла | `expanded` | `NodeExpanded` |
+| Сворачивание узла | `collapsed` | `NodeCollapsed` |
 
 ---
 
-## 💡 **Итог**
+## Поток событий (контроллеры → UI)
 
-UI слой спроектирован так, чтобы быть:
-
-- **Пассивным** — не принимает решений, только отображает и сообщает
-- **Реактивным** — обновляется автоматически при получении событий
-- **Типобезопасным** — работает с типизированными View Models
-- **Тестируемым** — можно тестировать с мок-событиями
-- **Слабо связанным** — не знает о бизнес-логике и данных
-- **Расширяемым** — легко добавить новые компоненты
-
-**Любой контроллер может управлять UI через события:**
-```python
-# Контроллер эмитит событие с View Model
-self._bus.emit(StatisticsUpdated(stats))
-
-# UI получает и отображает
-self._bus.subscribe(StatisticsUpdated, self._on_statistics)
-
-def _on_statistics(self, event):
-    stats = event.data
-    self.total_label.setText(str(stats.total_buildings))
-    self.free_label.setText(str(stats.free_rooms))
-    # ...
 ```
+Контроллер → EventBus.emit() → AppWindow/DetailsPanel → обновление UI
+```
+
+| Событие | Реакция UI |
+|---------|------------|
+| `ShowDetailsPanel` | `CentralWidget.show_details_panel()` |
+| `ConnectionChanged` | `StatusBar` обновляет индикатор |
+| `NodeDetailsLoaded` | (будет реализовано: заполнение DetailsPanel) |
+
+---
+
+## Зависимости
+
+| Компонент | Зависит от |
+|-----------|------------|
+| `AppWindow` | `core.EventBus`, `ui.*` |
+| `TreeView` | `core.EventBus`, `core.events.*`, `ui.tree.node` |
+| `TreeModel` | `core.types`, `models.room`, `ui.tree.node` |
+| `TreeNode` | `core.types` |
+| `StatusBar` | `core.EventBus`, `core.events.ConnectionChanged` |
+| `DetailsPanel` | `core.EventBus` |
+
+---
+
+## Итог
+
+Слой предоставляет вышележащему коду (контроллерам):
+
+| Возможность | Через |
+|-------------|-------|
+| Отображение дерева | `TreeView` + `TreeModel` |
+| Управление панелью деталей | `DetailsPanel` |
+| Получение пользовательских событий | `EventBus` (эмиттится из `TreeView`) |
+| Статус соединения | `StatusBar` |
+
+**Принципы:**
+- `AppWindow` — единственная точка входа для контроллеров
+- UI компоненты не содержат бизнес-логики
+- Все действия пользователя → события в `EventBus`
+- Все обновления UI → через события или прямые вызовы из контроллеров
+- `TreeView` эмитит события, но не подписывается на них

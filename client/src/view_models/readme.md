@@ -166,482 +166,288 @@ client/src/view_models/
 # КОНЕЦ СПЕЦИФИКАЦИИ
 # ============================================
 
-## 📚 **ОПИСАНИЕ СЛОЯ VIEW MODELS**
+# View Models — описание слоя
 
-В соответствии с архитектурой, View Models — это **слой контракта данных** между бизнес-логикой (контроллерами/проекциями) и пользовательским интерфейсом. Они определяют, какие данные и в каком формате UI получает для отображения, обеспечивая типобезопасность и изоляцию UI от структуры хранения данных.
+## Назначение
 
-Код организован в следующую структуру каталогов:
+Контракты данных между бизнес-логикой и UI. Иммутабельные структуры, подготовленные для отображения. Содержат только данные, никакой логики.
+
+**Строгая зависимость:** ни от каких слоёв (только стандартная библиотека). Может использоваться любым слоем выше.
+
+---
+
+## Структура
 
 ```
 view_models/
-├── __init__.py                    # Публичное API (экспорт всех View Models)
-├── statistics.py                  # Статистика для вкладки "Физика"
-├── contacts.py                    # Контакты для вкладки "Юрики"
-├── sensors.py                     # Датчики для вкладки "Пожарка"
-├── events.py                      # События для вкладки "Пожарка"
-└── lists.py                       # Списки (корпусов, этажей, помещений)
+├── __init__.py              # Публичное API
+├── statistics.py            # Статистика (физика)
+├── contacts.py              # Контакты (юрики)
+├── sensors.py               # Датчики (пожарка)
+├── events.py                # События (пожарка)
+└── lists.py                 # Компактные списки
 ```
 
 ---
 
-## 📦 **Публичное API (минималистичный подход)**
+## Публичное API
 
-View Models экспортируют **только структуры данных**. Все View Models — иммутабельные dataclass'ы:
+### Импорт
 
 ```python
-# Импорт View Models
 from src.view_models import (
-    # Статистика
-    ComplexStatisticsVM, BuildingStatisticsVM, FloorStatisticsVM, RoomTypeStat,
-    # Контакты
-    ContactsVM, ContactGroup, ContactPerson, ContactSummary,
-    # Датчики
-    SensorsVM, SensorIssue,
-    # События
-    EventsVM, EventItem,
-    # Списки
-    BuildingListItem, FloorListItem, RoomListItem
+    # Statistics
+    ComplexStatisticsVM,
+    BuildingStatisticsVM,
+    FloorStatisticsVM,
+    RoomTypeStat,
+    # Contacts
+    ContactsVM,
+    ContactGroup,
+    ContactPerson,
+    ContactSummary,
+    # Sensors
+    SensorsVM,
+    SensorIssue,
+    # Events
+    EventsVM,
+    EventItem,
+    # Lists
+    BuildingListItem,
+    FloorListItem,
+    RoomListItem,
 )
 ```
 
 ---
 
-## 🔹 **Общие принципы View Models**
+## Компоненты
 
-| Принцип | Описание |
-|---------|----------|
-| **Иммутабельность** | Все View Models — `@dataclass(frozen=True, slots=True)` |
-| **Отсутствие None** | Все поля имеют значения по умолчанию. Для чисел — `0`, для строк — `""`, для списков — `field(default_factory=list)`, для вложенных VM — `field(default_factory=ChildVM)`. Если UI нужно знать наличие данных — добавляется флаг `has_*: bool` |
-| **Отсутствие логики** | Только поля-данные, никаких методов (кроме `empty()` фабрики) |
-| **Доменная гранулярность** | Каждый домен (статистика, контакты, датчики, события) — отдельный View Model |
-| **Явность** | Все поля имеют понятные имена и типы |
-| **Минимализм** | Только то, что нужно UI сейчас (YAGNI) |
+### 1. Статистика (`statistics.py`)
 
----
+#### RoomTypeStat
+Статистика по типу помещения.
 
-## 🔹 **StatisticsViewModel — статистика для вкладки "Физика"**
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `type_name` | `str` | "Офисное", "Складское", "Торговое" |
+| `count` | `int` | Количество помещений |
+| `area` | `float` | Общая площадь |
 
-```python
-from src.view_models import ComplexStatisticsVM, BuildingStatisticsVM, FloorStatisticsVM, RoomTypeStat
-```
+#### ComplexStatisticsVM
+Статистика для комплекса.
 
-### **ComplexStatisticsVM (статистика комплекса)**
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `total_buildings` | `int` | Всего корпусов |
+| `total_floors` | `int` | Всего этажей |
+| `total_rooms` | `int` | Всего помещений |
+| `free_rooms` | `int` | Свободных |
+| `occupied_rooms` | `int` | Занятых |
+| `reserved_rooms` | `int` | Зарезервированных |
+| `maintenance_rooms` | `int` | На ремонте |
+| `total_area` | `float` | Общая площадь |
+| `rentable_area` | `float` | Сдаваемая площадь |
+| `occupancy_rate` | `float` | Процент занятости (0-100) |
+| `room_types` | `List[RoomTypeStat]` | Детализация по типам |
 
-```python
-@dataclass(frozen=True, slots=True)
-class ComplexStatisticsVM:
-    """Статистика для комплекса."""
-    
-    total_buildings: int = 0          # Всего корпусов
-    total_floors: int = 0             # Всего этажей
-    total_rooms: int = 0              # Всего помещений
-    
-    free_rooms: int = 0               # Свободные помещения
-    occupied_rooms: int = 0           # Занятые помещения
-    reserved_rooms: int = 0           # Зарезервированные помещения
-    maintenance_rooms: int = 0        # Помещения на ремонте
-    
-    total_area: float = 0.0           # Общая площадь
-    rentable_area: float = 0.0        # Сдаваемая площадь
-    occupancy_rate: float = 0.0       # Процент занятости
-    
-    room_types: List[RoomTypeStat] = field(default_factory=list)  # Статистика по типами
-    
-    @classmethod
-    def empty(cls) -> 'ComplexStatisticsVM':
-        """Возвращает пустую статистику (для fallback)."""
-        return cls()
-```
+#### BuildingStatisticsVM
+Статистика для корпуса.
 
-### **BuildingStatisticsVM (статистика корпуса)**
+| Поле | Тип |
+|------|-----|
+| `total_floors` | `int` |
+| `total_rooms` | `int` |
+| `free_rooms` | `int` |
+| `occupied_rooms` | `int` |
+| `reserved_rooms` | `int` |
+| `maintenance_rooms` | `int` |
+| `total_area` | `float` |
+| `occupancy_rate` | `float` |
 
-```python
-@dataclass(frozen=True, slots=True)
-class BuildingStatisticsVM:
-    """Статистика для корпуса."""
-    
-    total_floors: int = 0
-    total_rooms: int = 0
-    
-    free_rooms: int = 0
-    occupied_rooms: int = 0
-    reserved_rooms: int = 0
-    maintenance_rooms: int = 0
-    
-    total_area: float = 0.0
-    occupancy_rate: float = 0.0
-    
-    @classmethod
-    def empty(cls) -> 'BuildingStatisticsVM':
-        return cls()
-```
+#### FloorStatisticsVM
+Статистика для этажа.
 
-### **FloorStatisticsVM (статистика этажа)**
-
-```python
-@dataclass(frozen=True, slots=True)
-class FloorStatisticsVM:
-    """Статистика для этажа."""
-    
-    total_rooms: int = 0
-    
-    free_rooms: int = 0
-    occupied_rooms: int = 0
-    reserved_rooms: int = 0
-    maintenance_rooms: int = 0
-    
-    room_types: List[RoomTypeStat] = field(default_factory=list)
-    
-    @classmethod
-    def empty(cls) -> 'FloorStatisticsVM':
-        return cls()
-```
-
-### **RoomTypeStat (статистика по типу помещения)**
-
-```python
-@dataclass(frozen=True, slots=True)
-class RoomTypeStat:
-    """Статистика по типу помещения."""
-    
-    type_name: str          # "Офисное", "Складское", "Торговое"
-    count: int              # Количество
-    area: float             # Общая площадь
-```
+| Поле | Тип |
+|------|-----|
+| `total_rooms` | `int` |
+| `free_rooms` | `int` |
+| `occupied_rooms` | `int` |
+| `reserved_rooms` | `int` |
+| `maintenance_rooms` | `int` |
+| `room_types` | `List[RoomTypeStat]` |
 
 ---
 
-## 🔹 **ContactsViewModel — контакты для вкладки "Юрики"**
+### 2. Контакты (`contacts.py`)
 
-```python
-from src.view_models import ContactsVM, ContactGroup, ContactPerson, ContactSummary
-```
+#### ContactPerson
+Контактное лицо.
 
-### **ContactsVM (основной контейнер)**
+| Поле | Тип |
+|------|-----|
+| `name` | `str` |
+| `position` | `Optional[str]` |
+| `phone` | `Optional[str]` |
+| `email` | `Optional[str]` |
+| `is_primary` | `bool` |
 
-```python
-@dataclass(frozen=True, slots=True)
-class ContactsVM:
-    """Контакты для отображения."""
-    
-    total_organizations: int = 0       # Всего организаций
-    tenants_count: int = 0             # Арендаторов
-    owners_count: int = 0              # Собственников
-    debtors_count: int = 0             # Должников
-    
-    groups: List[ContactGroup] = field(default_factory=list)   # Группы контактов
-    summary: ContactSummary = field(default_factory=ContactSummary)   # Сводка (всегда есть)
-    
-    @classmethod
-    def empty(cls) -> 'ContactsVM':
-        return cls()
-```
+#### ContactGroup
+Группа контактов по категории.
 
-### **ContactGroup (группа контактов)**
+| Поле | Тип |
+|------|-----|
+| `category` | `str` |
+| `contacts` | `List[ContactPerson]` |
 
-```python
-@dataclass(frozen=True, slots=True)
-class ContactGroup:
-    """Группа контактов по категории."""
-    
-    category: str                     # "Юридические вопросы", "Финансовые вопросы"
-    contacts: List[ContactPerson] = field(default_factory=list)
-```
+#### ContactSummary
+Сводка по контрагентам.
 
-### **ContactPerson (контактное лицо)**
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `total_area` | `float` | Общая площадь |
+| `rented_area` | `float` | Сданная площадь |
+| `occupancy_rate` | `float` | Процент занятости |
+| `total_debt` | `float` | Общая задолженность |
 
-```python
-@dataclass(frozen=True, slots=True)
-class ContactPerson:
-    """Контактное лицо."""
-    
-    name: str
-    position: str = ""                # пустая строка вместо None
-    phone: str = ""                   # пустая строка вместо None
-    email: str = ""                   # пустая строка вместо None
-    is_primary: bool = False
-```
+#### ContactsVM
+Контакты для отображения.
 
-### **ContactSummary (сводка)**
-
-```python
-@dataclass(frozen=True, slots=True)
-class ContactSummary:
-    """Сводка для UI."""
-    
-    total_area: float = 0.0
-    rented_area: float = 0.0
-    occupancy_rate: float = 0.0
-    total_debt: float = 0.0
-```
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `total_organizations` | `int` | Всего организаций |
+| `tenants_count` | `int` | Арендаторов |
+| `owners_count` | `int` | Собственников |
+| `debtors_count` | `int` | Должников |
+| `groups` | `List[ContactGroup]` | Группы контактов |
+| `summary` | `ContactSummary` | Сводка |
 
 ---
 
-## 🔹 **SensorsViewModel — датчики для вкладки "Пожарка"**
+### 3. Датчики (`sensors.py`)
 
-```python
-from src.view_models import SensorsVM, SensorIssue
-```
+#### SensorIssue
+Проблемный датчик.
 
-### **SensorsVM (датчики)**
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `sensor_id` | `int` | ID датчика |
+| `location` | `str` | "пом. 203" |
+| `issue` | `str` | "не отвечает", "низкий заряд" |
+| `last_check` | `Optional[datetime]` | Последняя проверка |
 
-```python
-@dataclass(frozen=True, slots=True)
-class SensorsVM:
-    """Датчики для отображения."""
-    
-    total: int = 0                    # Всего датчиков
-    active: int = 0                   # Активные
-    inactive: int = 0                 # Неактивные
-    maintenance: int = 0              # На обслуживании
-    
-    issues: List[SensorIssue] = field(default_factory=list)   # Проблемные датчики
-    
-    # ID для кликабельности
-    active_ids: List[int] = field(default_factory=list)
-    inactive_ids: List[int] = field(default_factory=list)
-    maintenance_ids: List[int] = field(default_factory=list)
-    
-    @classmethod
-    def empty(cls) -> 'SensorsVM':
-        return cls()
-```
+#### SensorsVM
+Датчики для отображения.
 
-### **SensorIssue (проблемный датчик)**
-
-```python
-@dataclass(frozen=True, slots=True)
-class SensorIssue:
-    """Проблемный датчик."""
-    
-    sensor_id: int
-    location: str = ""                # пустая строка вместо None
-    issue: str = ""                   # пустая строка вместо None
-    last_check: datetime = field(default_factory=datetime.now)
-```
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `total` | `int` | Всего датчиков |
+| `active` | `int` | Активных |
+| `inactive` | `int` | Неактивных |
+| `maintenance` | `int` | На обслуживании |
+| `issues` | `List[SensorIssue]` | Проблемные |
+| `active_ids` | `List[int]` | ID активных (для кликов) |
+| `inactive_ids` | `List[int]` | ID неактивных |
+| `maintenance_ids` | `List[int]` | ID на обслуживании |
 
 ---
 
-## 🔹 **EventsViewModel — события для вкладки "Пожарка"**
+### 4. События (`events.py`)
 
-```python
-from src.view_models import EventsVM, EventItem
-```
+#### EventItem
+Отдельное событие.
 
-### **EventsVM (события)**
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `timestamp` | `datetime` | Время события |
+| `type` | `str` | "Сработка", "ТО", "Ошибка" |
+| `location` | `str` | "Корпус А, 3 этаж" |
+| `description` | `str` | Описание |
+| `is_critical` | `bool` | Критическое? |
 
-```python
-@dataclass(frozen=True, slots=True)
-class EventsVM:
-    """События для отображения."""
-    
-    total: int = 0                    # Всего событий
-    recent_events: List[EventItem] = field(default_factory=list)   # Последние 3-5 событий
-    all_events_link: bool = True      # Показывать ссылку "все события"
-    
-    @classmethod
-    def empty(cls) -> 'EventsVM':
-        return cls()
-```
+#### EventsVM
+События для отображения.
 
-### **EventItem (отдельное событие)**
-
-```python
-@dataclass(frozen=True, slots=True)
-class EventItem:
-    """Отдельное событие."""
-    
-    timestamp: datetime = field(default_factory=datetime.now)
-    type: str = ""                    # пустая строка вместо None
-    location: str = ""                # пустая строка вместо None
-    description: str = ""             # пустая строка вместо None
-    is_critical: bool = False
-```
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `total` | `int` | Всего событий |
+| `recent_events` | `List[EventItem]` | Недавние события |
+| `all_events_link` | `bool` | Показывать ссылку "все события" |
 
 ---
 
-## 🔹 **ListsViewModel — списки для диалогов**
+### 5. Списки (`lists.py`)
 
-```python
-from src.view_models import BuildingListItem, FloorListItem, RoomListItem
-```
+Компактные представления сущностей для списков.
 
-### **BuildingListItem (элемент списка корпусов)**
+#### BuildingListItem
 
-```python
-@dataclass(frozen=True, slots=True)
-class BuildingListItem:
-    """Элемент списка корпусов."""
-    
-    id: int
-    name: str
-    floors_count: int
-```
+| Поле | Тип |
+|------|-----|
+| `id` | `int` |
+| `name` | `str` |
+| `floors_count` | `int` |
 
-### **FloorListItem (элемент списка этажей)**
+#### FloorListItem
 
-```python
-@dataclass(frozen=True, slots=True)
-class FloorListItem:
-    """Элемент списка этажей."""
-    
-    id: int
-    number: int
-    rooms_count: int
-```
+| Поле | Тип |
+|------|-----|
+| `id` | `int` |
+| `number` | `int` |
+| `rooms_count` | `int` |
 
-### **RoomListItem (элемент списка помещений)**
+#### RoomListItem
 
-```python
-@dataclass(frozen=True, slots=True)
-class RoomListItem:
-    """Элемент списка помещений."""
-    
-    id: int
-    number: str
-    area: float = 0.0                 # 0.0 вместо None
-    status_code: str = ""             # пустая строка вместо None
-    has_area: bool = False            # флаг, если UI нужно знать наличие данных
-    
-    @classmethod
-    def from_room(cls, room, area: Optional[float] = None, status_code: Optional[str] = None):
-        """Фабрика для создания из модели Room."""
-        has_area = area is not None
-        return cls(
-            id=room.id,
-            number=room.number,
-            area=area if area is not None else 0.0,
-            status_code=status_code if status_code is not None else "",
-            has_area=has_area
-        )
-```
+| Поле | Тип |
+|------|-----|
+| `id` | `int` |
+| `number` | `str` |
+| `area` | `Optional[float]` |
+| `status_code` | `Optional[str]` |
 
 ---
 
-## 🔹 **Фабричные методы `empty()`**
+## Общие паттерны
 
-Каждый View Model имеет фабричный метод `empty()`, который возвращает экземпляр с нулевыми/пустыми значениями:
+### Метод `empty()`
+
+Все основные VM имеют фабричный метод `empty()` для fallback-значений.
 
 ```python
-# В проекции при ошибке
-try:
-    stats = self._calculate_complex_stats(complex_id)
-except Exception as e:
-    log.error(f"Ошибка расчета статистики: {e}")
-    return ComplexStatisticsVM.empty()  # не None!
+empty_stats = ComplexStatisticsVM.empty()
 ```
 
-**Это гарантирует, что UI никогда не получает None.**
+### Иммутабельность
+
+Все VM используют:
+- `@dataclass(frozen=True, slots=True)` — неизменяемость + экономия памяти
 
 ---
 
-## 🔹 **Ключевые архитектурные решения**
+## Зависимости
 
-| Решение | Обоснование |
-|---------|-------------|
-| **Иммутабельность (`frozen=True`)** | Нельзя случайно изменить данные после создания |
-| **Экономия памяти (`slots=True`)** | Нет `__dict__` у каждого экземпляра |
-| **Отсутствие None** | Все поля имеют значения по умолчанию. Для строк — `""`, для чисел — `0`, для списков — `field(default_factory=list)` |
-| **Флаги `has_*`** | Если UI нужно знать, есть ли данные (например, `has_area`) |
-| **Отсутствие логики** | Форматирование и бизнес-логика — в других слоях |
-| **Доменная гранулярность** | Каждый домен обновляется независимо |
-| **Фабрика `empty()`** | Единый способ создания пустых View Models |
-| **ID для кликабельности** | UI знает, что запросить при клике на карточку |
+| Компонент | Зависит от |
+|-----------|------------|
+| Все VM | только стандартная библиотека |
+
+**Нет зависимостей на:** `core`, `models`, `data`, `services`, `projections`, `controllers`, `ui`
 
 ---
 
-## 🔹 **Поток данных**
+## Итог
 
-```
-[DataLoader] → загружает данные → сохраняет в EntityGraph
-                                    ↓
-[DetailsController] → получает NodeSelected
-                                    ↓
-[DetailsController] → вызывает StatisticsProjection.build_for_complex()
-                                    ↓
-[StatisticsProjection] → читает из репозиториев
-                                    ↓
-[StatisticsProjection] → возвращает ComplexStatisticsVM
-                                    ↓
-[DetailsController] → эмитит StatisticsUpdated(ComplexStatisticsVM)
-                                    ↓
-[UI] → получает StatisticsUpdated → отображает
-```
+Слой предоставляет вышележащим слоям (контроллерам, UI):
 
----
+| Категория | View Models |
+|-----------|-------------|
+| Статистика | `ComplexStatisticsVM`, `BuildingStatisticsVM`, `FloorStatisticsVM`, `RoomTypeStat` |
+| Контакты | `ContactsVM`, `ContactGroup`, `ContactPerson`, `ContactSummary` |
+| Датчики | `SensorsVM`, `SensorIssue` |
+| События | `EventsVM`, `EventItem` |
+| Списки | `BuildingListItem`, `FloorListItem`, `RoomListItem` |
 
-## 🚫 **Что НЕЛЬЗЯ делать с View Models**
-
-| Действие | Почему |
-|----------|--------|
-| **Добавлять бизнес-логику** | Только данные, методы только для фабрики `empty()` |
-| **Возвращать None вместо View Model** | Всегда возвращаем View Model с нулями/пустыми строками |
-| **Хранить ссылки на модели данных** | Только примитивы и другие View Models |
-| **Создавать циклические ссылки** | ComplexStatisticsVM не ссылается на BuildingStatisticsVM |
-| **Добавлять поля "на всякий случай"** | Только то, что нужно UI сейчас |
-| **Менять View Models без обновления UI** | View Model — это контракт |
-
----
-
-## 📊 **Чек-лист: что есть в View Models**
-
-| Компонент | Статус |
-|-----------|--------|
-| **Statistics** | ✅ Спроектирован |
-| `ComplexStatisticsVM` | ✅ |
-| `BuildingStatisticsVM` | ✅ |
-| `FloorStatisticsVM` | ✅ |
-| `RoomTypeStat` | ✅ |
-| **Contacts** | ✅ Спроектирован |
-| `ContactsVM` | ✅ |
-| `ContactGroup` | ✅ |
-| `ContactPerson` | ✅ |
-| `ContactSummary` | ✅ |
-| **Sensors** | ✅ Спроектирован |
-| `SensorsVM` | ✅ |
-| `SensorIssue` | ✅ |
-| **Events** | ✅ Спроектирован |
-| `EventsVM` | ✅ |
-| `EventItem` | ✅ |
-| **Lists** | ✅ Спроектирован |
-| `BuildingListItem` | ✅ |
-| `FloorListItem` | ✅ |
-| `RoomListItem` | ✅ |
-| **Отсутствие None** | ✅ Все Optional заменены на пустые значения |
-| **Фабрика `empty()`** | ✅ Есть у всех VM |
-
----
-
-## 💡 **Итог**
-
-Слой View Models спроектирован так, чтобы быть:
-
-- **Типобезопасным** — все поля типизированы, IDE подсказывает
-- **Иммутабельным** — `frozen=True` гарантирует неизменность
-- **Без None** — все поля имеют значения по умолчанию
-- **Минималистичным** — только то, что нужно UI
-- **Предсказуемым** — всегда возвращаем View Model, даже при ошибке
-- **Расширяемым** — легко добавить новые поля
-
-**Любой контроллер может создавать View Models:**
-```python
-from src.view_models import ComplexStatisticsVM, RoomTypeStat
-
-stats = ComplexStatisticsVM(
-    total_buildings=4,
-    total_floors=14,
-    total_rooms=245,
-    free_rooms=89,
-    occupied_rooms=132,
-    total_area=12450.0,
-    occupancy_rate=72.0,
-    room_types=[
-        RoomTypeStat("Офисные", 150, 8000.0),
-        RoomTypeStat("Складские", 50, 3000.0)
-    ]
-)
-
-self._bus.emit(StatisticsUpdated(stats))
-```
-
-**UI получает готовые данные для отображения, и никогда не получает None.** 🚀
+**Принципы:**
+- Только данные, никакой логики
+- Иммутабельность (frozen)
+- Компактные структуры, готовые для отображения
+- Fallback через `empty()`

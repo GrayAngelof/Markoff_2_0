@@ -7,7 +7,7 @@
 Порядок инициализации (строго сверху вниз):
 1. Core (EventBus) — ядро, не зависит от других
 2. Data (EntityGraph, Repositories) — хранение данных
-3. Services (ApiClient, DataLoader, ContextService, ConnectionService) — бизнес-логика
+3. Services (ApiClient, DataLoader, ConnectionService) — бизнес-логика
 4. Projections (TreeProjection) — преобразование данных для UI
 5. Controllers (TreeController, DetailsController, ...) — координация
 6. UI (AppWindow) — отображение (создаётся ПОСЛЕ контроллеров, но настраивается ДО запуска)
@@ -15,8 +15,6 @@
 """
 
 # ===== ИМПОРТЫ =====
-from typing import Optional
-
 from PySide6.QtWidgets import QApplication, QMainWindow
 
 from src.controllers import (
@@ -27,16 +25,16 @@ from src.controllers import (
 )
 from src.core import EventBus
 from src.data import (
-    BuildingRepository,
-    ComplexRepository,
-    CounterpartyRepository,
     EntityGraph,
+    ComplexRepository,
+    BuildingRepository,
     FloorRepository,
-    ResponsiblePersonRepository,
     RoomRepository,
+    CounterpartyRepository,
+    ResponsiblePersonRepository,
 )
 from src.projections.tree import TreeProjection
-from src.services import ApiClient, ConnectionService, ContextService, DataLoader
+from src.services import ApiClient, ConnectionService, DataLoader
 from src.ui.app_window import AppWindow
 from utils.logger import get_logger
 
@@ -148,16 +146,6 @@ class ApplicationBootstrap:
 
         self._loader = DataLoader(self._bus, self._api, self._graph)
         log.success("DataLoader создан")
-
-        self._context_service = ContextService(
-            self._complex_repo,
-            self._building_repo,
-            self._floor_repo,
-            self._room_repo,
-            self._counterparty_repo,
-            self._responsible_person_repo,
-        )
-        log.success("ContextService создан")
 
         self._connection_service = ConnectionService(self._bus, self._api)
         log.success("ConnectionService создан")

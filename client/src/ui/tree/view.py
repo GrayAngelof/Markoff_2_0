@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QTreeView
 
 from src.core import EventBus
 from src.core.events import NodeCollapsed, NodeExpanded, NodeSelected
-from src.ui.tree.node import TreeNode
+from src.projections.tree_node import TreeNode
 from utils.logger import get_logger
 
 

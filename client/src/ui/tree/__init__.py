@@ -5,10 +5,8 @@
 
 from src.ui.tree.view import TreeView
 from src.ui.tree.model import TreeModel
-from src.ui.tree.node import TreeNode
 
 __all__ = [
     "TreeView",
     "TreeModel",
-    "TreeNode",
 ]

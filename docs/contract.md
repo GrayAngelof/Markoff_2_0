@@ -65,7 +65,7 @@
 > СТРОГАЯ ЗАВИСИМОСТЬ СЛОЕВ, ТОЛЬКО СВЕРХУ ВНИЗ
 
 ```
-core → models → data → services → projections → controllers → ui
+core → models → data → services → projections → controllers → view models → ui
 ```
 
 - Нижний слой не знает о верхнем

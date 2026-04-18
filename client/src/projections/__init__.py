@@ -4,7 +4,9 @@
 """
 
 from src.projections.tree import TreeProjection
+from src.projections.tree_node import TreeNode
 
 __all__ = [
     "TreeProjection",
+    "TreeNode",
 ]

@@ -1,4 +1,4 @@
-# client/src/services/converters.py
+# client/src/services/api/converters.py
 """
 Преобразование JSON ответов API в модели данных.
 

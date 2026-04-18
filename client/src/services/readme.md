@@ -1,367 +1,179 @@
-## 📚 **СПЕЦИФИКАЦИЯ: SERVICES (СЛОЙ СЕРВИСОВ)**
+## Анализ слоя: **services** (слой бизнес-логики и сервисов)
 
-# ============================================
-# СПЕЦИФИКАЦИЯ: SERVICES (СЛОЙ СЕРВИСОВ)
-# ============================================
+### Краткое описание слоя
 
-## 1. НАЗНАЧЕНИЕ
-Сервисный слой — это тонкий слой оркестрации, который координирует загрузку данных 
-из API, их сохранение в Data слой и мониторинг состояния соединения. Сервисы 
-не хранят состояние, не содержат бизнес-логики и не знают о существовании UI.
+**Назначение** – координировать загрузку данных, управлять соединением с сервером и предоставлять бизнес-ориентированные сервисы для вышестоящих слоёв (`projections`, `controllers`, `ui`). Слой `services` **не хранит данные**, но orchestrирует их получение, кэширование и преобразование.
 
-## 2. ГДЕ ЛЕЖИТ
-`client/src/services/`
+**Что делает:**
+- Предоставляет фасад `ApiClient` для всех HTTP-запросов к бэкенду (преобразование JSON → DTO)
+- Реализует фасад `DataLoader` – единую точку входа для загрузки данных (дерево, детали, справочники)
+- Управляет состоянием соединения через `ConnectionService` (периодическая проверка, генерация `ConnectionChanged`)
+- Собирает контекст для UI (`ContextService`): имена родителей, владельцы, ответственные лица
+- Реализует ленивую загрузку детей с отслеживанием состояния (`TreeLoader` через `LoadStateIndex`)
+- Обрабатывает повторные попытки при ошибках (базовый загрузчик `BaseLoader`)
 
-## 3. ЗА ЧТО ОТВЕЧАЕТ
+**Что не должен делать:**
+- Содержать UI-специфичный код (форматирование, рендеринг) – это в `projections` или `ui`
+- Обращаться напрямую к БД или файловой системе – только через `data` слой
+- Содержать сложную бизнес-логику предметной области (расчёты, правила) – это в отдельных сервисах или `models`
+- Нарушать иерархию: не импортировать из `projections`, `controllers`, `ui`
 
-✅ **ApiClient:**
-- Выполнение HTTP запросов к бэкенду (GET, POST, PUT, DELETE)
-- Преобразование JSON ответов в DTO модели (Complex, Building и т.д.)
-- Единая обработка ошибок (404, 500, таймауты, соединение)
-- Логирование всех запросов через `log.api()`
-- Проверка доступности сервера (`check_connection`)
-
-✅ **DataLoader (фасад):**
-- Координация процесса загрузки данных
-- Проверка наличия данных в Data слое перед запросом к API
-- Ленивая загрузка связанных данных (владельцы, контакты)
-- Инвалидация и перезагрузка устаревших данных
-- Предоставление единого интерфейса для контроллеров
-
-✅ **NodeLoader (внутренний):**
-- Реализация логики загрузки для каждого типа сущностей
-- Преобразование API ответов в модели
-- Сохранение моделей в EntityGraph
-- Загрузка владельцев и ответственных лиц по требованию
-
-✅ **ConnectionService:**
-- Периодическая проверка доступности сервера
-- Генерация событий при изменении статуса соединения
-- Возможность принудительной проверки
-
-## 4. КТО ИСПОЛЬЗУЕТ
-
-✅ **Потребители (вызывают):**
-- `controllers` — для загрузки данных по запросу пользователя
-- `projections` — для получения данных при построении структур
-
-✅ **Зависимости (вызывает сам):**
-- `core` — типы (NodeType), события (SystemEvents), утилиты (has_changed)
-- `models` — DTO сущности (Complex, Building, Counterparty и т.д.)
-- `data` — EntityGraph, репозитории
-
-## 5. КЛЮЧЕВЫЕ ПОНЯТИЯ
-
-- **ApiClient** — единственный компонент, знающий о HTTP. Инкапсулирует все запросы.
-- **DataLoader** — фасад, скрывающий сложность загрузки (проверка кэша, ленивая загрузка)
-- **NodeLoader** — ядро загрузки. Знает, какие API методы вызывать для каждого типа.
-- **Ленивая загрузка** — данные загружаются только когда реально нужны (при раскрытии узла)
-- **Проверка кэша** — перед каждым API запросом проверяется наличие данных в EntityGraph
-- **Попадание (hit)** — данные найдены в кэше, API запрос не выполняется
-- **Промах (miss)** — данных нет в кэше, выполняется API запрос
-
-## 6. ОГРАНИЧЕНИЯ (ВАЖНО!)
-
-⛔ **НЕЛЬЗЯ:**
-- Хранить данные в сервисах (все данные только в EntityGraph)
-- Подписываться на UI события в сервисах (это работа контроллеров)
-- Импортировать `controllers` или `ui` из сервисов
-- Использовать `print()` вместо логгера
-- Создавать методы форматирования для UI
-- Дублировать методы ApiClient в DataLoader
-- Использовать магические строки (только константы из core)
-- Мутировать объекты (модели иммутабельны)
-
-✅ **МОЖНО:**
-- Создавать временные кэши для загрузки (например, owner_id → owner)
-- Использовать `log.api()`, `log.cache()`, `log.data()`, `log.success()`
-- Генерировать системные события (DATA_LOADING, DATA_LOADED, DATA_ERROR)
-- Вызывать методы EntityGraph и репозиториев
-- Добавлять новые методы загрузки под новые типы сущностей
-
-## 7. ПРИМЕРЫ (концептуально)
-
-### ApiClient:
-```python
-# В контроллере
-from src.services import ApiClient
-
-api = ApiClient()
-complexes = api.get_complexes()  # List[Complex]
-building = api.get_building_detail(101)  # Optional[Building]
-owner = api.get_counterparty(42)  # Optional[Counterparty]
-```
-
-### DataLoader:
-```python
-# В контроллере
-from src.services import DataLoader
-
-loader = DataLoader(event_bus, api_client, graph)
-
-# Проверяет кэш, если нет — загружает
-complexes = loader.load_complexes()
-
-# Ленивая загрузка детей (с проверкой кэша)
-buildings = loader.load_children(NodeType.COMPLEX, 42, NodeType.BUILDING)
-
-# Загрузка деталей (с проверкой полноты)
-details = loader.load_details(NodeType.BUILDING, 101)
-
-# Получение связанных данных
-owner = loader.get_owner_for_building(building)
-
-# Перезагрузка
-loader.reload_node(NodeType.BUILDING, 101)
-loader.reload_branch(NodeType.COMPLEX, 42)
-```
-
-### ConnectionService:
-```python
-# В main.py
-from src.services import ConnectionService
-
-service = ConnectionService(event_bus, api_client)
-service.start()  # начинает периодическую проверку
-
-# При изменении статуса генерируется SystemEvents.CONNECTION_CHANGED
-```
-
-## 8. РИСКИ
-
-🔴 **Критические:**
-- **Дублирование кэша** — если сервис начнет хранить свои данные. Решение: строго использовать EntityGraph.
-- **Нарушение иерархии** — если сервис импортирует controllers или ui. Решение: code-review.
-- **Утечка памяти** — если хранить ссылки на объекты дольше нужного. Решение: только временные кэши.
-
-🟡 **Средние:**
-- **Снижение hit rate** — если кэш часто инвалидируется. Решение: анализ статистики.
-- **Медленные запросы** — если ApiClient не использует сессию. Решение: requests.Session().
-
-🟢 **Контролируемые:**
-- **Сложность отладки** — много уровней вызовов. Решение: подробное логирование через категории.
-
-## 9. ЧТО ВХОДИТ В СОСТАВ
-
-| Компонент | Тип | Ответственность |
-|-----------|-----|-----------------|
-| `ApiClient` | Публичный | HTTP запросы, преобразование в модели |
-| `DataLoader` | Публичный (фасад) | Оркестрация загрузки, проверка кэша |
-| `NodeLoader` | Приватный | Ядро загрузки (внутри loading/) |
-| `LoaderUtils` | Приватный | Утилиты (проверка деталей) |
-| `ConnectionService` | Публичный | Мониторинг соединения |
-
-## 10. ЧТО НЕ ВХОДИТ В СОСТАВ
-
-| Компонент | Почему |
-|-----------|--------|
-| Обработчики UI событий | Это ответственность контроллеров |
-| Форматтеры для отображения | Это ответственность UI |
-| Бизнес-логика | Это ответственность контроллеров |
-| Хранение данных | Это ответственность Data слоя |
-
-============================================
-КОНЕЦ СПЕЦИФИКАЦИИ
-============================================
-```
-
-
-# Services — описание слоя
-
-## Назначение
-
-Координация загрузки данных и HTTP-коммуникации. Оркестрирует вызовы API, преобразование ответов, сохранение в граф и эмиссию событий.
-
-**Строгая зависимость:** только от `core` (события, типы), `models` (DTO), `data` (EntityGraph, репозитории). Никакой UI-логики.
+**Зависимости:** от `core` (типы, события, `EventBus`), от `models` (все DTO), от `data` (`EntityGraph`, репозитории), от `shared` (валидация, сравнение), от `utils.logger`. Внутри себя сервисы могут зависеть друг от друга (например, `DataLoader` использует загрузчики, `ConnectionService` использует `ApiClient`).
 
 ---
 
-## Структура
+### Файловая структура слоя
 
 ```
-services/
-├── __init__.py                    # Публичное API
-├── api_client.py                  # ApiClient — фасад HTTP
-├── data_loader.py                 # DataLoader — фасад загрузки
-├── connection.py                  # ConnectionService — мониторинг соединения
-├── context_service.py             # ContextService — сбор контекста для UI
-├── types.py                       # Общие типы (BuildingWithOwnerResult)
-├── api/                           # ПРИВАТНО — HTTP слой
-│   ├── http_client.py             # HttpClient — низкоуровневые запросы
-│   ├── endpoints.py               # Endpoints — константы URL
-│   ├── converters.py              # JSON → модели
-│   └── errors.py                  # Иерархия исключений
-└── loading/                       # ПРИВАТНО — загрузчики
-    ├── node_loader.py             # NodeLoader — физическая иерархия
-    ├── dictionary_loader.py       # DictionaryLoader — справочники
-    └── utils.py                   # LoaderUtils — проверка полноты
+client/src/services/
+├── __init__.py                    # Публичный экспорт: ApiClient, DataLoader, ConnectionService, ContextService
+├── api_client.py                  # ApiClient – фасад HTTP клиента (публичный)
+├── connection.py                  # ConnectionService – мониторинг соединения
+├── context_service.py             # ContextService – сбор контекста для UI
+├── data_loader.py                 # DataLoader – фасад загрузки данных
+├── types.py                       # Общие типы (BuildingWithOwnerResult и др.)
+├── api/                           # Приватный пакет API слоя
+│   ├── __init__.py                # Маркер приватности
+│   ├── http_client.py             # HttpClient – низкоуровневый HTTP клиент (requests)
+│   ├── endpoints.py               # Endpoints – константы URL
+│   ├── converters.py              # Преобразование JSON → DTO (to_complex_list и т.д.)
+│   └── errors.py                  # Иерархия исключений (ApiError, ConnectionError, ...)
+├── loaders/                       # Приватный пакет загрузчиков (оркестрация)
+│   ├── __init__.py                # Экспорт BaseLoader, TreeLoader, PhysicalLoader, BusinessLoader, SafetyLoader
+│   ├── base.py                    # BaseLoader – обёртка с повторными попытками и эмиссией событий
+│   ├── tree_loader.py             # TreeLoader – загрузка дерева (ленивая загрузка детей)
+│   ├── physical_loader.py         # PhysicalLoader – загрузка детальной физики
+│   ├── business_loader.py         # BusinessLoader – заглушка для бизнес-данных
+│   └── safety_loader.py           # SafetyLoader – заглушка для данных пожарной безопасности
+└── loading/                       # Приватный пакет "тупых" загрузчиков (без логики)
+    ├── __init__.py                # Маркер приватности
+    ├── node_loader.py             # NodeLoader – чистая загрузка физической иерархии (не мутирует граф)
+    └── dictionary_loader.py       # DictionaryLoader – загрузка справочников (контрагенты, ответственные лица)
 ```
 
 ---
 
-## Публичное API
+### Внутренние классы (кратко)
 
-### Импорт
-
-```python
-from src.services import ApiClient, DataLoader, ConnectionService, ContextService
-```
-
----
-
-## Компоненты
-
-### 1. ApiClient (`api_client.py`) — фасад HTTP
-
-Единая точка доступа к API. Возвращает модели, а не сырые JSON.
-
-| Метод | Описание |
-|-------|----------|
-| `get_complexes()` | `List[Complex]` |
-| `get_buildings(complex_id)` | `List[Building]` |
-| `get_floors(building_id)` | `List[Floor]` |
-| `get_rooms(floor_id)` | `List[Room]` |
-| `get_complex_detail(id)` | `Optional[Complex]` |
-| `get_building_detail(id)` | `Optional[Building]` |
-| `get_floor_detail(id)` | `Optional[Floor]` |
-| `get_room_detail(id)` | `Optional[Room]` |
-| `get_counterparty(id)` | `Optional[Counterparty]` |
-| `get_responsible_persons(id)` | `List[ResponsiblePerson]` |
-| `check_connection(timeout)` | `bool` |
-| `get_server_info()` | `dict` |
-
-**Особенности:**
-- `NotFoundError` → возвращает `None` или `[]` (не пробрасывает)
-- Остальные ошибки пробрасываются с сохранением traceback
+| Класс | Модуль | Назначение |
+|-------|--------|------------|
+| `ApiClient` | `api_client.py` | **Фасад HTTP клиента**. Выполняет запросы к API, преобразует JSON в DTO через converters. Логирует все вызовы. |
+| `HttpClient` | `api/http_client.py` | Низкоуровневый HTTP клиент на основе `requests.Session`. Обрабатывает статус-коды, преобразует ошибки в иерархию `ApiError`. |
+| `Endpoints` | `api/endpoints.py` | Контейнер URL-путей (статичные методы). |
+| `BaseLoader` | `loaders/base.py` | Базовый класс для всех загрузчиков. Предоставляет метод `_with_events` для единообразной эмиссии `DataLoaded`/`DataError` и повторных попыток. |
+| `TreeLoader` | `loaders/tree_loader.py` | Загрузчик дерева. Отвечает за ленивую загрузку детей, использует `LoadStateIndex` из `data` для предотвращения дублирующихся запросов. |
+| `PhysicalLoader` | `loaders/physical_loader.py` | Загрузчик детальной информации о физических объектах. Проверяет кэш через `get_if_full()`. |
+| `BusinessLoader` | `loaders/business_loader.py` | Заглушка для будущей загрузки бизнес-данных (контрагенты, ответственные лица). |
+| `SafetyLoader` | `loaders/safety_loader.py` | Заглушка для данных пожарной безопасности. |
+| `NodeLoader` | `loading/node_loader.py` | **Чистый загрузчик** физической иерархии. Не мутирует граф, только вызывает API и возвращает DTO. Конфигурируется через DI (словари child_loaders/detail_loaders). |
+| `DictionaryLoader` | `loading/dictionary_loader.py` | Загрузчик справочных данных (контрагенты, ответственные лица). Сохраняет в граф, возвращает DTO. |
+| `ConnectionService` | `connection.py` | Сервис мониторинга соединения. В отдельном потоке периодически проверяет доступность сервера, эмитит `ConnectionChanged`. |
+| `ContextService` | `context_service.py` | Сервис сбора контекста для UI. Получает имена родителей, владельцев, ответственных лиц через репозитории `data`. |
+| `DataLoader` | `data_loader.py` | **Фасад загрузки данных**. Делегирует `TreeLoader`, `PhysicalLoader`, `BusinessLoader`, `SafetyLoader`. Единая точка входа для всех загрузок. |
+| `BuildingWithOwnerResult` | `types.py` | Dataclass для результата загрузки корпуса с владельцем и ответственными лицами. |
 
 ---
 
-### 2. DataLoader (`data_loader.py`) — фасад загрузки
+### Внутренние импорты (только между модулями services, core, models, data, shared, utils)
 
-Оркестратор загрузки. Проверяет кэш (через `EntityGraph`), эмитит события.
+**Из `core`:**  
+- `EventBus`, `NodeType`, `NodeIdentifier`, `ConnectionChanged`, `DataLoaded`, `DataError`, `DataLoadedKind`
+- `get_child_type`, `get_parent_type` (через `core.rules.hierarchy`)
 
-| Метод | Описание |
-|-------|----------|
-| `load_complexes()` | `List[Complex]` — все комплексы |
-| `load_children(parent_type, parent_id, child_type)` | `List[Any]` — ленивая загрузка детей |
-| `load_details(node_type, node_id)` | `Optional[Any]` — детальная информация |
-| `load_counterparty(id)` | `Optional[Counterparty]` |
-| `load_responsible_persons(id)` | `List[ResponsiblePerson]` |
-| `load_building_with_owner(id)` | `Optional[BuildingWithOwnerResult]` — корпус + владелец + контакты |
-| `reload_node(node_type, node_id)` | `None` — инвалидирует и загружает заново |
-| `reload_branch(node_type, node_id)` | `None` — перезагружает всю ветку |
-| `clear_cache()` | `None` |
-| `get_stats()` | `dict` |
+**Из `models`:**  
+- `Complex`, `Building`, `Floor`, `Room`, `Counterparty`, `ResponsiblePerson`
 
-**Эмитит события:**
-- `DataLoaded` — при успехе
-- `DataError` — при ошибке
+**Из `data`:**  
+- `EntityGraph` (импортируется через `src.data`)
+- Репозитории: `ComplexRepository`, `BuildingRepository`, `FloorRepository`, `RoomRepository`, `CounterpartyRepository`, `ResponsiblePersonRepository`
 
----
+**Из `shared`:**  
+- `validate_positive_int`, `has_changed` (через `shared.validation`, `shared.comparison`)
 
-### 3. ConnectionService (`connection.py`) — мониторинг соединения
+**Из `utils.logger`** – везде.
 
-Периодически проверяет доступность сервера в отдельном потоке.
+**Внутри `services`:**  
+- `ApiClient` → `HttpClient`, `Endpoints`, converters, errors
+- `DataLoader` → `TreeLoader`, `PhysicalLoader`, `BusinessLoader`, `SafetyLoader`
+- `TreeLoader` → `NodeLoader` (из `loading`), `EntityGraph`, `ApiClient`
+- `PhysicalLoader` → `NodeLoader`, `EntityGraph`, `ApiClient`
+- `ContextService` → репозитории из `data`
+- `ConnectionService` → `ApiClient`, `EventBus`
 
-| Метод | Описание |
-|-------|----------|
-| `start()` | Запускает фоновую проверку |
-| `stop()` | Останавливает проверку |
-| `force_check()` | Принудительная проверка |
-
-**Эмитит:** `ConnectionChanged(is_online=bool)` при изменении статуса
+**Никаких импортов из `projections`, `controllers`, `ui`.**
 
 ---
 
-### 4. ContextService (`context_service.py`) — сбор контекста
+### Экспортируемые методы / классы для вышестоящих слоёв
 
-Собирает имена родителей и связанные данные для UI.
+Публичное API слоя `services` доступно через `from src.services import ...` (согласно `services/__init__.py`):
 
-| Метод | Описание |
-|-------|----------|
-| `get_context(node)` | `dict` — имена родителей (complex_name, building_name, floor_num) |
-| `get_building_context(building_id)` | `dict` — + owner, responsible_persons |
-| `get_owner_context(counterparty_id)` | `dict` — owner + responsible_persons |
+**Классы:**
+- `ApiClient`
+- `DataLoader`
+- `ConnectionService`
+- `ContextService`
 
----
+**Методы `ApiClient` (все возвращают DTO или список DTO):**
+- `get_complexes() -> List[Complex]`
+- `get_buildings(complex_id) -> List[Building]`
+- `get_floors(building_id) -> List[Floor]`
+- `get_rooms(floor_id) -> List[Room]`
+- `get_complex_detail(complex_id) -> Optional[Complex]`
+- `get_building_detail(building_id) -> Optional[Building]`
+- `get_floor_detail(floor_id) -> Optional[Floor]`
+- `get_room_detail(room_id) -> Optional[Room]`
+- `get_counterparty(counterparty_id) -> Optional[Counterparty]`
+- `get_responsible_persons(counterparty_id) -> List[ResponsiblePerson]`
+- `check_connection(timeout) -> bool`
+- `get_server_info() -> dict`
 
-### 5. Типы (`types.py`)
+**Методы `DataLoader`:**
+- `load_complexes() -> List[Complex]`
+- `load_children(parent_type, parent_id, child_type) -> List[Any]`
+- `reload_node(node_type, node_id) -> None`
+- `clear_cache() -> None`
+- `load_details(node_type, node_id) -> Optional[Any]`
+- `load_counterparty(counterparty_id) -> Optional[Any]` (заглушка)
+- `load_responsible_persons(counterparty_id) -> List[Any]` (заглушка)
+- `load_sensors_by_room(room_id) -> List[Any]` (заглушка)
+- `load_events_by_building(building_id) -> List[Any]` (заглушка)
 
-```python
-@dataclass(frozen=True, slots=True)
-class BuildingWithOwnerResult:
-    building: Building
-    owner: Optional[Counterparty] = None
-    responsible_persons: List[ResponsiblePerson] = field(default_factory=list)
-```
+**Методы `ConnectionService`:**
+- `start() -> None` – запускает периодическую проверку соединения
+- `stop() -> None` – останавливает
+- `force_check() -> None` – принудительная проверка
 
----
+**Методы `ContextService`:**
+- `get_context(node: NodeIdentifier) -> Dict[str, Any]` – возвращает имена родителей
+- `get_building_context(building_id: int) -> Dict[str, Any]` – контекст корпуса (владелец, ответственные)
+- `get_owner_context(counterparty_id: int) -> Dict[str, Any]` – контекст владельца
 
-## Приватные компоненты
-
-### HTTP слой (`api/`)
-
-| Компонент | Назначение |
-|-----------|------------|
-| `HttpClient` | Низкоуровневые запросы, обработка статусов, преобразование в исключения |
-| `Endpoints` | Константы URL (статические методы) |
-| `to_*_list()`, `to_*()` | JSON → модели |
-| `ApiError`, `ConnectionError`, `TimeoutError`, `NotFoundError`, `ClientError`, `ServerError` | Иерархия исключений |
-
-### Загрузчики (`loading/`)
-
-| Компонент | Назначение |
-|-----------|------------|
-| `NodeLoader` | Загрузка физической иерархии (комплексы → корпуса → этажи → помещения) |
-| `DictionaryLoader` | Загрузка справочников (контрагенты, ответственные лица) |
-| `LoaderUtils` | Проверка полноты данных (есть ли детальные поля), кэширование результатов |
-
-**LoaderUtils.has_details(entity, node_type):**
-- `Complex`: есть `description` или `address`
-- `Building`: есть `description` или `address`
-- `Floor`: есть `description`
-- `Room`: есть `area` или `status_code`
-
----
-
-## Иерархия исключений API
-
-```
-ApiError
-├── ConnectionError      # сеть недоступна
-│   └── TimeoutError     # таймаут
-├── NotFoundError        # 404
-├── ClientError          # 4xx (кроме 404)
-└── ServerError          # 5xx
-```
+**Типы (опционально):**
+- `BuildingWithOwnerResult` – dataclass для группировки корпуса, владельца и ответственных лиц.
 
 ---
 
-## Зависимости
+### Итоговое заключение: принципы работы со слоем `services`
 
-| Компонент | Зависит от |
-|-----------|------------|
-| `ApiClient` | `api.http_client`, `api.converters`, `api.endpoints`, `api.errors` |
-| `DataLoader` | `core.EventBus`, `data.EntityGraph`, `api_client`, `loading.*` |
-| `ConnectionService` | `core.EventBus`, `api_client` |
-| `ContextService` | `data.*Repository` (через фабрики) |
+1. **Зависимость только от `core`, `models`, `data`** – слой `services` не знает о `projections`, `controllers`, `ui`. Это строгое правило: сервисы вызывают методы `data` (репозитории, `EntityGraph`) и используют события `core`, но не содержат кода отображения или обработки запросов.
 
----
+2. **Используйте фасады для упрощения** – вышестоящие слои должны работать через `ApiClient`, `DataLoader`, `ConnectionService`, `ContextService`, а не через внутренние загрузчики (`TreeLoader`, `PhysicalLoader` и т.д.). Это обеспечивает стабильный контракт.
 
-## Итог
+3. **Ленивая загрузка данных** – для дерева используйте `DataLoader.load_children()`. Он сам проверяет `is_children_loaded()` и управляет состоянием `LOADING`/`LOADED`. Не вызывайте `load_children` повторно для уже загруженного узла.
 
-Слой предоставляет вышележащим слоям:
+4. **Работа с кэшем** – `DataLoader.load_details()` сначала проверяет наличие полных данных через `EntityGraph.get_if_full()`. При ручном обновлении вызывайте `reload_node()` – он инвалидирует данные и сбрасывает состояние детей.
 
-| Возможность | Через |
-|-------------|-------|
-| HTTP-запросы к API | `ApiClient` |
-| Ленивая загрузка с кэшированием | `DataLoader` |
-| Мониторинг соединения | `ConnectionService` |
-| Контекст для UI (имена родителей, владельцы) | `ContextService` |
-| Единообразные события загрузки | `DataLoaded` / `DataError` |
+5. **Мониторинг соединения** – `ConnectionService` запускается один раз при старте приложения. Он автоматически эмитит `ConnectionChanged` в `EventBus`. Подписывайтесь на это событие в UI для отображения статуса.
 
-**Принципы:**
-- `ApiClient` и `DataLoader` — единственные публичные фасады
-- Внутренности `api/` и `loading/` не экспортируются
-- `DataLoader` проверяет кэш, но не решает, что загружать — только исполняет
-- Все ошибки API преобразуются в иерархию исключений
+6. **Обработка ошибок** – все методы `ApiClient` преобразуют HTTP ошибки в исключения из `services.api.errors` (`ConnectionError`, `TimeoutError`, `NotFoundError`, `ClientError`, `ServerError`). Вышестоящие слои должны их обрабатывать. `DataLoader` через `BaseLoader` делает повторные попытки (по умолчанию 1) и эмитит `DataError` при окончательном провале.
+
+7. **Контекст для UI** – не пытайтесь собирать имена родителей вручную через репозитории. Используйте `ContextService.get_context()`, который уже знает иерархию и возвращает готовый словарь.
+
+8. **Расширение** – при добавлении нового типа загрузки:
+   - Добавьте методы в `ApiClient` (если нужно)
+   - Реализуйте новый загрузчик (наследуя `BaseLoader`) или добавьте логику в существующий
+   - Добавьте метод-фасад в `DataLoader`
+   - **Не** раскрывайте внутренние загрузчики напрямую
+
+Слой `services` является **оркестратором** – он связывает `data` (кэш, граф) и `core` (события) с внешними источниками (API). Вся бизнес-логика, которая требует координации нескольких репозиториев или внешних вызовов, должна находиться здесь, но без привязки к UI.

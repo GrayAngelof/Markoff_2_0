@@ -21,7 +21,7 @@ from src.data.repositories import (
     FloorRepository,
     RoomRepository,
 )
-from src.ui.tree.node import TreeNode
+from src.projections.tree_node import TreeNode
 from utils.logger import get_logger
 
 

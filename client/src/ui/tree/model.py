@@ -14,7 +14,7 @@ from PySide6.QtGui import QBrush, QColor, QFont
 
 from src.core.types import NodeType
 from src.models.room import Room
-from src.ui.tree.node import TreeNode
+from src.projections.tree_node import TreeNode
 from utils.logger import get_logger
 
 

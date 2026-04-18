@@ -1,4 +1,4 @@
-# client/src/ui/tree/node.py
+# client/src/projections/tree_node.py
 """
 Узел дерева для отображения.
 

@@ -1,3 +1,4 @@
+# client/src/core/__init__.py
 """
 Публичное API ядра приложения.
 

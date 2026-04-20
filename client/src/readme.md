@@ -1,136 +1,104 @@
-# Корень приложения — описание слоя
+## Анализ слоя: **корень приложения** (точка входа и композиционный корень)
 
-## Назначение
+### Краткое описание слоя
 
-Точка входа и композиционный корень приложения. Собирает все слои в правильном порядке, настраивает зависимости (DI), запускает сервисы.
+**Назначение** – запустить приложение, собрать все компоненты в правильном порядке (DI), запустить фоновые сервисы и обеспечить корректную очистку ресурсов при завершении. Корень приложения находится **выше всех слоёв** и знает обо всех (`core`, `models`, `data`, `services`, `projections`, `controllers`, `ui`). Обратных импортов из других слоёв в корень быть не должно.
 
-**Строгая зависимость:** от всех слоёв (`core`, `models`, `data`, `services`, `projections`, `controllers`, `ui`). Никаких обратных импортов.
+**Что делает:**
+- Настраивает окружение (логирование, переменные Qt)
+- Создаёт `QApplication`
+- Инициализирует все компоненты в строгом порядке сверху вниз (core → data → services → projections → controllers → ui)
+- Внедряет зависимости через конструкторы (явный DI)
+- Запускает фоновые сервисы **после** того, как UI подписался на события
+- Предоставляет главное окно для отображения
+- При завершении останавливает сервисы, отписывает обработчики, очищает контроллеры, шину и граф
+
+**Что не должен делать:**
+- Содержать бизнес-логику или логику отображения
+- Обращаться к API или БД напрямую
+- Зависеть от конкретных реализаций (только создаёт и связывает)
 
 ---
 
-## Структура
+### Файловая структура слоя
 
 ```
-src/
-├── __init__.py              # Корневой пакет (пустой)
-├── bootstrap.py             # ApplicationBootstrap — композиционный корень
-└── main.py                  # Точка входа
+client/src/
+├── __init__.py              # Корневой пакет (пустой, только маркер)
+├── bootstrap.py             # ApplicationBootstrap — композиционный корень (DI)
+└── main.py                  # Точка входа (запуск приложения)
 ```
 
 ---
 
-## Компоненты
+### Внутренние классы (кратко)
 
-### 1. `main.py` — точка входа
-
-Запускает приложение, настраивает окружение и логирование.
-
-| Функция | Описание |
-|---------|----------|
-| `setup_application()` | Создаёт `QApplication`, устанавливает имя и организацию |
-| `setup_logging()` | Настраивает уровни логирования (DEBUG при разработке) |
-| `main()` | Точка входа — инициализация, запуск цикла, очистка |
-
-**Порядок запуска:**
-1. Установка `QT_LOGGING_RULES` (подавление шума Qt)
-2. Настройка логирования
-3. Создание `QApplication`
-4. Создание `ApplicationBootstrap`
-5. Получение и отображение окна
-6. Запуск `app.exec()`
-7. Очистка ресурсов
+| Класс / функция | Файл | Назначение |
+|----------------|------|------------|
+| `ApplicationBootstrap` | `bootstrap.py` | Композиционный корень: создаёт все компоненты в правильном порядке, управляет жизненным циклом, очищает ресурсы. |
+| `main()` | `main.py` | Точка входа: настраивает окружение, логирование, создаёт `QApplication`, вызывает `ApplicationBootstrap`, запускает главный цикл, обрабатывает исключения. |
+| `setup_application()` | `main.py` | Создаёт и настраивает `QApplication`. |
+| `setup_logging()` | `main.py` | Настраивает уровни логирования (категории, цвета). |
 
 ---
 
-### 2. `ApplicationBootstrap` (`bootstrap.py`) — композиционный корень
+### Внутренние импорты (только между модулями проекта)
 
-Создаёт все компоненты в строгом порядке сверху вниз.
+Игнорируем `utils.logger`, `PySide6`, `sys`, `os`.
 
-#### Порядок инициализации
+**Из `bootstrap.py`**:
+- `from src.controllers import ConnectionController, DetailsController, RefreshController, TreeController`
+- `from src.core import EventBus`
+- `from src.data import BuildingRepository, ComplexRepository, EntityGraph, FloorRepository, RoomRepository`
+- `from src.projections.tree import TreeProjection`
+- `from src.services import ApiClient, ConnectionService, DataLoader`
+- `from src.ui.app_window import AppWindow`
+- `from src.ui.coordinator import UiCoordinator`
+- `from src.ui.handlers.details_handler import DetailsUiHandler`
+- `from src.ui.handlers.tree_handler import TreeUiHandler`
 
-| Шаг | Слой | Компоненты |
-|-----|------|------------|
-| 1 | Core | `EventBus` |
-| 2 | Data | `EntityGraph`, репозитории (Complex, Building, Floor, Room, Counterparty, ResponsiblePerson) |
-| 3 | Services | `ApiClient`, `DataLoader`, `ContextService`, `ConnectionService` |
-| 4 | Projections | `TreeProjection` |
-| 5 | Controllers | `TreeController`, `DetailsController`, `RefreshController`, `ConnectionController` |
-| 6 | UI | `AppWindow` |
-| 7 | Запуск сервисов | `ConnectionService.start()`, `load_root_nodes()` |
+**Из `main.py`**:
+- `from src.bootstrap import ApplicationBootstrap`
 
-#### Методы
+**Из `__init__.py`** – нет импортов.
 
-| Метод | Описание |
-|-------|----------|
-| `__init__(app)` | Создаёт все компоненты в правильном порядке |
-| `cleanup()` | Останавливает сервисы, очищает контроллеры, шину, граф |
-| `get_window()` | Возвращает `QMainWindow` для отображения |
-| `get_bus()` | Возвращает `EventBus` (для отладки) |
+---
 
-#### Внутренние методы (шаги инициализации)
+### Экспортируемые методы / классы для внешнего мира (точка входа)
 
-| Метод | Что создаёт |
+Корень приложения не предназначен для импорта другими слоями (он самый верхний). Однако для запуска приложения используются:
+
+| Элемент | Файл | Назначение |
+|---------|------|-------------|
+| `main()` | `main.py` | Точка входа (вызывается интерпретатором). |
+| `ApplicationBootstrap` | `bootstrap.py` | Создаётся внутри `main()`, не экспортируется в `__init__.py`. |
+
+**Публичные методы `ApplicationBootstrap`** (используются в `main.py`):
+
+| Метод | Назначение |
 |-------|-------------|
-| `_init_core()` | `EventBus` (debug=True) |
-| `_init_data()` | `EntityGraph`, 6 репозиториев |
-| `_init_services()` | `ApiClient`, `DataLoader`, `ContextService`, `ConnectionService` |
-| `_init_projections()` | `TreeProjection` |
-| `_init_controllers()` | Tree, Details, Refresh, Connection контроллеры |
-| `_init_ui()` | `AppWindow`, связывает контроллеры с UI |
-| `_start_services()` | Запускает `ConnectionService`, вызывает `load_root_nodes()` |
-
-#### Связывание контроллеров с UI
-
-```python
-# TreeController → AppWindow
-self._tree_controller.set_app_window(self._app_window)
-
-# DetailsController → DetailsPanel
-details_panel = self._app_window.get_details_panel()
-self._details_controller.set_details_panel(details_panel)
-```
+| `get_window() -> QMainWindow` | Возвращает главное окно для вызова `show()`. |
+| `cleanup()` | Останавливает сервисы, отписывает обработчики, очищает контроллеры, шину и граф. |
+| `get_bus() -> EventBus` | Возвращает шину событий (для отладки). |
 
 ---
 
-## Зависимости (все импорты)
+### Итоговое заключение: принципы работы с корнем приложения
 
-### `bootstrap.py` импортирует:
+1. **Строгий порядок инициализации** – `ApplicationBootstrap` создаёт компоненты в последовательности: `core` → `data` → `services` → `projections` → `controllers` → `ui` → запуск сервисов. Это гарантирует, что зависимости всегда готовы к моменту использования.
 
-| Слой | Компоненты |
-|------|------------|
-| `controllers` | `ConnectionController`, `DetailsController`, `RefreshController`, `TreeController` |
-| `core` | `EventBus` |
-| `data` | `EntityGraph`, 6 репозиториев |
-| `projections` | `TreeProjection` |
-| `services` | `ApiClient`, `ConnectionService`, `ContextService`, `DataLoader` |
-| `ui` | `AppWindow` |
-| `utils.logger` | `get_logger` |
+2. **Явное внедрение зависимостей (DI)** – все зависимости передаются через конструкторы. Нет глобальных переменных или скрытых связей. Каждый компонент получает только то, что ему нужно.
 
-### `main.py` импортирует:
+3. **Единая точка очистки** – метод `cleanup()` останавливает фоновые сервисы (`ConnectionService`), отписывает UI-обработчики (`TreeUiHandler`, `DetailsUiHandler`, `UiCoordinator`), очищает контроллеры, шину событий и граф сущностей. Это предотвращает утечки ресурсов и гарантирует корректное завершение.
 
-| Модуль | Компоненты |
-|--------|------------|
-| `src.bootstrap` | `ApplicationBootstrap` |
-| `utils.logger` | `Logger`, `get_logger` |
-| `PySide6.QtWidgets` | `QApplication` |
+4. **Измерение времени инициализации** – каждый этап обёрнут в `log.measure_time()`, что позволяет отслеживать узкие места при старте.
 
----
+5. **Логирование окружения** – `main.py` устанавливает `QT_LOGGING_RULES` для подавления шума от Qt-плагинов и настраивает категории логирования.
 
-## Итог
+6. **Фоновые сервисы запускаются после подписки UI** – сначала создаются обработчики (`TreeUiHandler`, `DetailsUiHandler`, `UiCoordinator`) и вызывается их `start()` (подписка на события), **только потом** запускается `ConnectionService.start()` и инициируется загрузка корневых узлов (`load_root_nodes()`). Это гарантирует, что ни одно событие не будет потеряно.
 
-Корень приложения предоставляет:
+7. **Контроллеры не зависят от UI напрямую** – в текущей реализации `DetailsController` всё ещё импортирует `DetailsPanel` (нарушение), но в `bootstrap.py` **не вызывается** `set_details_panel()`. Это означает, что связь `DetailsController` → `DetailsPanel` не используется и должна быть удалена (или заменена на событие). В остальном контроллеры работают только через `EventBus`.
 
-| Возможность | Через |
-|-------------|-------|
-| Точка входа | `main.py` |
-| Композиционный корень (DI) | `ApplicationBootstrap` |
-| Жизненный цикл приложения | инициализация → запуск → очистка |
-| Измерение времени инициализации | `log.measure_time()` |
-| Единое место очистки ресурсов | `cleanup()` |
+8. **Точка входа минимальна** – `main.py` отвечает только за настройку окружения, создание `QApplication`, вызов `ApplicationBootstrap` и запуск главного цикла. Вся логика сборки вынесена в `bootstrap.py`.
 
-**Принципы:**
-- `main.py` — только запуск, вся логика в `bootstrap.py`
-- Строгий порядок инициализации сверху вниз (core → models → data → services → projections → controllers → ui)
-- Все зависимости передаются явно (DI, нет глобальных переменных)
-- Единая точка очистки ресурсов при завершении
-- Измерение времени каждого этапа для отладки производительности
+Корень приложения является **единственным местом, где создаются все компоненты** – он не содержит бизнес-логики, но управляет сложностью всего приложения.

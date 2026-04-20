@@ -46,7 +46,7 @@ class TreeProjection:
         room_repo: RoomRepository,
     ) -> None:
         """Инициализирует проекцию дерева."""
-        log.info("Инициализация TreeProjection")
+        log.system("TreeProjection инициализация")
         self._complex_repo = complex_repo
         self._building_repo = building_repo
         self._floor_repo = floor_repo
@@ -56,10 +56,8 @@ class TreeProjection:
     # ---- ПУБЛИЧНОЕ API ----
     def get_root_nodes(self) -> List[TreeNode]:
         """Возвращает корневые узлы (комплексы) для первоначального отображения."""
-        log.info("Загрузка корневых узлов")
-
         complexes = self._complex_repo.get_all()
-        log.debug(f"get_root_nodes: Найдено комплексов: {len(complexes)}")
+        log.info(f"Загрузка корневых узлов: найдено {len(complexes)} комплексов")
 
         root_nodes = []
         for complex_data in complexes:
@@ -79,21 +77,20 @@ class TreeProjection:
             )
             root_nodes.append(node)
 
-        log.info(f"Построено корневых узлов: {len(root_nodes)}")
+        log.info(f"Построено {len(root_nodes)} корневых узлов")
         return root_nodes
 
     def build_children_from_payload(
         self,
         payload: List[Any],
         child_type: NodeType,
-        parent_node: TreeNode,
     ) -> List[TreeNode]:
         """
         Создаёт TreeNode из загруженных данных детей.
 
-        Единственное место, где создаются узлы дерева.
+        Родитель НЕ устанавливается — будет позже через TreeModel.insert_children.
         """
-        log.debug(f"build_children_from_payload: Создание {len(payload)} узлов типа {child_type.value}")
+        log.debug(f"Создание {len(payload)} узлов типа {child_type.value}")
 
         nodes = []
         for child_data in payload:
@@ -116,12 +113,11 @@ class TreeProjection:
                 node_type=child_type,
                 display_name=display_name,
                 has_children=has_children,
-                parent=parent_node,
             )
             nodes.append(node)
 
         nodes.sort(key=lambda node: node.name.lower())
-        log.debug(f"build_children_from_payload: Создано {len(nodes)} узлов, отсортировано")
+        log.debug(f"Создано {len(nodes)} узлов типа {child_type.value}")
         return nodes
 
     # ---- ВНУТРЕННИЕ МЕТОДЫ ----

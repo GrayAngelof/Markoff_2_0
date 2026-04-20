@@ -25,17 +25,18 @@ from src.controllers import (
 )
 from src.core import EventBus
 from src.data import (
-    EntityGraph,
-    ComplexRepository,
     BuildingRepository,
+    ComplexRepository,
+    EntityGraph,
     FloorRepository,
     RoomRepository,
-    CounterpartyRepository,
-    ResponsiblePersonRepository,
 )
 from src.projections.tree import TreeProjection
 from src.services import ApiClient, ConnectionService, DataLoader
 from src.ui.app_window import AppWindow
+from src.ui.coordinator import UiCoordinator
+from src.ui.handlers.details_handler import DetailsUiHandler
+from src.ui.handlers.tree_handler import TreeUiHandler
 from utils.logger import get_logger
 
 
@@ -91,20 +92,28 @@ class ApplicationBootstrap:
         log.info("=" * 60)
 
     def cleanup(self) -> None:
-        """Очистка ресурсов перед завершением."""
+        """Очищает ресурсы перед завершением приложения."""
         with log.measure_time("остановка сервисов и очистка ресурсов"):
             self._connection_service.stop()
             log.api("ConnectionService остановлен")
 
+            # Очистка UI обработчиков
+            self._tree_ui_handler.cleanup()
+            self._details_ui_handler.cleanup()
+            self._ui_coordinator.cleanup()
+
+            # Очистка контроллеров
             self._tree_controller.cleanup()
             self._details_controller.cleanup()
             self._refresh_controller.cleanup()
             self._connection_controller.cleanup()
             log.data("Контроллеры очищены")
-            
+
+            # Очистка ядра
             self._bus.clear()
             log.data("Шина очищена")
 
+            # Очистка данных
             self._graph.clear()
             log.data("EntityGraph очищен")
 
@@ -121,26 +130,24 @@ class ApplicationBootstrap:
 
     # ---- ВНУТРЕННИЕ МЕТОДЫ ----
     def _init_core(self) -> None:
-        """Инициализация ядра."""
+        """Инициализирует ядро (EventBus)."""
         self._bus = EventBus()
         self._bus.set_debug(True)
         log.success("EventBus создан")
 
     def _init_data(self) -> None:
-        """Инициализация слоя данных."""
+        """Инициализирует слой данных (EntityGraph, репозитории)."""
         self._graph = EntityGraph(self._bus)
 
         self._complex_repo = ComplexRepository(self._graph)
         self._building_repo = BuildingRepository(self._graph)
         self._floor_repo = FloorRepository(self._graph)
         self._room_repo = RoomRepository(self._graph)
-        self._counterparty_repo = CounterpartyRepository(self._graph)
-        self._responsible_person_repo = ResponsiblePersonRepository(self._graph)
 
         log.success("EntityGraph и репозитории созданы")
 
     def _init_services(self) -> None:
-        """Инициализация сервисного слоя (создание, без запуска)."""
+        """Инициализирует сервисный слой (создание, без запуска)."""
         self._api = ApiClient()
         log.success("ApiClient создан")
 
@@ -151,7 +158,7 @@ class ApplicationBootstrap:
         log.success("ConnectionService создан")
 
     def _init_projections(self) -> None:
-        """Инициализация проекций."""
+        """Инициализирует проекции (преобразование данных для UI)."""
         self._tree_projection = TreeProjection(
             complex_repo=self._complex_repo,
             building_repo=self._building_repo,
@@ -161,7 +168,7 @@ class ApplicationBootstrap:
         log.success("TreeProjection создан")
 
     def _init_controllers(self) -> None:
-        """Инициализация контроллеров."""
+        """Инициализирует контроллеры (координация)."""
         self._tree_controller = TreeController(
             bus=self._bus,
             loader=self._loader,
@@ -183,19 +190,28 @@ class ApplicationBootstrap:
         log.info("Контроллеры созданы: Tree, Details, Refresh, Connection")
 
     def _init_ui(self) -> None:
-        """Инициализация UI."""
+        """Инициализирует UI и обработчики событий."""
         self._app_window = AppWindow(self._bus)
         log.success("AppWindow создан")
 
-        self._tree_controller.set_app_window(self._app_window)
-
+        # Получаем виджеты
+        tree_view = self._app_window.get_tree_view()
         details_panel = self._app_window.get_details_panel()
-        self._details_controller.set_details_panel(details_panel)
 
-        log.debug("Связи UI → контроллеры установлены")
+        # Создаём UI обработчики
+        self._tree_ui_handler = TreeUiHandler(self._bus, tree_view)
+        self._details_ui_handler = DetailsUiHandler(self._bus, details_panel)
+        self._ui_coordinator = UiCoordinator(self._bus, self._app_window)
+
+        # Запускаем их (подписка на события)
+        self._tree_ui_handler.start()
+        self._details_ui_handler.start()
+        self._ui_coordinator.start()
+
+        log.debug("UI обработчики инициализированы и запущены")
 
     def _start_services(self) -> None:
-        """Запускает фоновые сервисы ПОСЛЕ того, как UI подписался."""
+        """Запускает фоновые сервисы ПОСЛЕ того, как UI подписался на события."""
         self._connection_service.start()
         log.api("ConnectionService запущен")
 

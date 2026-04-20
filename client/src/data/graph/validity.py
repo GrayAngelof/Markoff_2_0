@@ -33,14 +33,13 @@ from utils.logger import get_logger
 # ===== КОНСТАНТЫ =====
 log = get_logger(__name__)
 
-# Все типы, которые могут быть в индексе валидности
+# Все типы, которые могут быть в индексе валидности (физическая иерархия)
 _VALID_TYPES: Final[list[NodeType]] = [
+    NodeType.ROOT,
     NodeType.COMPLEX,
     NodeType.BUILDING,
     NodeType.FLOOR,
     NodeType.ROOM,
-    NodeType.COUNTERPARTY,
-    NodeType.RESPONSIBLE_PERSON,
 ]
 
 # Шаблоны сообщений логирования
@@ -86,7 +85,7 @@ def _validate_validity_types() -> None:
             f"Добавьте их в _VALID_TYPES в {__file__}"
         )
 
-    log.info(f"ValidityIndex схема валидна: {len(_VALID_TYPES)} типов")
+    log.system(f"ValidityIndex схема валидна: {len(_VALID_TYPES)} типов")
 
 
 _validate_validity_types()
@@ -104,7 +103,7 @@ class ValidityIndex:
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
     def __init__(self, event_bus: EventBus) -> None:
         """Инициализирует пустой индекс валидности."""
-        log.info("Инициализация ValidityIndex")
+        log.system("ValidityIndex инициализация")
         self._bus = event_bus
         self._lock = RLock()
 

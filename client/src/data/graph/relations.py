@@ -26,12 +26,11 @@ from utils.logger import get_logger
 # ===== КОНСТАНТЫ =====
 log = get_logger(__name__)
 
-# Типы, которые могут быть родителями
+# Типы, которые могут быть родителями (физическая иерархия)
 _PARENT_TYPES: Final[list[NodeType]] = [
     NodeType.COMPLEX,      # дети: BUILDING
     NodeType.BUILDING,     # дети: FLOOR
     NodeType.FLOOR,        # дети: ROOM
-    NodeType.COUNTERPARTY, # дети: RESPONSIBLE_PERSON
 ]
 
 # Типы, которые могут быть детьми
@@ -39,7 +38,6 @@ _CHILD_TYPES: Final[list[NodeType]] = [
     NodeType.BUILDING,           # родитель: COMPLEX
     NodeType.FLOOR,              # родитель: BUILDING
     NodeType.ROOM,               # родитель: FLOOR
-    NodeType.RESPONSIBLE_PERSON, # родитель: COUNTERPARTY
 ]
 
 # Шаблоны сообщений логирования
@@ -99,7 +97,7 @@ def _validate_relations_schema() -> None:
                 f"хотя является родителем {child_type.value}"
             )
 
-    log.info(f"RelationIndex схема валидна: {len(_CHILD_TYPES)} типов")
+    log.system(f"RelationIndex схема валидна: {len(_CHILD_TYPES)} типов")
 
 
 _validate_relations_schema()
@@ -116,7 +114,7 @@ class RelationIndex:
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
     def __init__(self) -> None:
         """Инициализирует пустые индексы для всех поддерживаемых типов."""
-        log.info("Инициализация RelationIndex")
+        log.system("RelationIndex инициализация")
         self._lock = RLock()
 
         # Прямые индексы: parent_type → {parent_id: set(child_ids)}
@@ -142,7 +140,7 @@ class RelationIndex:
             for child_type in self._parents:
                 self._parents[child_type].clear()
 
-            log.info("RelationIndex очищен")
+            log.cache("RelationIndex очищен")
 
     def get_stats(self) -> RelationStats:
         """Возвращает статистику использования индексов."""

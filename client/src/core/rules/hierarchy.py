@@ -2,7 +2,7 @@
 """
 Правила иерархии объектов.
 
-Определяет связи между типами:
+Определяет связи между типами физической структуры:
 - Кто кому родитель
 - Кто может иметь детей
 - Навигация по иерархии (предки, потомки)
@@ -13,8 +13,8 @@
 # ===== ИМПОРТЫ =====
 from typing import List, Optional
 
+from src.core.types.nodes import NodeType
 from utils.logger import get_logger
-from ..types.nodes import NodeType
 
 
 # ===== КОНСТАНТЫ =====
@@ -26,8 +26,6 @@ _CHILD_TYPE_MAP = {
     NodeType.BUILDING: NodeType.FLOOR,
     NodeType.FLOOR: NodeType.ROOM,
     NodeType.ROOM: None,
-    NodeType.COUNTERPARTY: NodeType.RESPONSIBLE_PERSON,
-    NodeType.RESPONSIBLE_PERSON: None,
 }
 
 # Карта: ребёнок → тип родителя
@@ -36,8 +34,6 @@ _PARENT_TYPE_MAP = {
     NodeType.BUILDING: NodeType.COMPLEX,
     NodeType.FLOOR: NodeType.BUILDING,
     NodeType.ROOM: NodeType.FLOOR,
-    NodeType.COUNTERPARTY: None,
-    NodeType.RESPONSIBLE_PERSON: NodeType.COUNTERPARTY,
 }
 
 # Карта: может ли тип иметь детей
@@ -46,8 +42,6 @@ _CAN_HAVE_CHILDREN = {
     NodeType.BUILDING: True,
     NodeType.FLOOR: True,
     NodeType.ROOM: False,
-    NodeType.COUNTERPARTY: True,
-    NodeType.RESPONSIBLE_PERSON: False,
 }
 
 
@@ -59,9 +53,7 @@ def get_child_type(parent_type: NodeType) -> Optional[NodeType]:
     Returns:
         None если узел листовой (не может иметь детей)
     """
-    child_type = _CHILD_TYPE_MAP.get(parent_type)
-    log.debug(f"get_child_type({parent_type.value}) = {child_type.value if child_type else None}")
-    return child_type
+    return _CHILD_TYPE_MAP.get(parent_type)
 
 
 def get_parent_type(child_type: NodeType) -> Optional[NodeType]:
@@ -71,16 +63,12 @@ def get_parent_type(child_type: NodeType) -> Optional[NodeType]:
     Returns:
         None если узел корневой (не имеет родителя)
     """
-    parent_type = _PARENT_TYPE_MAP.get(child_type)
-    log.debug(f"get_parent_type({child_type.value}) = {parent_type.value if parent_type else None}")
-    return parent_type
+    return _PARENT_TYPE_MAP.get(child_type)
 
 
 def can_have_children(node_type: NodeType) -> bool:
     """Проверяет, может ли узел указанного типа иметь детей."""
-    result = _CAN_HAVE_CHILDREN.get(node_type, False)
-    log.debug(f"can_have_children({node_type.value}) = {result}")
-    return result
+    return _CAN_HAVE_CHILDREN.get(node_type, False)
 
 
 def is_leaf(node_type: NodeType) -> bool:
@@ -103,7 +91,6 @@ def get_all_ancestors(start_type: NodeType) -> List[NodeType]:
         ancestors.append(current)
         current = get_parent_type(current)
 
-    log.debug(f"get_all_ancestors({start_type.value}) = {[a.value for a in ancestors]}")
     return ancestors
 
 
@@ -122,7 +109,6 @@ def get_all_descendants(start_type: NodeType) -> List[NodeType]:
         descendants.append(current)
         current = get_child_type(current)
 
-    log.debug(f"get_all_descendants({start_type.value}) = {[d.value for d in descendants]}")
     return descendants
 
 

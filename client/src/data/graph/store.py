@@ -44,27 +44,25 @@ class EntityStore:
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
     def __init__(self) -> None:
         """Инициализирует пустое хранилище."""
-        log.info("Инициализация EntityStore")
+        log.system("EntityStore инициализация")
         self._lock = RLock()
 
         # Основное хранилище: тип узла → {id: объект}
         self._entities: Dict[NodeType, Dict[int, Any]] = {
+            NodeType.ROOT: {},
             NodeType.COMPLEX: {},
             NodeType.BUILDING: {},
             NodeType.FLOOR: {},
             NodeType.ROOM: {},
-            NodeType.COUNTERPARTY: {},
-            NodeType.RESPONSIBLE_PERSON: {},
         }
 
         # Временные метки для каждого объекта
         self._timestamps: Dict[NodeType, Dict[int, datetime]] = {
+            NodeType.ROOT: {},
             NodeType.COMPLEX: {},
             NodeType.BUILDING: {},
             NodeType.FLOOR: {},
             NodeType.ROOM: {},
-            NodeType.COUNTERPARTY: {},
-            NodeType.RESPONSIBLE_PERSON: {},
         }
 
         log.system("EntityStore инициализирован")

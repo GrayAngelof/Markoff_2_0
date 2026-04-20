@@ -20,6 +20,9 @@ from typing import Tuple
 class NodeType(str, Enum):
     """Типы узлов в иерархии объектов недвижимости."""
 
+    ROOT = "root"
+    """Виртуальный корневой узел (для унификации событий)"""
+
     COMPLEX = "complex"
     """Комплекс зданий (корневой уровень)"""
 
@@ -31,12 +34,6 @@ class NodeType(str, Enum):
 
     ROOM = "room"
     """Помещение на этаже"""
-
-    COUNTERPARTY = "counterparty"
-    """Контрагент (юридическое лицо)"""
-
-    RESPONSIBLE_PERSON = "responsible_person"
-    """Ответственное лицо (контакт контрагента)"""
 
     def __str__(self) -> str:
         return self.value
@@ -75,3 +72,8 @@ class NodeIdentifier:
 
     node_type: NodeType
     node_id: NodeID
+
+
+# ===== КОНСТАНТЫ =====
+# Виртуальный корневой узел для унификации событий ChildrenLoaded
+ROOT_NODE = NodeIdentifier(NodeType.ROOT, 0)

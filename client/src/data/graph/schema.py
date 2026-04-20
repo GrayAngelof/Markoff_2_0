@@ -33,14 +33,11 @@ log = get_logger(__name__)
 # None означает, что тип является корневым (не имеет родителя)
 PARENT_ID_FIELD: Final[dict[NodeType, Optional[str]]] = {
     # Физическая структура
-    NodeType.COMPLEX: None,                      # комплексы — корень дерева
-    NodeType.BUILDING: "complex_id",             # корпус → комплекс
-    NodeType.FLOOR: "building_id",               # этаж → корпус
-    NodeType.ROOM: "floor_id",                   # помещение → этаж
-
-    # Контрагенты и контакты
-    NodeType.COUNTERPARTY: None,                 # контрагенты — корень
-    NodeType.RESPONSIBLE_PERSON: "counterparty_id",  # контакт → контрагент
+    NodeType.ROOT: None,                       # виртуальный корень
+    NodeType.COMPLEX: None,                    # комплексы — корень дерева
+    NodeType.BUILDING: "complex_id",           # корпус → комплекс
+    NodeType.FLOOR: "building_id",             # этаж → корпус
+    NodeType.ROOM: "floor_id",                 # помещение → этаж
 }
 
 # Маппинг: имя класса → NodeType (для обратной совместимости)
@@ -49,8 +46,6 @@ CLASS_NAME_TO_NODETYPE: Final[Dict[str, NodeType]] = {
     "Building": NodeType.BUILDING,
     "Floor": NodeType.FLOOR,
     "Room": NodeType.ROOM,
-    "Counterparty": NodeType.COUNTERPARTY,
-    "ResponsiblePerson": NodeType.RESPONSIBLE_PERSON,
 }
 
 
@@ -74,32 +69,18 @@ def _validate_schema() -> None:
 
 
 _validate_schema()
-log.info(f"Схема графа валидна: {len(PARENT_ID_FIELD)} типов")
+log.system(f"Схема графа валидна: {len(PARENT_ID_FIELD)} типов")
 
 
 # ===== ОБЁРТКИ НАД core.hierarchy =====
 def get_child_type(parent_type: NodeType) -> Optional[NodeType]:
-    """
-    Возвращает тип дочернего элемента для данного родителя.
-
-    Returns:
-        None если у типа нет детей
-    """
-    result = _get_child_type(parent_type)
-    log.debug(f"get_child_type({parent_type.value}) -> {result.value if result else None}")
-    return result
+    """Возвращает тип дочернего элемента для данного родителя."""
+    return _get_child_type(parent_type)
 
 
 def get_parent_type(child_type: NodeType) -> Optional[NodeType]:
-    """
-    Возвращает тип родителя для данного дочернего элемента.
-
-    Returns:
-        None если тип корневой
-    """
-    result = _get_parent_type(child_type)
-    log.debug(f"get_parent_type({child_type.value}) -> {result.value if result else None}")
-    return result
+    """Возвращает тип родителя для данного дочернего элемента."""
+    return _get_parent_type(child_type)
 
 
 # ===== ФУНКЦИИ ДЛЯ РАБОТЫ С СУЩНОСТЯМИ =====
@@ -157,7 +138,6 @@ def get_parent_id(entity: HasNodeType) -> Optional[int]:
     field_name = PARENT_ID_FIELD.get(node_type_enum)
 
     if field_name is None:
-        log.debug(f"{node_type_enum.value} корневой (нет родителя)")
         return None
 
     # Проверяем наличие поля

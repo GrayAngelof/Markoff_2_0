@@ -3,18 +3,13 @@
 Фасад UI слоя.
 
 Собирает главное окно из постоянных компонентов.
-Принципы работы:
-1. AppWindow создаёт ВСЕ UI компоненты (не принимает их извне)
-2. Компоненты создаются в порядке: оболочка → постоянные → центральная область
-3. Геттеры позволяют контроллерам устанавливать модели и подписывать компоненты
-4. Подписки на события обрабатываются здесь же, делегируя управление CentralWidget
 """
 
 # ===== ИМПОРТЫ =====
 from PySide6.QtWidgets import QMainWindow
 
 from src.core import EventBus
-from src.core.events.definitions import RefreshRequested, ShowDetailsPanel
+from src.core.events.definitions import RefreshRequested
 from src.ui.common.central_widget import CentralWidget
 from src.ui.main_window.menu import MenuBar
 from src.ui.main_window.status_bar import StatusBar
@@ -33,26 +28,21 @@ class AppWindow:
     Фасад UI слоя — единственный композиционный корень.
 
     Отвечает за:
-    - Создание пустого MainWindow
-    - Создание постоянных компонентов (MenuBar, Toolbar, StatusBar)
-    - Создание CentralWidget (TreeView и DetailsPanel внутри)
-    - Компоновку всех компонентов в окне
-    - Подписку на глобальные UI-события (ShowDetailsPanel, RefreshRequested)
-    - Предоставление геттеров для контроллеров
+    - Создание всех UI компонентов
+    - Предоставление геттеров для виджетов
+    - Предоставление методов для управления UI (show_details_panel)
 
     НЕ отвечает за:
-    - Создание моделей данных (TreeModel)
-    - Бизнес-логику (передаётся контроллерам)
-    - Решение, когда показывать DetailsPanel (только делегирует CentralWidget)
+    - Подписку на события (это делают UiHandler / UiCoordinator)
+    - Бизнес-логику
     """
 
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
     def __init__(self, bus: EventBus) -> None:
         """Инициализирует фасад UI слоя."""
-        log.info("Инициализация AppWindow")
+        log.system("AppWindow инициализация")
 
         self._bus = bus
-        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus._debug}")
 
         self._window = MainWindow()
         log.success("MainWindow создан")
@@ -79,11 +69,7 @@ class AppWindow:
         self._details_panel.set_event_bus(bus)
         log.success("DetailsPanel настроен (EventBus передан)")
 
-        # Подписка на события
-        self._bus.subscribe(ShowDetailsPanel, self._on_show_details_panel)
-        log.link("AppWindow подписан на ShowDetailsPanel")
-
-        # Подключение сигналов UI к EventBus
+        # Подключение сигналов UI к EventBus (только преобразование сигналов в события)
         self._toolbar.refresh_triggered.connect(self._on_refresh_triggered)
         log.link("Toolbar.refresh_triggered подключён")
 
@@ -95,7 +81,7 @@ class AppWindow:
 
         log.system("AppWindow инициализирован")
 
-    # ---- ПУБЛИЧНОЕ API (ГЕТТЕРЫ ДЛЯ КОНТРОЛЛЕРОВ) ----
+    # ---- ПУБЛИЧНОЕ API (ГЕТТЕРЫ ДЛЯ КОНТРОЛЛЕРОВ И COORDINATOR) ----
     def get_tree_view(self):
         """Возвращает TreeView для установки модели."""
         return self._central.get_tree_view()
@@ -108,24 +94,17 @@ class AppWindow:
         """Возвращает QMainWindow для отображения."""
         return self._window
 
-    # ---- ОБРАБОТЧИКИ СОБЫТИЙ ----
-    def _on_show_details_panel(self, event_data: ShowDetailsPanel) -> None:
-        """
-        Обрабатывает событие показа панели деталей.
-
-        Делегирует переключение видимости CentralWidget.
-        """
-        log.debug("AppWindow: получено ShowDetailsPanel, переключаем панель")
+    def show_details_panel(self) -> None:
+        """Переключает правую панель с заглушки на DetailsPanel."""
         self._central.show_details_panel()
+        log.debug("DetailsPanel показан через AppWindow")
 
+    # ---- ОБРАБОТЧИКИ СИГНАЛОВ (преобразование в события) ----
     def _on_refresh_triggered(self, mode: str) -> None:
         """
         Обрабатывает клик по кнопке обновления.
 
         Преобразует UI-сигнал в событие EventBus.
-
-        Args:
-            mode: Режим обновления ('current', 'visible', 'full')
         """
         log.info(f"Запрос обновления: режим {mode}")
         self._bus.emit(RefreshRequested(mode=mode))

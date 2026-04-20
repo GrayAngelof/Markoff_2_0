@@ -24,7 +24,7 @@ class TreeNode:
 
     Единообразная структура для всех уровней:
     - id: уникальный ID узла
-    - type: тип узла ("complex", "building", "floor", "room")
+    - type: тип узла (complex, building, floor, room)
     - name: отображаемое имя
     - has_children: есть ли дети (для стрелочки)
 
@@ -98,13 +98,17 @@ class TreeNode:
     # ---- УПРАВЛЕНИЕ ДЕТЬМИ ----
     def append_child(self, child: 'TreeNode') -> None:
         """Добавляет одного дочернего узла."""
+        child._parent = self
         self._children.append(child)
-        log.debug(f"Узел {self.type}#{self.id} добавил ребенка {child.type}#{child.id}")
+        log.debug(f"Узел {self.type}#{self.id} добавил ребёнка {child.type}#{child.id}")
 
     def add_children(self, children: List['TreeNode']) -> None:
         """Добавляет несколько дочерних узлов."""
         if not children:
             return
+
+        for child in children:
+            child._parent = self
 
         self._children.extend(children)
         log.debug(f"Узел {self.type}#{self.id} добавил {len(children)} детей")
@@ -117,8 +121,9 @@ class TreeNode:
             True если узел был удалён
         """
         if child in self._children:
+            child._parent = None
             self._children.remove(child)
-            log.debug(f"Узел {self.type}#{self.id} удалил ребенка {child.type}#{child.id}")
+            log.debug(f"Узел {self.type}#{self.id} удалил ребёнка {child.type}#{child.id}")
             return True
         return False
 
@@ -126,6 +131,8 @@ class TreeNode:
         """Удаляет всех детей."""
         count = len(self._children)
         if count > 0:
+            for child in self._children:
+                child._parent = None
             self._children.clear()
             log.debug(f"Узел {self.type}#{self.id} удалил всех {count} детей")
 

@@ -1,3 +1,4 @@
+# client/src/core/types/__init__.py
 """
 Публичное API типов ядра.
 
@@ -8,18 +9,21 @@
     from src.core.types.event_structures import EventData
     from src.core.types.exceptions import NotFoundError, SerializationError
 """
-from .nodes import NodeType, NodeIdentifier
+
+# ===== ИМПОРТЫ =====
 from .event_structures import EventData
 from .exceptions import CoreError, NotFoundError, ValidationError
+from .nodes import NodeIdentifier, NodeType, ROOT_NODE
 
+
+# ===== ПУБЛИЧНОЕ API =====
 __all__ = [
     # Базовые типы (нужны везде)
     "NodeType",
     "NodeIdentifier",
-    
+    "ROOT_NODE",
     # Структуры событий
     "EventData",
-    
     # Базовые исключения
     "CoreError",
     "NotFoundError",

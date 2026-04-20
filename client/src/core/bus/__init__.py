@@ -1,3 +1,4 @@
+# client/src/core/bus/__init__.py
 """
 ПРИВАТНЫЙ ПАКЕТ: внутренности реализации EventBus.
 

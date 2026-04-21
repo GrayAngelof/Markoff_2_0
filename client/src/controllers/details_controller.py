@@ -35,7 +35,6 @@ from src.core.events.definitions import (
 from src.core.types.nodes import NodeIdentifier
 from src.controllers.base import BaseController
 from src.services.data_loader import DataLoader
-from src.ui.details.panel import DetailsPanel
 from utils.logger import get_logger
 
 
@@ -67,7 +66,6 @@ class DetailsController(BaseController):
         super().__init__(bus)
 
         self._loader = loader
-        self._details_panel: Optional[DetailsPanel] = None
         self._current_selection: Optional[NodeIdentifier] = None
 
         self._subscribe(NodeSelected, self._on_node_selected)
@@ -76,16 +74,9 @@ class DetailsController(BaseController):
 
     def cleanup(self) -> None:
         """Очищает ресурсы перед завершением."""
-        self._details_panel = None
         self._current_selection = None
         super().cleanup()
         log.debug("DetailsController: ресурсы очищены")
-
-    # ---- ПУБЛИЧНОЕ API ----
-    def set_details_panel(self, panel: DetailsPanel) -> None:
-        """Устанавливает DetailsPanel для управления."""
-        self._details_panel = panel
-        log.link("DetailsController: DetailsPanel установлен")
 
     # ---- ОБРАБОТЧИКИ СОБЫТИЙ ----
     def _on_node_selected(self, event: NodeSelected) -> None:

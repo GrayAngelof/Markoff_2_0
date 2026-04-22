@@ -20,7 +20,7 @@ class Floor(SQLModel, table=True):
     number: int = Field(nullable=False)
     description: Optional[str] = Field(default=None)
     physical_type_id: Optional[int] = Field(default=None, foreign_key="dictionary.physical_room_types.id")
-    status_id: Optional[int] = Field(default=None, foreign_key="dictionary.building_statuses.id")
+    status_id: Optional[int] = Field(default=None, foreign_key="dictionary.room_statuses.id")
     plan_image_url: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.now, nullable=False)
     updated_at: datetime = Field(default_factory=datetime.now, nullable=False)

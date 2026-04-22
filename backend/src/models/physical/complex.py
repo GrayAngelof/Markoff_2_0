@@ -20,7 +20,7 @@ class Complex(SQLModel, table=True):
     description: Optional[str] = Field(default=None)
     address: Optional[str] = Field(default=None)
     owner_id: Optional[int] = Field(default=None, foreign_key="dictionary.counterparties.id")
-    status_id: int = Field(nullable=False, foreign_key="dictionary.building_statuses.id")
+    status_id: Optional[int] = Field(default=None, foreign_key="dictionary.building_statuses.id")
     created_at: datetime = Field(default_factory=datetime.now, nullable=False)
     updated_at: datetime = Field(default_factory=datetime.now, nullable=False)
     

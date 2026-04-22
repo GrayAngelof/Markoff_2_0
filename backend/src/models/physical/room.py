@@ -21,7 +21,7 @@ class Room(SQLModel, table=True):
     description: Optional[str] = Field(default=None)
     area: Optional[float] = Field(default=None)
     physical_type_id: Optional[int] = Field(default=None, foreign_key="dictionary.physical_room_types.id")
-    status_code: Optional[str] = Field(default=None, foreign_key="dictionary.room_statuses.code")
+    status_id: Optional[int] = Field(default=None, foreign_key="dictionary.room_statuses.id")
     max_tenants: Optional[int] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.now, nullable=False)
     updated_at: datetime = Field(default_factory=datetime.now, nullable=False)

@@ -1,17 +1,21 @@
 # backend/src/schemas/physical.py
 """
-Pydantic схемы для ответов API
-Содержат как минимальные поля для дерева, так и детальные для просмотра
+Pydantic схемы для ответов API физической структуры.
+
+Содержат как минимальные поля для дерева (Tree), так и детальные для просмотра (Detail).
 """
-from pydantic import BaseModel, ConfigDict
+
+# ===== ИМПОРТЫ =====
 from datetime import datetime
 from typing import Optional
 
+from pydantic import BaseModel, ConfigDict
 
-# ===== Базовые схемы (для дерева) =====
 
+# ===== БАЗОВЫЕ СХЕМЫ (для дерева) =====
 class ComplexTreeResponse(BaseModel):
-    """Минимальная информация о комплексе для дерева"""
+    """Минимальная информация о комплексе для дерева."""
+
     id: int
     name: str
     buildings_count: int
@@ -20,7 +24,8 @@ class ComplexTreeResponse(BaseModel):
 
 
 class BuildingTreeResponse(BaseModel):
-    """Минимальная информация о корпусе для дерева"""
+    """Минимальная информация о корпусе для дерева."""
+
     id: int
     name: str
     complex_id: int
@@ -30,7 +35,8 @@ class BuildingTreeResponse(BaseModel):
 
 
 class FloorTreeResponse(BaseModel):
-    """Минимальная информация об этаже для дерева"""
+    """Минимальная информация об этаже для дерева."""
+
     id: int
     number: int
     building_id: int
@@ -40,7 +46,8 @@ class FloorTreeResponse(BaseModel):
 
 
 class RoomTreeResponse(BaseModel):
-    """Минимальная информация о помещении для дерева"""
+    """Минимальная информация о помещении для дерева."""
+
     id: int
     number: str
     floor_id: int
@@ -49,10 +56,10 @@ class RoomTreeResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# ===== Детальные схемы (для правой панели) =====
-
+# ===== ДЕТАЛЬНЫЕ СХЕМЫ (для правой панели) =====
 class ComplexDetailResponse(BaseModel):
-    """Детальная информация о комплексе"""
+    """Детальная информация о комплексе."""
+
     id: int
     name: str
     buildings_count: int
@@ -67,7 +74,8 @@ class ComplexDetailResponse(BaseModel):
 
 
 class BuildingDetailResponse(BaseModel):
-    """Детальная информация о корпусе"""
+    """Детальная информация о корпусе."""
+
     id: int
     name: str
     complex_id: int
@@ -83,7 +91,8 @@ class BuildingDetailResponse(BaseModel):
 
 
 class FloorDetailResponse(BaseModel):
-    """Детальная информация об этаже"""
+    """Детальная информация об этаже."""
+
     id: int
     number: int
     building_id: int
@@ -99,7 +108,8 @@ class FloorDetailResponse(BaseModel):
 
 
 class RoomDetailResponse(BaseModel):
-    """Детальная информация о помещении"""
+    """Детальная информация о помещении."""
+
     id: int
     number: str
     floor_id: int

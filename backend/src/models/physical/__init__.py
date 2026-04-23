@@ -1,12 +1,28 @@
 # backend/src/models/physical/__init__.py
 """
-Инициализатор пакета моделей схемы physical
-Экспортирует все модели для удобного импорта
+Инициализатор пакета моделей схемы physical.
+
+Экспортирует модели физической структуры:
+- Complex — комплекс зданий
+- Building — здание/корпус
+- Floor — этаж
+- Room — помещение
+- Zone — зона
 """
-from .complex import Complex
+
+# ===== ИМПОРТЫ =====
 from .building import Building
+from .complex import Complex
 from .floor import Floor
 from .room import Room
 from .zone import Zone
 
-__all__ = ["Complex", "Building", "Floor", "Room", "Zone"]
+
+# ===== ПУБЛИЧНОЕ API =====
+__all__ = [
+    "Building",
+    "Complex",
+    "Floor",
+    "Room",
+    "Zone",
+]

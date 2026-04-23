@@ -1,13 +1,21 @@
 # backend/src/core/__init__.py
 """
-Инициализатор пакета core
-Экспортирует основные компоненты ядра приложения
-"""
-from .config import settings
-from .deps import get_db, engine
+Инициализатор пакета core.
 
+Экспортирует основные компоненты ядра приложения:
+- settings — конфигурация приложения
+- get_db — зависимость для получения сессии БД
+- engine — движок SQLAlchemy
+"""
+
+# ===== ИМПОРТЫ =====
+from .config import settings
+from .deps import engine, get_db
+
+
+# ===== ПУБЛИЧНОЕ API =====
 __all__ = [
-    "settings",
+    "engine",
     "get_db",
-    "engine"
+    "settings",
 ]

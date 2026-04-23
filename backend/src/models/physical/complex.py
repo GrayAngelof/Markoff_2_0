@@ -1,20 +1,24 @@
 # backend/src/models/physical/complex.py
 """
-Модель Complex для таблицы physical.complexes
-Простая модель без отношений - только данные
-"""
-from sqlmodel import SQLModel, Field
-from typing import Optional
-from datetime import datetime
+Модель Complex для таблицы physical.complexes.
 
+Простая модель без отношений — только данные.
+"""
+
+# ===== ИМПОРТЫ =====
+from datetime import datetime
+from typing import Optional
+
+from sqlmodel import Field, SQLModel
+
+
+# ===== КЛАССЫ =====
 class Complex(SQLModel, table=True):
-    """
-    Модель комплекса (таблица physical.complexes)
-    """
-    
+    """Модель комплекса (таблица physical.complexes)."""
+
     __tablename__ = "complexes"  # type: ignore
     __table_args__ = {"schema": "physical"}
-    
+
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(nullable=False, unique=True)
     description: Optional[str] = Field(default=None)
@@ -23,6 +27,6 @@ class Complex(SQLModel, table=True):
     status_id: Optional[int] = Field(default=None, foreign_key="dictionary.building_statuses.id")
     created_at: datetime = Field(default_factory=datetime.now, nullable=False)
     updated_at: datetime = Field(default_factory=datetime.now, nullable=False)
-    
+
     class Config:
         from_attributes = True

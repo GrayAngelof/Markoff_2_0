@@ -1,18 +1,23 @@
 # backend/src/models/dictionary/room_status.py
 """
-Модель для таблицы room_statuses (схема dictionary)
+Модель для таблицы room_statuses (схема dictionary).
+
+Справочник статусов помещений.
 """
 
-from sqlmodel import SQLModel, Field
+# ===== ИМПОРТЫ =====
 from typing import Optional
 
+from sqlmodel import Field, SQLModel
 
+
+# ===== КЛАССЫ =====
 class RoomStatus(SQLModel, table=True):
-    """Статус помещения (справочник)"""
-    
-    __tablename__ = "room_statuses" # type: ignore
+    """Статус помещения (справочник)."""
+
+    __tablename__ = "room_statuses"  # type: ignore
     __table_args__ = {"schema": "dictionary"}
-    
+
     id: Optional[int] = Field(default=None, primary_key=True)
     code: str = Field(max_length=50, unique=True, nullable=False)
     name: str = Field(max_length=100, nullable=False)

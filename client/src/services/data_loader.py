@@ -3,17 +3,26 @@
 DataLoader — фасад загрузки данных.
 
 Единая точка входа для всех загрузок.
+Единая точка управления загрузкой и кэшированием данных.
+
+НЕ выполняет загрузку сам — только оркестрирует специализированные загрузчики.
+
 Делегирует специализированным загрузчикам:
 - TreeLoader: работа с деревом (комплексы, корпуса, этажи, помещения)
 - PhysicalLoader: детальная физика (комплексы, корпуса, этажи, помещения)
+- DictionaryLoader: справочные данные (статусы, типы и т.д.)
 """
 
 # ===== ИМПОРТЫ =====
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from src.core import EventBus, NodeType
 from src.core.types.nodes import NodeID
 from src.data import EntityGraph
+from src.services.api_client import ApiClient
+from src.services.loaders.physical_loader import PhysicalLoader
+from src.services.loaders.tree_loader import TreeLoader
+from src.services.loaders.dictionary_loader import DictionaryLoader
 from src.models import (
     ComplexTreeDTO,
     BuildingTreeDTO,
@@ -23,10 +32,9 @@ from src.models import (
     BuildingDetailDTO,
     FloorDetailDTO,
     RoomDetailDTO,
+    BuildingStatusDTO,
+    RoomStatusDTO,
 )
-from src.services.api_client import ApiClient
-from src.services.loaders.physical_loader import PhysicalLoader
-from src.services.loaders.tree_loader import TreeLoader
 from utils.logger import get_logger
 
 
@@ -43,7 +51,40 @@ class DataLoader:
         log.system("DataLoader фасад инициализация")
         self._tree = TreeLoader(bus, api, graph)
         self._physical = PhysicalLoader(bus, api, graph)
+        self._dictionary = DictionaryLoader(api, graph)
+        
+        # Справочники (in-memory snapshot, загружается при старте)
+        self.building_statuses: Dict[int, BuildingStatusDTO] = {}
+        self.room_statuses: Dict[int, RoomStatusDTO] = {}
+        
         log.success("DataLoader фасад готов")
+
+    # ---- ИНИЦИАЛИЗАЦИЯ СПРАВОЧНИКОВ (WARMUP) ----
+    def warmup_dictionary(self) -> None:
+        """
+        Загружает справочники в память при старте приложения.
+        
+        Справочники — константы на всю жизнь приложения.
+        Загружаются один раз, дальше только читаются из словарей.
+        """
+        log.info("Warmup справочников...")
+        
+        building_list = self._dictionary.load_building_statuses()
+        room_list = self._dictionary.load_room_statuses()
+        
+        self.building_statuses = {s.id: s for s in building_list}
+        self.room_statuses = {s.id: s for s in room_list}
+        
+        log.success(f"Статусы зданий: {len(self.building_statuses)} записей")
+        log.success(f"Статусы помещений: {len(self.room_statuses)} записей")
+        
+        # Логируем первые пару записей для контроля
+        if self.building_statuses:
+            first = next(iter(self.building_statuses.values()))
+            log.debug(f"Пример статуса здания: id={first.id}, name={first.name}")
+        if self.room_statuses:
+            first = next(iter(self.room_statuses.values()))
+            log.debug(f"Пример статуса помещения: id={first.id}, name={first.name}")
 
     # ---- КОРНЕВЫЕ УЗЛЫ (COMPLEX) ----
     def load_complexes_tree(self) -> List[ComplexTreeDTO]:

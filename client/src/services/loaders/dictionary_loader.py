@@ -12,6 +12,7 @@ from typing import List, Optional
 from src.core.types.nodes import NodeID
 from src.data import EntityGraph
 from src.services.api_client import ApiClient
+from src.models import BuildingStatusDTO, RoomStatusDTO
 from utils.logger import get_logger
 
 
@@ -38,8 +39,22 @@ class DictionaryLoader:
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
     def __init__(self, api: ApiClient, graph: EntityGraph) -> None:
         """Инициализирует загрузчик справочников."""
+        log.system("DictionaryLoader инициализация")
         self._api = api
         self._graph = graph
         log.system("DictionaryLoader инициализирован")
 
     # ---- ЗАГРУЗКА ДАННЫХ ----
+    def load_building_statuses(self) -> List[BuildingStatusDTO]:
+        """Загрузить справочник статусов зданий."""
+        log.info("Загрузка статусов зданий...")
+        result = self._api.get_building_statuses()
+        log.success(f"Загружено {len(result)} статусов зданий")
+        return result
+    
+    def load_room_statuses(self) -> List[RoomStatusDTO]:
+        """Загрузить справочник статусов помещений."""
+        log.info("Загрузка статусов помещений...")
+        result = self._api.get_room_statuses()
+        log.success(f"Загружено {len(result)} статусов помещений")
+        return result

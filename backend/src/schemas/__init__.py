@@ -12,13 +12,8 @@ from .physical import (
     FloorDetailResponse,
     RoomDetailResponse
 )
-from .dictionary import (
-    CounterpartyBase,
-    CounterpartyDetail,
-    CounterpartyWithOwner,
-    ResponsiblePersonBase,
-    ResponsiblePersonDetail
-)
+from .dictionary import BuildingStatusResponse, RoomStatusResponse
+
 
 __all__ = [
     # Physical
@@ -32,9 +27,6 @@ __all__ = [
     "RoomDetailResponse",
     
     # Dictionary
-    "CounterpartyBase",
-    "CounterpartyDetail",
-    "CounterpartyWithOwner",
-    "ResponsiblePersonBase",
-    "ResponsiblePersonDetail"
+    "BuildingStatusResponse",
+    "RoomStatusResponse",
 ]

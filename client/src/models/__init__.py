@@ -17,7 +17,7 @@ from .complex import ComplexTreeDTO, ComplexDetailDTO
 from .building import BuildingTreeDTO, BuildingDetailDTO
 from .floor import FloorTreeDTO, FloorDetailDTO
 from .room import RoomTreeDTO, RoomDetailDTO
-
+from .status import BuildingStatusDTO, RoomStatusDTO
 __all__ = [
     # Complex
     "ComplexTreeDTO",
@@ -34,4 +34,7 @@ __all__ = [
     # Room
     "RoomTreeDTO",
     "RoomDetailDTO",
+    # Status
+    "BuildingStatusDTO",
+    "RoomStatusDTO",
 ]

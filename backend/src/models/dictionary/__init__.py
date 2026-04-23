@@ -2,16 +2,10 @@
 """
 Инициализатор пакета моделей схемы dictionary
 """
-from .counterparty_status import CounterpartyStatus
-from .counterparty_type import CounterpartyType
-from .role_catalog import RoleCatalog
-from .counterparty import Counterparty
-from .responsible_person import ResponsiblePerson
+from .building_status import BuildingStatus
+from .room_status import RoomStatus
 
 __all__ = [
-    "CounterpartyStatus",
-    "CounterpartyType", 
-    "RoleCatalog",
-    "Counterparty",
-    "ResponsiblePerson"
+    "BuildingStatus",
+    "RoomStatus",
 ]

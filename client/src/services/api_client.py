@@ -32,6 +32,8 @@ from src.models import (
     FloorDetailDTO,
     RoomTreeDTO,
     RoomDetailDTO,
+    BuildingStatusDTO,
+    RoomStatusDTO,
 )
 from src.services.api.converters import (
     to_complex_tree_list,
@@ -42,6 +44,8 @@ from src.services.api.converters import (
     to_building_detail,
     to_floor_detail,
     to_room_detail,
+    to_building_status_list,
+    to_room_status_list,
 )
 from src.services.api.endpoints import Endpoints
 from src.services.api.errors import (
@@ -223,6 +227,46 @@ class ApiClient:
         except Exception as e:
             log.error(f"Ошибка загрузки помещения {room_id}: {e}")
             raise ApiError(f"Failed to load room detail {room_id}: {e}") from e
+
+    # ---- СПРАВОЧНИКИ (DICTIONARY) ----
+    def get_building_statuses(self) -> List[BuildingStatusDTO]:
+        """
+        GET /dictionary/building-statuses → справочник статусов зданий.
+        
+        Returns:
+            List[BuildingStatusDTO]: список статусов зданий
+        """
+        try:
+            data = self._http.get(Endpoints.building_statuses())
+            result = to_building_status_list(data) if isinstance(data, list) else []
+            log.api(f"GET building statuses: {len(result)} записей")
+            return result
+        except ConnectionError:
+            log.error("Сервер недоступен при загрузке статусов зданий")
+            raise
+        except Exception as e:
+            log.error(f"Ошибка загрузки статусов зданий: {e}")
+            raise ApiError(f"Failed to load building statuses: {e}") from e
+
+
+    def get_room_statuses(self) -> List[RoomStatusDTO]:
+        """
+        GET /dictionary/room-statuses → справочник статусов помещений.
+        
+        Returns:
+            List[RoomStatusDTO]: список статусов помещений
+        """
+        try:
+            data = self._http.get(Endpoints.room_statuses())
+            result = to_room_status_list(data) if isinstance(data, list) else []
+            log.api(f"GET room statuses: {len(result)} записей")
+            return result
+        except ConnectionError:
+            log.error("Сервер недоступен при загрузке статусов помещений")
+            raise
+        except Exception as e:
+            log.error(f"Ошибка загрузки статусов помещений: {e}")
+            raise ApiError(f"Failed to load room statuses: {e}") from e
 
     # ---- МОНИТОРИНГ ----
     def check_connection(self, timeout: int = 3) -> bool:

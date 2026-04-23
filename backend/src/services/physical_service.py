@@ -7,7 +7,6 @@ from sqlmodel import Session, select, func
 from typing import List, Optional
 
 from ..models.physical import Complex, Building, Floor, Room
-from ..models.dictionary import Counterparty
 from ..schemas.physical import (
     ComplexTreeResponse,
     BuildingTreeResponse,
@@ -81,7 +80,7 @@ class PhysicalService:
             raise
     
     @staticmethod
-    def get_buildings(db: Session, complex_id: int, include_owner: bool = False) -> List[BuildingTreeResponse]:
+    def get_buildings(db: Session, complex_id: int) -> List[BuildingTreeResponse]:
         """Получить корпуса с количеством этажей"""
         try:
             buildings = db.exec(

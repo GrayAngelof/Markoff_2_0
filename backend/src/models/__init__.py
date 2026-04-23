@@ -4,13 +4,7 @@
 Экспортирует модели из всех схем
 """
 from .physical import Complex, Building, Floor, Room, Zone
-from .dictionary import (
-    CounterpartyStatus,
-    CounterpartyType,
-    RoleCatalog,
-    Counterparty,
-    ResponsiblePerson
-)
+from .dictionary import BuildingStatus, RoomStatus
 
 __all__ = [
     # Physical
@@ -21,9 +15,6 @@ __all__ = [
     "Zone",
     
     # Dictionary
-    "CounterpartyStatus",
-    "CounterpartyType",
-    "RoleCatalog",
-    "Counterparty",
-    "ResponsiblePerson"
+    "BuildingStatus",
+    "RoomStatus",
 ]

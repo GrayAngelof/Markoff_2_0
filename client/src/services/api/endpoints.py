@@ -17,14 +17,15 @@ class Endpoints:
     """
     Все эндпоинты API в виде статических методов.
 
-    Формат: /physical/... для физической структуры,
+    Формат: /physical... для физической структуры,
+            /dictionary... для справочников.
     """
 
     # ---- Физическая структура ----
     @staticmethod
     def complexes() -> str:
         """Список всех комплексов."""
-        return "/physical/"
+        return "/physical"
 
     @staticmethod
     def buildings(complex_id: NodeID) -> str:
@@ -60,6 +61,17 @@ class Endpoints:
     def room_detail(room_id: NodeID) -> str:
         """Детальная информация о помещении."""
         return f"/physical/rooms/{room_id}"
+
+    # ---- Справочники (dictionary) ----
+    @staticmethod
+    def building_statuses() -> str:
+        """Справочник статусов зданий."""
+        return "/dictionary/building-statuses"
+
+    @staticmethod
+    def room_statuses() -> str:
+        """Справочник статусов помещений."""
+        return "/dictionary/room-statuses"
 
     # ---- Мониторинг ----
     @staticmethod

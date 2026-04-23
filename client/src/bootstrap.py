@@ -12,6 +12,7 @@
 5. Controllers (TreeController, DetailsController, ...) — координация
 6. UI (AppWindow) — отображение (создаётся ПОСЛЕ контроллеров, но настраивается ДО запуска)
 7. Запуск фоновых сервисов ПОСЛЕ подписки UI
+8. Загрузка справочников (временный блок для отладки)
 """
 
 # ===== ИМПОРТЫ =====
@@ -86,6 +87,17 @@ class ApplicationBootstrap:
 
         with log.measure_time("запуск фоновых сервисов"):
             self._start_services()
+
+        # ============================================================
+        # ВРЕМЕННЫЙ БЛОК: ЗАГРУЗКА СПРАВОЧНИКОВ ДЛЯ ОТЛАДКИ
+        # ============================================================
+        # TODO: Удалить после завершения интеграции статусов в HeaderWidget
+        # Назначение: проверить, что данные приходят из API и корректно парсятся
+        # Ожидаемый результат: логи с количеством записей и примером статуса
+        # ============================================================
+        with log.measure_time("загрузка справочников (временный блок)"):
+            self._warmup_dictionaries()
+        # ============================================================
 
         log.info("=" * 60)
         log.success("Все компоненты инициализированы")
@@ -219,3 +231,36 @@ class ApplicationBootstrap:
         self._tree_controller.load_root_nodes()
 
         log.info("Все фоновые сервисы запущены")
+
+    def _warmup_dictionaries(self) -> None:
+        """
+        ВРЕМЕННЫЙ МЕТОД: загружает справочники для отладки.
+        
+        TODO: Удалить после завершения интеграции статусов в HeaderWidget
+        
+        Проверяет:
+        - Доступность API эндпоинтов /dictionary/building-statuses и /dictionary/room-statuses
+        - Корректность парсинга ответов в DTO (BuildingStatusDTO, RoomStatusDTO)
+        - Количество загруженных записей
+        """
+        log.info("-" * 40)
+        log.info(">>> ВРЕМЕННЫЙ БЛОК: ЗАГРУЗКА СПРАВОЧНИКОВ")
+        log.info("-" * 40)
+        
+        # Загружаем статусы зданий
+        building_list = self._loader._dictionary.load_building_statuses()
+        log.info(f"Статусы зданий: {len(building_list)} записей")
+        if building_list:
+            first = building_list[0]
+            log.debug(f"  Пример: id={first.id}, code={first.code}, name={first.name}")
+        
+        # Загружаем статусы помещений
+        room_list = self._loader._dictionary.load_room_statuses()
+        log.info(f"Статусы помещений: {len(room_list)} записей")
+        if room_list:
+            first = room_list[0]
+            log.debug(f"  Пример: id={first.id}, code={first.code}, name={first.name}")
+        
+        log.info("-" * 40)
+        log.info("<<< КОНЕЦ ВРЕМЕННОГО БЛОКА")
+        log.info("-" * 40)

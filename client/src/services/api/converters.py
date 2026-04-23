@@ -29,6 +29,8 @@ from src.models import (
     FloorDetailDTO,
     RoomTreeDTO,
     RoomDetailDTO,
+    BuildingStatusDTO,
+    RoomStatusDTO,
 )
 
 
@@ -77,6 +79,15 @@ def to_room_detail(data: Optional[dict]) -> Optional[RoomDetailDTO]:
     """Преобразует JSON объект в RoomDetailDTO."""
     return RoomDetailDTO.from_dict(data) if data else None
 
+# ===== СПРАВОЧНИКИ (DICTIONARY) =====
+def to_building_status_list(data: List[dict]) -> List[BuildingStatusDTO]:
+    """Преобразует список JSON объектов в список BuildingStatusDTO."""
+    return [BuildingStatusDTO.from_dict(item) for item in data]
+
+
+def to_room_status_list(data: List[dict]) -> List[RoomStatusDTO]:
+    """Преобразует список JSON объектов в список RoomStatusDTO."""
+    return [RoomStatusDTO.from_dict(item) for item in data]
 
 # ===== УНИВЕРСАЛЬНЫЙ КОНВЕРТЕР =====
 def convert_optional(data: Optional[dict], converter, default=None):

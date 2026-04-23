@@ -1,18 +1,8 @@
 # client/src/ui/__init__.py
 """
-Инициализатор пакета UI.
-Экспортирует все основные компоненты интерфейса.
+UI слой приложения Markoff 2.0.
 """
 
-# Импортируем из новых пакетов
-from src.ui.tree import TreeView
-from src.ui.details import DetailsPanel
-from src.ui.main_window import MainWindow
-from src.ui.refresh_menu import RefreshMenu
+from src.ui.app_window import AppWindow
 
-__all__ = [
-    "TreeView",
-    "DetailsPanel", 
-    "MainWindow",
-    "RefreshMenu"
-]
+__all__ = ["AppWindow"]

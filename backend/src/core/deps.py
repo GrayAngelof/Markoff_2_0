@@ -1,23 +1,22 @@
 # backend/src/core/deps.py
 """
-Общие зависимости для всего приложения
-Сейчас содержит только get_db, но в будущем расширится
-(авторизация, текущий пользователь, etc.)
+Зависимости для FastAPI
 """
+from sqlmodel import Session, create_engine
 from typing import Generator
-from sqlmodel import Session
 
-from .database import engine
+from .config import settings
+
+# Создаем engine для подключения к БД
+engine = create_engine(settings.DATABASE_URL, echo=settings.DEBUG)
+
 
 def get_db() -> Generator[Session, None, None]:
     """
     Зависимость для получения сессии БД
-    Используется во всех роутерах, которым нужен доступ к базе
     
-    Пример использования в эндпоинте:
-    @router.get("/")
-    def get_items(db: Session = Depends(get_db)):
-        ...
+    Yields:
+        Session: Сессия SQLModel
     """
     with Session(engine) as session:
         yield session

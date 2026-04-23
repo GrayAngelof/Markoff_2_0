@@ -1,0 +1,109 @@
+# client/src/services/connection.py
+"""
+ConnectionService — мониторинг соединения.
+
+Периодически проверяет доступность сервера в отдельном потоке.
+Эмитит событие ConnectionChanged при изменении статуса.
+ОДИН ПОТОК с циклом, без утечек.
+"""
+
+# ===== ИМПОРТЫ =====
+import threading
+import time
+from typing import Optional
+
+from src.core import EventBus
+from src.core.events.definitions import ConnectionChanged
+from src.services.api_client import ApiClient
+from utils.logger import get_logger
+
+
+# ===== КОНСТАНТЫ =====
+log = get_logger(__name__)
+
+
+# ===== КЛАСС =====
+class ConnectionService:
+    """Сервис периодической проверки доступности сервера."""
+
+    # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
+    def __init__(self, bus: EventBus, api: ApiClient, interval_ms: int = 600000) -> None:
+        """Инициализирует сервис мониторинга соединения."""
+        log.info("Инициализация ConnectionService")
+        self._bus = bus
+        log.system(f"EventBus инициализирован: id={id(self._bus)}, debug={self._bus._debug}")
+
+        self._api = api
+        self._interval = interval_ms / 1000
+        self._is_online: Optional[bool] = None
+        self._thread: Optional[threading.Thread] = None
+        self._running = False
+        self._stop_event = threading.Event()
+
+        log.system(f"ConnectionService инициализирован")
+
+    def start(self) -> None:
+        """Запускает периодическую проверку (один поток)."""
+        if self._running:
+            log.debug("ConnectionService уже запущен")
+            return
+
+        self._running = True
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+        log.api(f"ConnectionService запущен (интервал={self._interval:.1f}с)")
+
+    def stop(self) -> None:
+        """Останавливает периодическую проверку."""
+        if not self._running:
+            log.debug("ConnectionService уже остановлен")
+            return
+
+        self._running = False
+        self._stop_event.set()
+
+        if self._thread:
+            self._thread.join(timeout=2.0)
+            if self._thread.is_alive():
+                log.warning("Таймаут остановки потока ConnectionService")
+
+        log.api("ConnectionService остановлен")
+
+    # ---- ПУБЛИЧНОЕ API ----
+    def force_check(self) -> None:
+        """Принудительная проверка соединения."""
+        log.debug("Принудительная проверка соединения")
+        self._check()
+
+    # ---- ВНУТРЕННИЕ МЕТОДЫ ----
+    def _run(self) -> None:
+        """Основной цикл — один поток на весь сервис."""
+        log.debug(f"Поток ConnectionService запущен, интервал={self._interval:.1f}с")
+
+        while self._running:
+            self._check()
+            self._stop_event.wait(self._interval)
+
+        log.success("Поток ConnectionService завершён")
+
+    def _check(self) -> None:
+        """Внутренняя проверка. Генерирует событие при изменении статуса."""
+        try:
+            online = self._api.check_connection()
+        except Exception as e:
+            online = False
+            log.debug(f"Ошибка проверки соединения: {e}")
+
+        if online != self._is_online:
+            self._is_online = online
+            status = "ONLINE" if online else "OFFLINE"
+
+            log.api(f"Статус соединения изменён: {status}")
+
+            self._bus.emit(ConnectionChanged(is_online=online))
+        else:
+            # Периодические проверки без изменений — только DEBUG
+            if self._is_online is not None:
+                log.debug(f"Проверка соединения: {self._is_online}")

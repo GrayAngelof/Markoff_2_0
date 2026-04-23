@@ -1,79 +1,115 @@
 # client/src/models/floor.py
 """
-Модель данных для этажа (floor) на стороне клиента
-Соответствует ответу от API /physical/buildings/{building_id}/floors
+Модели данных для этажа на стороне клиента.
+
+Чистые DTO — только данные от API, никакой UI-логики.
+- FloorTreeDTO: минимальные поля для дерева (FloorTreeResponse)
+- FloorDetailDTO: полные данные для панели деталей (FloorDetailResponse)
+
+Правило: DTO = строгий контракт. Обязательные поля берутся через [], а не .get().
 """
+
+# ===== ИМПОРТЫ =====
 from dataclasses import dataclass
-from typing import Optional
+from typing import ClassVar, Optional
+
+from .base import BaseDTO
+from .mixins import DateTimeMixin
 
 
-@dataclass
-class Floor:
+# ===== TREE DTO (минимальные данные для дерева) =====
+@dataclass(frozen=True, kw_only=True)
+class FloorTreeDTO(BaseDTO):
     """
-    Модель этажа для отображения в дереве
-    
-    Поля соответствуют FloorTreeResponse из бекенда:
-    - id: уникальный идентификатор этажа
-    - number: номер этажа (целое число, может быть отрицательным)
-    - building_id: ID родительского корпуса
-    - rooms_count: количество помещений на этаже
-    
-    Дополнительные поля для детального просмотра:
-    - description: описание этажа
-    - physical_type_id: ID типа этажа
-    - status_id: ID статуса
-    - plan_image_url: URL плана этажа
-    - created_at: дата создания
-    - updated_at: дата обновления
+    DTO для отображения этажа в дереве.
+    Соответствует FloorTreeResponse из бекенда.
     """
-    
-    id: int
+
+    NODE_TYPE: ClassVar[str] = "floor"
+    IS_DETAIL: ClassVar[bool] = False
+
     number: int
     building_id: int
-    rooms_count: int
-    
-    # Дополнительные поля
+    rooms_count: int = 0
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'FloorTreeDTO':
+        """
+        Создаёт FloorTreeDTO из словаря (ответ API).
+
+        Raises:
+            KeyError: Если отсутствует обязательное поле 'id', 'number' или 'building_id'
+            ValueError: Если 'rooms_count' имеет некорректный тип
+        """
+        # Строгий контракт — обязательные поля через []
+        data_id = data["id"]
+        number = data["number"]
+        building_id = data["building_id"]
+
+        # Опциональные поля через get() с защитой
+        rooms_count_raw = data.get('rooms_count')
+        try:
+            rooms_count = int(rooms_count_raw) if rooms_count_raw is not None else 0
+        except (TypeError, ValueError):
+            rooms_count = 0
+
+        return cls(
+            id=data_id,
+            number=number,
+            building_id=building_id,
+            rooms_count=rooms_count,
+        )
+
+
+# ===== DETAIL DTO (полные данные для панели) =====
+@dataclass(frozen=True, kw_only=True)
+class FloorDetailDTO(BaseDTO, DateTimeMixin):
+    """
+    DTO для отображения детальной информации об этаже.
+    Соответствует FloorDetailResponse из бекенда.
+    """
+
+    NODE_TYPE: ClassVar[str] = "floor"
+    IS_DETAIL: ClassVar[bool] = True
+
+    number: int
+    building_id: int
+    rooms_count: int = 0
     description: Optional[str] = None
     physical_type_id: Optional[int] = None
     status_id: Optional[int] = None
     plan_image_url: Optional[str] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
-    
+
     @classmethod
-    def from_dict(cls, data: dict) -> 'Floor':
+    def from_dict(cls, data: dict) -> 'FloorDetailDTO':
         """
-        Создаёт объект Floor из словаря (ответ API)
-        
-        Args:
-            data: словарь с данными от API
-            Пример: {"id": 1, "number": 1, "building_id": 3, "rooms_count": 0}
-            
-        Returns:
-            Floor: объект этажа
+        Создаёт FloorDetailDTO из словаря (ответ API).
+
+        Raises:
+            KeyError: Если отсутствует обязательное поле 'id', 'number' или 'building_id'
+            ValueError: Если 'rooms_count' имеет некорректный тип
         """
+        # Строгий контракт — обязательные поля через []
+        data_id = data["id"]
+        number = data["number"]
+        building_id = data["building_id"]
+
+        # Опциональные поля через get() с защитой
+        rooms_count_raw = data.get('rooms_count')
+        try:
+            rooms_count = int(rooms_count_raw) if rooms_count_raw is not None else 0
+        except (TypeError, ValueError):
+            rooms_count = 0
+
         return cls(
-            id=data['id'],
-            number=data['number'],
-            building_id=data['building_id'],
-            rooms_count=data['rooms_count'],
+            id=data_id,
+            number=number,
+            building_id=building_id,
+            rooms_count=rooms_count,
             description=data.get('description'),
             physical_type_id=data.get('physical_type_id'),
             status_id=data.get('status_id'),
             plan_image_url=data.get('plan_image_url'),
-            created_at=data.get('created_at'),
-            updated_at=data.get('updated_at')
+            created_at=cls.parse_datetime(data.get('created_at')),
+            updated_at=cls.parse_datetime(data.get('updated_at')),
         )
-    
-    def __str__(self) -> str:
-        """Строковое представление для отображения в дереве"""
-        if self.number < 0:
-            return f"Подвал {abs(self.number)}"
-        elif self.number == 0:
-            return "Цокольный этаж"
-        else:
-            return f"Этаж {self.number}"
-    
-    def __repr__(self) -> str:
-        """Представление для отладки"""
-        return f"Floor(id={self.id}, number={self.number}, building_id={self.building_id}, rooms={self.rooms_count})"

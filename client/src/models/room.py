@@ -1,87 +1,119 @@
 # client/src/models/room.py
 """
-Модель данных для помещения (room) на стороне клиента
-Соответствует ответу от API /physical/floors/{floor_id}/rooms
+Модели данных для помещения на стороне клиента.
+
+Чистые DTO — только данные от API, никакой UI-логики.
+- RoomTreeDTO: минимальные поля для дерева (RoomTreeResponse)
+- RoomDetailDTO: полные данные для панели деталей (RoomDetailResponse)
+
+Правило: DTO = строгий контракт. Обязательные поля берутся через [], а не .get().
 """
+
+# ===== ИМПОРТЫ =====
 from dataclasses import dataclass
-from typing import Optional
+from typing import ClassVar, Optional
+
+from .base import BaseDTO
+from .mixins import DateTimeMixin
 
 
-@dataclass
-class Room:
+# ===== TREE DTO (минимальные данные для дерева) =====
+@dataclass(frozen=True, kw_only=True)
+class RoomTreeDTO(BaseDTO):
     """
-    Модель помещения для отображения в дереве
-    
-    Поля соответствуют RoomTreeResponse из бекенда:
-    - id: уникальный идентификатор помещения
-    - number: номер помещения (строка, может содержать буквы)
-    - floor_id: ID родительского этажа
-    - area: площадь помещения (опционально)
-    - status_code: статус помещения (опционально)
-    
-    Дополнительные поля для детального просмотра:
-    - description: описание помещения
-    - physical_type_id: ID типа помещения
-    - max_tenants: максимальное количество арендаторов
-    - created_at: дата создания
-    - updated_at: дата обновления
+    DTO для отображения помещения в дереве.
+    Соответствует RoomTreeResponse из бекенда.
     """
-    
-    id: int
+
+    NODE_TYPE: ClassVar[str] = "room"
+    IS_DETAIL: ClassVar[bool] = False
+
     number: str
     floor_id: int
     area: Optional[float] = None
-    status_code: Optional[str] = None
-    
-    # Дополнительные поля
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'RoomTreeDTO':
+        """
+        Создаёт RoomTreeDTO из словаря (ответ API).
+
+        Raises:
+            KeyError: Если отсутствует обязательное поле 'id', 'number' или 'floor_id'
+            ValueError: Если 'area' имеет некорректный тип
+        """
+        data_id = data["id"]
+        number = data["number"]
+        floor_id = data["floor_id"]
+
+        area_raw = data.get('area')
+        try:
+            area = float(area_raw) if area_raw is not None else None
+        except (TypeError, ValueError):
+            area = None
+
+        return cls(
+            id=data_id,
+            number=number,
+            floor_id=floor_id,
+            area=area,
+        )
+
+
+# ===== DETAIL DTO (полные данные для панели) =====
+@dataclass(frozen=True, kw_only=True)
+class RoomDetailDTO(BaseDTO, DateTimeMixin):
+    """
+    DTO для отображения детальной информации о помещении.
+    Соответствует RoomDetailResponse из бекенда.
+    """
+
+    NODE_TYPE: ClassVar[str] = "room"
+    IS_DETAIL: ClassVar[bool] = True
+
+    number: str
+    floor_id: int
+    area: Optional[float] = None
     description: Optional[str] = None
     physical_type_id: Optional[int] = None
+    status_id: Optional[int] = None
     max_tenants: Optional[int] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
-    
+
     @classmethod
-    def from_dict(cls, data: dict) -> 'Room':
+    def from_dict(cls, data: dict) -> 'RoomDetailDTO':
         """
-        Создаёт объект Room из словаря (ответ API)
-        
-        Args:
-            data: словарь с данными от API
-            Пример: {"id": 101, "number": "101", "floor_id": 1, 
-                    "area": 45.5, "status_code": "free"}
-            
-        Returns:
-            Room: объект помещения
+        Создаёт RoomDetailDTO из словаря (ответ API).
+
+        Raises:
+            KeyError: Если отсутствует обязательное поле 'id', 'number' или 'floor_id'
+            ValueError: Если 'area' или 'max_tenants' имеют некорректный тип
         """
+        # Строгий контракт — обязательные поля через []
+        data_id = data["id"]
+        number = data["number"]
+        floor_id = data["floor_id"]
+
+        # Опциональные поля через get() с защитой
+        area_raw = data.get('area')
+        try:
+            area = float(area_raw) if area_raw is not None else None
+        except (TypeError, ValueError):
+            area = None
+
+        max_tenants_raw = data.get('max_tenants')
+        try:
+            max_tenants = int(max_tenants_raw) if max_tenants_raw is not None else None
+        except (TypeError, ValueError):
+            max_tenants = None
+
         return cls(
-            id=data['id'],
-            number=data['number'],
-            floor_id=data['floor_id'],
-            area=data.get('area'),
-            status_code=data.get('status_code'),
+            id=data_id,
+            number=number,
+            floor_id=floor_id,
+            area=area,
             description=data.get('description'),
             physical_type_id=data.get('physical_type_id'),
-            max_tenants=data.get('max_tenants'),
-            created_at=data.get('created_at'),
-            updated_at=data.get('updated_at')
+            status_id=data.get('status_id'),
+            max_tenants=max_tenants,
+            created_at=cls.parse_datetime(data.get('created_at')),
+            updated_at=cls.parse_datetime(data.get('updated_at')),
         )
-    
-    def __str__(self) -> str:
-        """Строковое представление для отображения в дереве"""
-        return self.number
-    
-    def __repr__(self) -> str:
-        """Представление для отладки"""
-        return f"Room(id={self.id}, number='{self.number}', floor_id={self.floor_id}, status={self.status_code})"
-    
-    def get_status_display(self) -> str:
-        """
-        Возвращает человекочитаемый статус помещения
-        """
-        status_map = {
-            'free': 'Свободно',
-            'occupied': 'Занято',
-            'reserved': 'Зарезервировано',
-            'maintenance': 'На обслуживании',
-        }
-        return status_map.get(self.status_code, self.status_code or 'Неизвестно')

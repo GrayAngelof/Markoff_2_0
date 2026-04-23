@@ -1,7 +1,12 @@
 # client/src/ui/tree/__init__.py
 """
-Пакет компонентов дерева объектов
+Модуль дерева объектов.
 """
-from src.ui.tree.tree_view import TreeView
 
-__all__ = ["TreeView"]
+from src.ui.tree.view import TreeView
+from src.ui.tree.model import TreeModel
+
+__all__ = [
+    "TreeView",
+    "TreeModel",
+]

@@ -1,7 +1,9 @@
-# client/src/utils/__init__.py
+# client/src/__init__.py
 """
-Утилиты для клиентского приложения
+Корневой пакет клиентского приложения Markoff 2.0.
 """
-from src.utils.logger import Logger
 
-__all__ = ["Logger"]
+# Экспортируем основные компоненты (опционально)
+# from src.bootstrap import ApplicationBootstrap
+
+__all__ = []

@@ -1,7 +1,9 @@
 # client/src/ui/details/__init__.py
 """
-Пакет компонентов панели детальной информации
+Публичное API для панели детальной информации.
+Экспортирует только фасад — DetailsPanel.
 """
-from src.ui.details.details_panel import DetailsPanel
+
+from src.ui.details.panel import DetailsPanel
 
 __all__ = ["DetailsPanel"]

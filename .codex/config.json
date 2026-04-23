@@ -1,0 +1,24 @@
+{
+  "name": "Markoff 2.0",
+
+  "focus": [
+    "client/src",
+    "backend/src",
+    "utils/logger"
+  ],
+
+  "ignore": [
+    ".venv",
+    "__pycache__",
+    "node_modules",
+    ".git",
+    ".codex"
+  ],
+
+  "rules_file": ".codex/rules.md",
+
+  "setup": [
+    "pip install -r backend/requirements.txt || true",
+    "pip install -r client/requirements.txt || true"
+  ]
+}

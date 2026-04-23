@@ -16,8 +16,6 @@ from .complex import Complex
 from .building import Building
 from .floor import Floor
 from .room import Room
-from .counterparty import Counterparty
-from .responsible_person import ResponsiblePerson
 
 # Для обратной совместимости и удобства импорта
 __all__ = [
@@ -26,6 +24,4 @@ __all__ = [
     "Building", 
     "Floor",
     "Room",
-    "Counterparty",
-    "ResponsiblePerson",
 ]

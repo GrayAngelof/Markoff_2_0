@@ -99,11 +99,6 @@ async def read_complex_detail(
         # Подсчитываем количество корпусов
         buildings = PhysicalService.get_buildings(db, complex_id, include_owner=False)
         
-        # Загружаем владельца если нужно
-        owner = None
-        if include_owner and complex_obj.owner_id:
-            owner = PhysicalService.get_owner(db, complex_obj.owner_id)
-        
         return ComplexDetailResponse(
             id=complex_obj.id,  # type: ignore
             name=complex_obj.name,
@@ -112,8 +107,7 @@ async def read_complex_detail(
             address=complex_obj.address,
             owner_id=complex_obj.owner_id,
             created_at=complex_obj.created_at,
-            updated_at=complex_obj.updated_at,
-            owner=owner
+            updated_at=complex_obj.updated_at
         )
     except HTTPException:
         raise
@@ -140,11 +134,6 @@ async def read_building_detail(
         # Подсчитываем количество этажей
         floors = PhysicalService.get_floors(db, building_id)
         
-        # Загружаем владельца если нужно
-        owner = None
-        if include_owner and building.owner_id:
-            owner = PhysicalService.get_owner(db, building.owner_id)
-        
         return BuildingDetailResponse(
             id=building.id,  # type: ignore
             name=building.name,
@@ -155,8 +144,7 @@ async def read_building_detail(
             status_id=building.status_id,
             created_at=building.created_at,
             updated_at=building.updated_at,
-            owner_id=building.owner_id,
-            owner=owner
+            owner_id=building.owner_id
         )
     except HTTPException:
         raise
@@ -216,15 +204,12 @@ async def read_room_detail(
                 detail="Room not found"
             )
         
-        # TODO: загружать информацию об арендаторе если нужно
-        # (потребуется модель Contract и Tenant)
-        
         return RoomDetailResponse(
             id=room.id,  # type: ignore
             number=room.number,
             floor_id=room.floor_id,
             area=room.area,
-            status_code=room.status_code,
+            status_id=room.status_id,
             description=room.description,
             physical_type_id=room.physical_type_id,
             max_tenants=room.max_tenants,

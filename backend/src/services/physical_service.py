@@ -45,23 +45,6 @@ class PhysicalService:
         """Получить помещение по ID"""
         return db.get(Room, room_id)
     
-    @staticmethod
-    def get_owner(db: Session, owner_id: int) -> Optional[dict]:
-        """Получить данные владельца по ID"""
-        owner = db.get(Counterparty, owner_id)
-        if not owner:
-            return None
-        
-        return {
-            "id": owner.id,
-            "short_name": owner.short_name,
-            "tax_id": owner.tax_id,
-            "full_name": owner.full_name,
-            "legal_address": owner.legal_address,
-            "actual_address": owner.actual_address,
-            "bank_details": owner.bank_details
-        }
-    
     # ===== Методы для получения списков =====
     
     @staticmethod
@@ -99,7 +82,7 @@ class PhysicalService:
     
     @staticmethod
     def get_buildings(db: Session, complex_id: int, include_owner: bool = False) -> List[BuildingTreeResponse]:
-        """Получить корпуса комплекса с количеством этажей"""
+        """Получить корпуса с количеством этажей"""
         try:
             buildings = db.exec(
                 select(Building).where(Building.complex_id == complex_id)
@@ -118,19 +101,13 @@ class PhysicalService:
                         floors_count = int(count_result[0])
                     else:
                         floors_count = int(count_result)
-                
-                # Загрузка владельца если нужно
-                owner = None
-                if include_owner and building.owner_id:
-                    owner = PhysicalService.get_owner(db, building.owner_id)
+
                 
                 result.append(BuildingTreeResponse(
                     id=building.id,  # type: ignore
                     name=building.name,
                     complex_id=building.complex_id,
                     floors_count=floors_count,
-                    owner_id=building.owner_id,
-                    owner=owner
                 ))
             
             log.info(f"Сервис: загружено {len(result)} корпусов для комплекса {complex_id}")
@@ -142,7 +119,7 @@ class PhysicalService:
     
     @staticmethod
     def get_floors(db: Session, building_id: int) -> List[FloorTreeResponse]:
-        """Получить этажи корпуса с количеством помещений"""
+        """Получить этажи с количеством помещений"""
         try:
             floors = db.exec(
                 select(Floor)
@@ -195,7 +172,6 @@ class PhysicalService:
                     number=room.number,
                     floor_id=room.floor_id,
                     area=room.area,
-                    status_code=room.status_code
                 ))
             
             log.info(f"Сервис: загружено {len(result)} помещений для этажа {floor_id}")

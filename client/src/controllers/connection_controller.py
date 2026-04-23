@@ -11,7 +11,7 @@ from typing import Optional
 
 from src.core import EventBus
 from src.core.events.definitions import ConnectionChanged
-from src.controllers.base import BaseController
+from .base import BaseController
 from utils.logger import get_logger
 
 

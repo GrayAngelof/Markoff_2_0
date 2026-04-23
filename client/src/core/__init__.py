@@ -19,8 +19,9 @@
     - ConnectionChanged
 """
 
+# ===== ИМПОРТЫ =====
 # Базовые типы
-from .types import NodeType, NodeIdentifier
+from .types import NodeIdentifier, NodeType
 
 # Шина событий (фасад)
 from .event_bus import EventBus
@@ -33,47 +34,45 @@ from .ports.repository import Repository
 
 # События
 from .events import (
-    NodeSelected,
-    NodeExpanded,
-    NodeCollapsed,
-    TabChanged,
-    RefreshRequested,
-    ShowDetailsPanel,
-    DataLoaded,
+    ChildrenLoaded,
+    ConnectionChanged,
     DataError,
     DataInvalidated,
-    ChildrenLoaded,
+    DataLoaded,
+    NodeCollapsed,
     NodeDetailsLoaded,
-    ConnectionChanged,
+    NodeExpanded,
+    NodeSelected,
+    RefreshRequested,
+    ShowDetailsPanel,
+    TabChanged,
 )
 
+
+# ===== ПУБЛИЧНОЕ API =====
 __all__ = [
     # Базовые типы
-    "NodeType",
     "NodeIdentifier",
-    
+    "NodeType",
     # Шина событий
     "EventBus",
-    
     # Исключения
     "CoreError",
     "NotFoundError",
     "ValidationError",
-    
     # Интерфейсы
     "Repository",
-    
     # События
-    "NodeSelected",
-    "NodeExpanded",
-    "NodeCollapsed",
-    "TabChanged",
-    "RefreshRequested",
-    "ShowDetailsPanel",
-    "DataLoaded",
+    "ChildrenLoaded",
+    "ConnectionChanged",
     "DataError",
     "DataInvalidated",
-    "ChildrenLoaded",
+    "DataLoaded",
+    "NodeCollapsed",
     "NodeDetailsLoaded",
-    "ConnectionChanged",
+    "NodeExpanded",
+    "NodeSelected",
+    "RefreshRequested",
+    "ShowDetailsPanel",
+    "TabChanged",
 ]

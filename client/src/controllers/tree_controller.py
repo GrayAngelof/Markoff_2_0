@@ -22,10 +22,9 @@ from src.core.events.definitions import (
     ExpandedNodesChanged,
     NodeCollapsed,
     NodeExpanded,
-    NodeSelected,
 )
 from src.core.types import NodeIdentifier, NodeType, ROOT_NODE
-from src.controllers.base import BaseController
+from .base import BaseController
 from src.projections.tree import TreeProjection
 from src.services import DataLoader
 from utils.logger import get_logger
@@ -80,7 +79,7 @@ class TreeController(BaseController):
     # ---- ПУБЛИЧНОЕ API ----
     def load_root_nodes(self) -> None:
         """Загружает корневые узлы (комплексы) при старте приложения."""
-        complexes = self._loader.load_complexes()
+        complexes = self._loader.load_complexes_tree()
         if complexes:
             log.data(f"Загружено комплексов: {len(complexes)}")
             self._on_complexes_loaded(complexes)
@@ -136,19 +135,26 @@ class TreeController(BaseController):
                 log.warning("Нет детей для вставки")
 
     def _on_node_expanded(self, event: NodeExpanded) -> None:
-        """Инициирует загрузку детей при раскрытии узла."""
+        """
+        Инициирует загрузку детей при раскрытии узла.
+
+        В зависимости от типа узла вызывает соответствующий метод DataLoader.
+        """
         node = event.node
         log.info(f"Раскрыт {node.node_type.value}#{node.node_id}")
 
         self._expanded_nodes.add(node)
         self._emit_expanded_nodes_changed()
 
-        child_type = self._get_child_type(node.node_type)
-        if not child_type:
+        # Диспетчеризация по типу родителя
+        if node.node_type == NodeType.COMPLEX:
+            self._loader.load_buildings_tree(node.node_id)
+        elif node.node_type == NodeType.BUILDING:
+            self._loader.load_floors_tree(node.node_id)
+        elif node.node_type == NodeType.FLOOR:
+            self._loader.load_rooms_tree(node.node_id)
+        else:
             log.debug(f"Узел {node.node_type.value} не может иметь детей")
-            return
-
-        self._loader.load_children(node.node_type, node.node_id, child_type)
 
     def _on_node_collapsed(self, event: NodeCollapsed) -> None:
         """Обрабатывает сворачивание узла."""

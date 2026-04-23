@@ -10,7 +10,8 @@ DataLoaded/DataError с поддержкой повторных попыток.
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from src.core import EventBus, NodeType
+from src.core import EventBus
+from src.core.types import NodeType
 from src.core.events.definitions import DataError, DataLoaded, DataLoadedKind
 from utils.logger import get_logger
 

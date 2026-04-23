@@ -20,13 +20,13 @@ from src.shared.comparison import has_changed
 from src.shared.validation import validate_positive_int
 from utils.logger import get_logger
 
-from .graph.consistency import ConsistencyChecker
-from .graph.decorators import validate_ids
-from .graph.load_state import LoadState, LoadStateIndex
-from .graph.relations import RelationIndex, RelationStats
-from .graph.schema import get_node_type, get_parent_id
-from .graph.store import EntityStore, StoreStats
-from .graph.validity import ValidityIndex, ValidityStats
+from src.data.graph.consistency import ConsistencyChecker
+from src.data.graph.decorators import validate_ids
+from src.data.graph.load_state import LoadState, LoadStateIndex
+from src.data.graph.relations import RelationIndex, RelationStats
+from src.data.graph.schema import get_node_type, get_parent_id
+from src.data.graph.store import EntityStore, StoreStats
+from src.data.graph.validity import ValidityIndex, ValidityStats
 
 
 # ===== КОНСТАНТЫ =====
@@ -451,13 +451,11 @@ class EntityGraph:
     # ---- МЕТОДЫ ДЛЯ ЗАГРУЗЧИКА ----
     def get_if_full(self, node_type: NodeType, node_id: NodeID) -> Optional[Any]:
         """
-        Возвращает сущность только если она есть и полная.
-
-        Полнота определяется в _has_full_details.
+        Возвращает сущность только если это DetailDTO (полные данные).
         """
         entity = self.get(node_type, node_id)
         if entity and self.is_valid(node_type, node_id):
-            if self._has_full_details(entity, node_type):
+            if self._is_detail_dto(entity, node_type):
                 return entity
         return None
 
@@ -492,13 +490,46 @@ class EntityGraph:
             return func()
 
     def _has_full_details(self, entity: Any, node_type: NodeType) -> bool:
-        """Определяет, полные ли данные у сущности."""
+        """
+        Определяет, является ли DTO DetailDTO (полные данные).
+        
+        Приоритеты:
+        1. Флаг IS_DETAIL (ClassVar из BaseDTO) — самый надёжный
+        2. Наличие характерных полей (fallback для обратной совместимости)
+        """
+        # Первый приоритет: флаг IS_DETAIL
+        if hasattr(entity, 'IS_DETAIL'):
+            return bool(entity.IS_DETAIL)
+        
+        # Fallback для старых DTO (если остались)
         if node_type == NodeType.COMPLEX:
-            return entity.description is not None or entity.address is not None
+            return hasattr(entity, 'description') and hasattr(entity, 'address')
         if node_type == NodeType.BUILDING:
-            return entity.description is not None or entity.address is not None
+            return hasattr(entity, 'description') and hasattr(entity, 'address')
         if node_type == NodeType.FLOOR:
-            return entity.description is not None
+            return hasattr(entity, 'description') or hasattr(entity, 'plan_image_url')
         if node_type == NodeType.ROOM:
-            return entity.area is not None or entity.status_code is not None
+            return hasattr(entity, 'description') or hasattr(entity, 'max_tenants')
+        
+        return False
+    
+    def _is_detail_dto(self, entity: Any, node_type: NodeType) -> bool:
+        """
+        Проверяет, является ли DTO DetailDTO.
+        Использует флаг IS_DETAIL (ClassVar) из BaseDTO.
+        """
+        # Самый надёжный способ — проверить флаг
+        if hasattr(entity, 'IS_DETAIL'):
+            return bool(entity.IS_DETAIL)
+        
+        # Fallback для обратной совместимости (если остались старые DTO)
+        if node_type == NodeType.COMPLEX:
+            return hasattr(entity, 'description') and hasattr(entity, 'address')
+        if node_type == NodeType.BUILDING:
+            return hasattr(entity, 'description') and hasattr(entity, 'address')
+        if node_type == NodeType.FLOOR:
+            return hasattr(entity, 'description') or hasattr(entity, 'plan_image_url')
+        if node_type == NodeType.ROOM:
+            return hasattr(entity, 'description') or hasattr(entity, 'max_tenants')
+        
         return False

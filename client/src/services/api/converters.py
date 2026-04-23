@@ -11,18 +11,24 @@
 - Легко тестировать преобразование
 - Менять формат API без изменения HTTP клиента
 - Переиспользовать конвертеры в разных местах
+
+Разделение на Tree и Detail DTO:
+- TreeDTO для минимальных ответов (дерево)
+- DetailDTO для полных ответов (панель деталей)
 """
 
 # ===== ИМПОРТЫ =====
-from typing import Any, List, Optional, TypeVar
+from typing import List, Optional, TypeVar
 
 from src.models import (
-    Building,
-    Complex,
-    Counterparty,
-    Floor,
-    ResponsiblePerson,
-    Room,
+    ComplexTreeDTO,
+    ComplexDetailDTO,
+    BuildingTreeDTO,
+    BuildingDetailDTO,
+    FloorTreeDTO,
+    FloorDetailDTO,
+    RoomTreeDTO,
+    RoomDetailDTO,
 )
 
 
@@ -30,57 +36,50 @@ from src.models import (
 T = TypeVar('T')
 
 
-# ===== ФИЗИЧЕСКАЯ СТРУКТУРА =====
-def to_complex_list(data: List[dict]) -> List[Complex]:
-    """Преобразует список JSON объектов в список Complex."""
-    return [Complex.from_dict(item) for item in data]
+# ===== ДЕРЕВО (TREE) =====
+def to_complex_tree_list(data: List[dict]) -> List[ComplexTreeDTO]:
+    """Преобразует список JSON объектов в список ComplexTreeDTO."""
+    return [ComplexTreeDTO.from_dict(item) for item in data]
 
 
-def to_building_list(data: List[dict]) -> List[Building]:
-    """Преобразует список JSON объектов в список Building."""
-    return [Building.from_dict(item) for item in data]
+def to_building_tree_list(data: List[dict]) -> List[BuildingTreeDTO]:
+    """Преобразует список JSON объектов в список BuildingTreeDTO."""
+    return [BuildingTreeDTO.from_dict(item) for item in data]
 
 
-def to_floor_list(data: List[dict]) -> List[Floor]:
-    """Преобразует список JSON объектов в список Floor."""
-    return [Floor.from_dict(item) for item in data]
+def to_floor_tree_list(data: List[dict]) -> List[FloorTreeDTO]:
+    """Преобразует список JSON объектов в список FloorTreeDTO."""
+    return [FloorTreeDTO.from_dict(item) for item in data]
 
 
-def to_room_list(data: List[dict]) -> List[Room]:
-    """Преобразует список JSON объектов в список Room."""
-    return [Room.from_dict(item) for item in data]
+def to_room_tree_list(data: List[dict]) -> List[RoomTreeDTO]:
+    """Преобразует список JSON объектов в список RoomTreeDTO."""
+    return [RoomTreeDTO.from_dict(item) for item in data]
 
 
-def to_complex(data: Optional[dict]) -> Optional[Complex]:
-    """Преобразует JSON объект в Complex (с деталями)."""
-    return Complex.from_dict(data) if data else None
+# ===== ДЕТАЛИ (DETAIL) =====
+def to_complex_detail(data: Optional[dict]) -> Optional[ComplexDetailDTO]:
+    """Преобразует JSON объект в ComplexDetailDTO."""
+    return ComplexDetailDTO.from_dict(data) if data else None
 
 
-def to_building(data: Optional[dict]) -> Optional[Building]:
-    """Преобразует JSON объект в Building (с деталями)."""
-    return Building.from_dict(data) if data else None
+def to_building_detail(data: Optional[dict]) -> Optional[BuildingDetailDTO]:
+    """Преобразует JSON объект в BuildingDetailDTO."""
+    return BuildingDetailDTO.from_dict(data) if data else None
 
 
-def to_floor(data: Optional[dict]) -> Optional[Floor]:
-    """Преобразует JSON объект в Floor (с деталями)."""
-    return Floor.from_dict(data) if data else None
+def to_floor_detail(data: Optional[dict]) -> Optional[FloorDetailDTO]:
+    """Преобразует JSON объект в FloorDetailDTO."""
+    return FloorDetailDTO.from_dict(data) if data else None
 
 
-def to_room(data: Optional[dict]) -> Optional[Room]:
-    """Преобразует JSON объект в Room (с деталями)."""
-    return Room.from_dict(data) if data else None
+def to_room_detail(data: Optional[dict]) -> Optional[RoomDetailDTO]:
+    """Преобразует JSON объект в RoomDetailDTO."""
+    return RoomDetailDTO.from_dict(data) if data else None
 
 
-# ===== СПРАВОЧНИКИ =====
-def to_counterparty(data: Optional[dict]) -> Optional[Counterparty]:
-    """Преобразует JSON объект в Counterparty."""
-    return Counterparty.from_dict(data) if data else None
-
-
-def to_responsible_person_list(data: List[dict]) -> List[ResponsiblePerson]:
-    """Преобразует список JSON объектов в список ResponsiblePerson."""
-    return [ResponsiblePerson.from_dict(item) for item in data]
-
+# ===== УНИВЕРСАЛЬНЫЙ КОНВЕРТЕР =====
+def convert_optional(data: Optional[dict], converter, default=None):
     """
     Безопасное преобразование с обработкой None.
 

@@ -5,7 +5,7 @@ RefreshController — управление обновлением данных.
 Поддерживает три режима:
 - current: обновить текущий узел
 - visible: обновить все раскрытые узлы
-- full: полная перезагрузка (очистка кэша + сворачивание дерева)
+- full: полная перезагрузка (очистка кэша + сворачивание дерева) + загрузка комплексов
 
 Состояние (выбранный узел, раскрытые узлы) получает через события от TreeController.
 """
@@ -21,7 +21,7 @@ from src.core.events.definitions import (
     RefreshRequested,
 )
 from src.core.types import NodeIdentifier
-from src.controllers.base import BaseController
+from .base import BaseController
 from src.services import DataLoader
 from utils.logger import get_logger
 
@@ -133,6 +133,6 @@ class RefreshController(BaseController):
         log.info("Отправлен запрос на сворачивание всех узлов")
 
         # 3. Загружаем комплексы заново
-        complexes = self._loader.load_complexes()
+        complexes = self._loader.load_complexes_tree()
 
         log.info(f"Полное обновление завершено: загружено {len(complexes)} комплексов")

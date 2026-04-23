@@ -10,8 +10,7 @@ from .complex import ComplexRepository
 from .building import BuildingRepository
 from .floor import FloorRepository
 from .room import RoomRepository
-from .counterparty import CounterpartyRepository
-from .responsible_person import ResponsiblePersonRepository
+
 
 __all__ = [
     'BaseRepository',
@@ -19,6 +18,4 @@ __all__ = [
     'BuildingRepository',
     'FloorRepository',
     'RoomRepository',
-    'CounterpartyRepository',
-    'ResponsiblePersonRepository',
 ]

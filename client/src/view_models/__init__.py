@@ -6,27 +6,21 @@ View Models — контракты данных между бизнес-логи
 Никакой бизнес-логики, только данные.
 """
 
-from src.view_models.statistics import (
+from .statistics import (
     ComplexStatisticsVM,
     BuildingStatisticsVM,
     FloorStatisticsVM,
     RoomTypeStat,
 )
-from src.view_models.contacts import (
-    ContactsVM,
-    ContactGroup,
-    ContactPerson,
-    ContactSummary,
-)
-from src.view_models.sensors import (
+from .sensors import (
     SensorsVM,
     SensorIssue,
 )
-from src.view_models.events import (
+from .events import (
     EventsVM,
     EventItem,
 )
-from src.view_models.lists import (
+from .lists import (
     BuildingListItem,
     FloorListItem,
     RoomListItem,
@@ -38,11 +32,6 @@ __all__ = [
     "BuildingStatisticsVM",
     "FloorStatisticsVM",
     "RoomTypeStat",
-    # Contacts
-    "ContactsVM",
-    "ContactGroup",
-    "ContactPerson",
-    "ContactSummary",
     # Sensors
     "SensorsVM",
     "SensorIssue",

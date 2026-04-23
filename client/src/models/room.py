@@ -1,57 +1,119 @@
 # client/src/models/room.py
 """
-Модель данных для помещения на стороне клиента.
+Модели данных для помещения на стороне клиента.
 
-Чистый DTO — только данные от API, никакой UI-логики.
-Соответствует RoomTreeResponse и RoomDetailResponse из бекенда.
+Чистые DTO — только данные от API, никакой UI-логики.
+- RoomTreeDTO: минимальные поля для дерева (RoomTreeResponse)
+- RoomDetailDTO: полные данные для панели деталей (RoomDetailResponse)
+
+Правило: DTO = строгий контракт. Обязательные поля берутся через [], а не .get().
 """
 
 # ===== ИМПОРТЫ =====
 from dataclasses import dataclass
-from typing import Optional
+from typing import ClassVar, Optional
 
 from .base import BaseDTO
 from .mixins import DateTimeMixin
 
 
-# ===== МОДЕЛИ =====
+# ===== TREE DTO (минимальные данные для дерева) =====
 @dataclass(frozen=True, kw_only=True)
-class Room(BaseDTO, DateTimeMixin):
-    """Модель помещения (DTO)."""
+class RoomTreeDTO(BaseDTO):
+    """
+    DTO для отображения помещения в дереве.
+    Соответствует RoomTreeResponse из бекенда.
+    """
 
-    NODE_TYPE = "room"
+    NODE_TYPE: ClassVar[str] = "room"
+    IS_DETAIL: ClassVar[bool] = False
 
     number: str
     floor_id: int
     area: Optional[float] = None
-    status_code: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'RoomTreeDTO':
+        """
+        Создаёт RoomTreeDTO из словаря (ответ API).
+
+        Raises:
+            KeyError: Если отсутствует обязательное поле 'id', 'number' или 'floor_id'
+            ValueError: Если 'area' имеет некорректный тип
+        """
+        data_id = data["id"]
+        number = data["number"]
+        floor_id = data["floor_id"]
+
+        area_raw = data.get('area')
+        try:
+            area = float(area_raw) if area_raw is not None else None
+        except (TypeError, ValueError):
+            area = None
+
+        return cls(
+            id=data_id,
+            number=number,
+            floor_id=floor_id,
+            area=area,
+        )
+
+
+# ===== DETAIL DTO (полные данные для панели) =====
+@dataclass(frozen=True, kw_only=True)
+class RoomDetailDTO(BaseDTO, DateTimeMixin):
+    """
+    DTO для отображения детальной информации о помещении.
+    Соответствует RoomDetailResponse из бекенда.
+    """
+
+    NODE_TYPE: ClassVar[str] = "room"
+    IS_DETAIL: ClassVar[bool] = True
+
+    number: str
+    floor_id: int
+    area: Optional[float] = None
     description: Optional[str] = None
     physical_type_id: Optional[int] = None
+    status_id: Optional[int] = None
     max_tenants: Optional[int] = None
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'Room':
+    def from_dict(cls, data: dict) -> 'RoomDetailDTO':
         """
-        Создаёт объект Room из словаря (ответ API).
+        Создаёт RoomDetailDTO из словаря (ответ API).
 
         Raises:
-            ValueError: Если отсутствует обязательное поле 'id' или 'floor_id'
+            KeyError: Если отсутствует обязательное поле 'id', 'number' или 'floor_id'
+            ValueError: Если 'area' или 'max_tenants' имеют некорректный тип
         """
-        if 'id' not in data:
-            raise ValueError("Отсутствует обязательное поле 'id' в ответе API")
+        # Строгий контракт — обязательные поля через []
+        data_id = data["id"]
+        number = data["number"]
+        floor_id = data["floor_id"]
 
-        if 'floor_id' not in data:
-            raise ValueError("Отсутствует обязательное поле 'floor_id' в ответе API")
+        # Опциональные поля через get() с защитой
+        area_raw = data.get('area')
+        try:
+            area = float(area_raw) if area_raw is not None else None
+        except (TypeError, ValueError):
+            area = None
+
+        max_tenants_raw = data.get('max_tenants')
+        try:
+            max_tenants = int(max_tenants_raw) if max_tenants_raw is not None else None
+        except (TypeError, ValueError):
+            max_tenants = None
 
         return cls(
-            id=data['id'],
-            number=data['number'],
-            floor_id=data['floor_id'],
-            area=data.get('area'),
-            status_code=data.get('status_code'),
+            id=data_id,
+            number=number,
+            floor_id=floor_id,
+            area=area,
             description=data.get('description'),
             physical_type_id=data.get('physical_type_id'),
-            max_tenants=data.get('max_tenants'),
+            status_id=data.get('status_id'),
+            max_tenants=max_tenants,
             created_at=cls.parse_datetime(data.get('created_at')),
             updated_at=cls.parse_datetime(data.get('updated_at')),
         )

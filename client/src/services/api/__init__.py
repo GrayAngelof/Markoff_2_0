@@ -17,16 +17,29 @@
 """
 
 # Импортируем для удобства внутри services (не для экспорта!)
-from src.services.api.http_client import HttpClient
-from src.services.api.endpoints import Endpoints
-from src.services.api.converters import (
-    to_complex_list, to_building_list, to_floor_list, to_room_list,
-    to_complex, to_building, to_floor, to_room,
-    to_counterparty, to_responsible_person_list,
+from .http_client import HttpClient
+from .endpoints import Endpoints
+from .converters import (
+    # Tree конвертеры (списки для дерева)
+    to_complex_tree_list,
+    to_building_tree_list,
+    to_floor_tree_list,
+    to_room_tree_list,
+    # Detail конвертеры (одиночные объекты для панели)
+    to_complex_detail,
+    to_building_detail,
+    to_floor_detail,
+    to_room_detail,
+    # Утилита
+    convert_optional,
 )
 from src.services.api.errors import (
-    ApiError, ConnectionError, TimeoutError,
-    NotFoundError, ClientError, ServerError,
+    ApiError,
+    ConnectionError,
+    TimeoutError,
+    NotFoundError,
+    ClientError,
+    ServerError,
 )
 
 # НЕТ __all__! Это приватный пакет, не нужно экспортировать имена.

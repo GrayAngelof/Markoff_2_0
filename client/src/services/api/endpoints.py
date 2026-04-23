@@ -18,7 +18,6 @@ class Endpoints:
     Все эндпоинты API в виде статических методов.
 
     Формат: /physical/... для физической структуры,
-            /counterparties/... для справочников.
     """
 
     # ---- Физическая структура ----
@@ -61,17 +60,6 @@ class Endpoints:
     def room_detail(room_id: NodeID) -> str:
         """Детальная информация о помещении."""
         return f"/physical/rooms/{room_id}"
-
-    # ---- Справочники ----
-    @staticmethod
-    def counterparty(counterparty_id: NodeID) -> str:
-        """Информация о контрагенте (юридическом лице)."""
-        return f"/counterparties/{counterparty_id}"
-
-    @staticmethod
-    def responsible_persons(counterparty_id: NodeID) -> str:
-        """Список ответственных лиц контрагента."""
-        return f"/counterparties/{counterparty_id}/persons"
 
     # ---- Мониторинг ----
     @staticmethod

@@ -20,12 +20,9 @@ from src.core import NodeIdentifier, NodeType
 from src.data import (
     BuildingRepository,
     ComplexRepository,
-    CounterpartyRepository,
     FloorRepository,
-    ResponsiblePersonRepository,
     RoomRepository,
 )
-from src.models import Counterparty, ResponsiblePerson
 from utils.logger import get_logger
 
 
@@ -49,8 +46,6 @@ class ContextService:
         building_repo: BuildingRepository,
         floor_repo: FloorRepository,
         room_repo: RoomRepository,
-        counterparty_repo: CounterpartyRepository,
-        person_repo: ResponsiblePersonRepository,
     ) -> None:
         """Инициализирует сервис контекста."""
         log.info("Инициализация ContextService")
@@ -58,8 +53,6 @@ class ContextService:
         self._building_repo = building_repo
         self._floor_repo = floor_repo
         self._room_repo = room_repo
-        self._counterparty_repo = counterparty_repo
-        self._person_repo = person_repo
 
         log.system("ContextService инициализирован")
 
@@ -106,7 +99,7 @@ class ContextService:
 
     def get_building_context(self, building_id: int) -> Dict[str, Any]:
         """
-        Возвращает полный контекст для корпуса (включая владельца).
+        Возвращает полный контекст для корпуса.
 
         Returns:
             Словарь с контекстом корпуса
@@ -124,43 +117,11 @@ class ContextService:
                     context['complex_name'] = complex_obj.name
                 except Exception as e:
                     log.warning(f"Не удалось получить комплекс {building.complex_id}: {e}")
-
-            if building.owner_id:
-                try:
-                    owner = self._counterparty_repo.get(building.owner_id)
-                    context['owner'] = owner
-
-                    persons = self._person_repo.get_by_counterparty(owner.id)
-                    context['responsible_persons'] = persons
-
-                except Exception as e:
-                    log.warning(f"Не удалось получить владельца {building.owner_id}: {e}")
-
         except Exception as e:
             log.error(f"Не удалось получить контекст корпуса {building_id}: {e}")
 
         return context
 
-    def get_owner_context(self, counterparty_id: int) -> Dict[str, Any]:
-        """
-        Возвращает контекст владельца (контрагент + ответственные лица).
-
-        Returns:
-            Словарь с контекстом владельца
-        """
-        context = {}
-
-        try:
-            owner = self._counterparty_repo.get(counterparty_id)
-            context['owner'] = owner
-
-            persons = self._person_repo.get_by_counterparty(counterparty_id)
-            context['responsible_persons'] = persons
-
-        except Exception as e:
-            log.error(f"Не удалось получить контекст владельца {counterparty_id}: {e}")
-
-        return context
 
     # ---- ВНУТРЕННИЕ МЕТОДЫ ----
     def _get_ancestors(self, node: NodeIdentifier) -> List[Tuple[NodeType, int]]:

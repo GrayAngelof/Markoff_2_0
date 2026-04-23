@@ -21,6 +21,7 @@ from src.data.repositories import (
     FloorRepository,
     RoomRepository,
 )
+from src.models import ComplexTreeDTO, BuildingTreeDTO, FloorTreeDTO, RoomTreeDTO
 from src.projections.tree_node import TreeNode
 from utils.logger import get_logger
 
@@ -35,6 +36,7 @@ class TreeProjection:
     Проекция дерева. Строит иерархическую структуру TreeNode.
 
     Преобразует данные из репозиториев в узлы дерева для отображения.
+    Работает с TreeDTO (минимальные данные).
     """
 
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
@@ -61,19 +63,23 @@ class TreeProjection:
 
         root_nodes = []
         for complex_data in complexes:
+            # complex_data может быть ComplexTreeDTO или ComplexDetailDTO
+            # Для дерева используем TreeDTO поля
+            buildings_count = getattr(complex_data, 'buildings_count', 0)
+            name = getattr(complex_data, 'name', str(complex_data))
+
             display_name = self._get_display_name(
                 node_type=NodeType.COMPLEX,
-                data=complex_data,
-                base_attr='name',
-                has_children=complex_data.buildings_count > 0,
-                count_attr='buildings_count',
+                base_name=name,
+                has_children=buildings_count > 0,
+                count=buildings_count,
             )
 
             node = TreeNode(
                 data=complex_data,
                 node_type=NodeType.COMPLEX,
                 display_name=display_name,
-                has_children=complex_data.buildings_count > 0,
+                has_children=buildings_count > 0,
             )
             root_nodes.append(node)
 
@@ -89,23 +95,45 @@ class TreeProjection:
         Создаёт TreeNode из загруженных данных детей.
 
         Родитель НЕ устанавливается — будет позже через TreeModel.insert_children.
+
+        Args:
+            payload: Список DTO (BuildingTreeDTO, FloorTreeDTO или RoomTreeDTO)
+            child_type: Тип детей (BUILDING, FLOOR или ROOM)
+
+        Returns:
+            List[TreeNode] — отсортированные по имени узлы
         """
         log.debug(f"Создание {len(payload)} узлов типа {child_type.value}")
 
         nodes = []
         for child_data in payload:
             has_children = False
+            base_name = ""
+            count = 0
+
             if child_type == NodeType.BUILDING:
+                # child_data: BuildingTreeDTO
                 has_children = getattr(child_data, 'floors_count', 0) > 0
+                base_name = getattr(child_data, 'name', str(child_data))
+                count = getattr(child_data, 'floors_count', 0)
+
             elif child_type == NodeType.FLOOR:
+                # child_data: FloorTreeDTO
                 has_children = getattr(child_data, 'rooms_count', 0) > 0
+                base_name = getattr(child_data, 'number', 0)
+                count = getattr(child_data, 'rooms_count', 0)
+
+            elif child_type == NodeType.ROOM:
+                # child_data: RoomTreeDTO
+                has_children = False  # у помещений нет детей в дереве
+                base_name = getattr(child_data, 'number', str(child_data))
+                count = 0
 
             display_name = self._get_display_name(
                 node_type=child_type,
-                data=child_data,
-                base_attr='name' if child_type == NodeType.BUILDING else 'number',
+                base_name=base_name,
                 has_children=has_children,
-                count_attr='floors_count' if child_type == NodeType.BUILDING else 'rooms_count',
+                count=count,
             )
 
             node = TreeNode(
@@ -124,19 +152,15 @@ class TreeProjection:
     def _get_display_name(
         self,
         node_type: NodeType,
-        data: Any,
-        base_attr: str,
+        base_name: Any,
         has_children: bool,
-        count_attr: Optional[str] = None,
+        count: int = 0,
     ) -> str:
         """Формирует отображаемое имя узла."""
-        base_name = getattr(data, base_attr, str(data))
-
         if node_type == NodeType.FLOOR:
             base_name = self._format_floor_number(base_name)
 
-        if has_children and count_attr:
-            count = getattr(data, count_attr, 0)
+        if has_children and count > 0:
             return f"{base_name} ({count})"
 
         return str(base_name)

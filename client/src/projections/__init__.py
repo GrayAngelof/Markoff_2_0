@@ -3,8 +3,8 @@
 Проекции — слой преобразования данных для UI.
 """
 
-from src.projections.tree import TreeProjection
-from src.projections.tree_node import TreeNode
+from .tree import TreeProjection
+from .tree_node import TreeNode
 
 __all__ = [
     "TreeProjection",

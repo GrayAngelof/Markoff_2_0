@@ -13,18 +13,24 @@
 - get_by_building() — навигация по графу (получение ID этажей корпуса)
 
 Никакой бизнес-логики: сортировка, фильтрация — только в сервисах!
+Работает с TreeDTO и DetailDTO.
 """
 
 # ===== ИМПОРТЫ =====
-from typing import List
+from typing import List, Optional, Union, cast
 
 from src.core import NodeType
-from src.models import Floor
-from .base import BaseRepository
+from src.models import FloorTreeDTO, FloorDetailDTO
+from src.data.repositories.base import BaseRepository
+
+
+# ===== ТИПЫ =====
+# Репозиторий может хранить как Tree, так и Detail DTO
+FloorDTO = Union[FloorTreeDTO, FloorDetailDTO]
 
 
 # ===== КЛАСС =====
-class FloorRepository(BaseRepository[Floor]):
+class FloorRepository(BaseRepository[FloorDTO]):
     """Репозиторий для работы с этажами."""
 
     def __init__(self, graph) -> None:
@@ -48,3 +54,33 @@ class FloorRepository(BaseRepository[Floor]):
         Возвращаются ID, а не объекты — ленивая загрузка.
         """
         return self._graph.get_children(NodeType.BUILDING, building_id)
+
+    # ---- УДОБНЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С TREE/DETAIL ----
+    def get_tree(self, floor_id: int) -> Optional[FloorTreeDTO]:
+        """
+        Возвращает TreeDTO этажа (минимальные данные).
+
+        Returns:
+            FloorTreeDTO или None, если не найден
+        """
+        entity = self.get(floor_id)
+        if entity and not entity.IS_DETAIL:
+            return cast(FloorTreeDTO, entity)
+        return None
+
+    def get_detail(self, floor_id: int) -> Optional[FloorDetailDTO]:
+        """
+        Возвращает DetailDTO этажа (полные данные).
+
+        Returns:
+            FloorDetailDTO или None, если не найден или есть только TreeDTO
+        """
+        entity = self.get(floor_id)
+        if entity and entity.IS_DETAIL:
+            return cast(FloorDetailDTO, entity)
+        return None
+
+    def has_detail(self, floor_id: int) -> bool:
+        """Проверяет, загружены ли полные данные этажа."""
+        entity = self.get(floor_id)
+        return entity is not None and entity.IS_DETAIL

@@ -17,8 +17,6 @@ from .repositories import (
     BuildingRepository,
     FloorRepository,
     RoomRepository,
-    CounterpartyRepository,
-    ResponsiblePersonRepository,
 )
 
 __all__ = [
@@ -32,6 +30,4 @@ __all__ = [
     'BuildingRepository',
     'FloorRepository',
     'RoomRepository',
-    'CounterpartyRepository',
-    'ResponsiblePersonRepository',
 ]

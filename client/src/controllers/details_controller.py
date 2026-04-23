@@ -32,8 +32,8 @@ from src.core.events.definitions import (
     NodeDetailsLoaded,
     NodeSelected,
 )
-from src.core.types.nodes import NodeIdentifier
-from src.controllers.base import BaseController
+from src.core.types.nodes import NodeIdentifier, NodeType
+from .base import BaseController
 from src.services.data_loader import DataLoader
 from utils.logger import get_logger
 
@@ -108,11 +108,19 @@ class DetailsController(BaseController):
 
     # ---- ВНУТРЕННИЕ МЕТОДЫ ЗАГРУЗКИ ДАННЫХ ----
     def _load_node_details(self, node: NodeIdentifier) -> None:
-        """Загружает детальную информацию об узле."""
+        """
+        Загружает детальную информацию об узле.
+
+        Диспетчеризация по типу узла:
+        - COMPLEX → load_complex_detail()
+        - BUILDING → load_building_detail()
+        - FLOOR → load_floor_detail()
+        - ROOM → load_room_detail()
+        """
         log.debug(f"Загрузка деталей для {node.node_type.value}#{node.node_id}")
 
         try:
-            details = self._loader.load_details(node.node_type, node.node_id)
+            details = self._load_by_type(node)
 
             if details is None:
                 log.warning(f"Данные для {node.node_type.value}#{node.node_id} не найдены")
@@ -125,6 +133,32 @@ class DetailsController(BaseController):
         except Exception as e:
             log.error(f"Ошибка загрузки {node.node_type.value}#{node.node_id}: {e}")
             self._show_error(node, str(e))
+
+    def _load_by_type(self, node: NodeIdentifier) -> Optional[Any]:
+        """
+        Загружает детали в зависимости от типа узла.
+
+        Returns:
+            Соответствующий DetailDTO:
+            - ComplexDetailDTO
+            - BuildingDetailDTO
+            - FloorDetailDTO
+            - RoomDetailDTO
+        """
+        node_type = node.node_type
+        node_id = node.node_id
+
+        if node_type == NodeType.COMPLEX:
+            return self._loader.load_complex_detail(node_id)
+        elif node_type == NodeType.BUILDING:
+            return self._loader.load_building_detail(node_id)
+        elif node_type == NodeType.FLOOR:
+            return self._loader.load_floor_detail(node_id)
+        elif node_type == NodeType.ROOM:
+            return self._loader.load_room_detail(node_id)
+        else:
+            log.warning(f"Неизвестный тип узла для загрузки деталей: {node_type}")
+            return None
 
     def _send_details_to_panel(self, node: NodeIdentifier, details: Any) -> None:
         """Отправляет данные в DetailsPanel через событие NodeDetailsLoaded."""

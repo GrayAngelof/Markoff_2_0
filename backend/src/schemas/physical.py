@@ -45,7 +45,6 @@ class RoomTreeResponse(BaseModel):
     number: str
     floor_id: int
     area: Optional[float] = None
-    status_id: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 

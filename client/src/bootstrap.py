@@ -6,18 +6,13 @@
 
 Порядок инициализации (строго сверху вниз):
 1. Core (EventBus) — ядро, не зависит от других
-2. Data (EntityGraph, Repositories) — хранение данных
-3. Services (ApiClient, DataLoader, ConnectionService, StatusRegistry) — бизнес-логика
+2. Data (EntityGraph, Repositories, ReferenceStore) — хранение данных и справочники
+3. Services (ApiClient, DataLoader, ConnectionService) — бизнес-логика
 4. Projections (TreeProjection, DetailsProjection) — преобразование данных для UI
 5. Controllers (TreeController, DetailsController, ...) — координация
 6. UI (AppWindow) — отображение (создаётся ПОСЛЕ контроллеров, но настраивается ДО запуска)
 7. Запуск фоновых сервисов ПОСЛЕ подписки UI
-8. Warmup справочников (однократная загрузка в StatusRegistry)
-
-TECHNICAL DEBT:
-    - Убрать WARMUP после окончания проектирования DetailsPanel
-    - Загрузка справочников должна быть интегрирована в нормальный поток загрузки данных
-    - Возможно, статусы должны загружаться лениво, а не единым блоком при старте
+8. Загрузка справочников в ReferenceStore
 """
 
 # ===== ИМПОРТЫ =====
@@ -35,11 +30,12 @@ from src.data import (
     ComplexRepository,
     EntityGraph,
     FloorRepository,
+    ReferenceStore,
     RoomRepository,
 )
 from src.projections.details_projection import DetailsProjection
 from src.projections.tree import TreeProjection
-from src.services import ApiClient, ConnectionService, DataLoader, StatusRegistry
+from src.services import ApiClient, ConnectionService, DataLoader
 from src.ui.app_window import AppWindow
 from src.ui.coordinator import UiCoordinator
 from src.ui.handlers.details_handler import DetailsUiHandler
@@ -62,11 +58,6 @@ class ApplicationBootstrap:
     - Передачу зависимостей в UI
     - Запуск фоновых сервисов ПОСЛЕ того, как UI подписался на события
     - Очистку ресурсов при завершении
-
-    TECHNICAL DEBT:
-        - Убрать WARMUP после окончания проектирования DetailsPanel
-        - Загрузка справочников должна быть интегрирована в нормальный поток загрузки данных
-        - Статусы должны загружаться лениво, а не единым блоком при старте
     """
 
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
@@ -99,10 +90,8 @@ class ApplicationBootstrap:
         with log.measure_time("запуск фоновых сервисов"):
             self._start_services()
 
-        # TODO: Убрать WARMUP после окончания проектирования DetailsPanel
-        # Загрузка справочников должна быть интегрирована в нормальный поток загрузки данных
-        with log.measure_time("warmup справочников"):
-            self._warmup_dictionaries()
+        with log.measure_time("загрузка справочников"):
+            self._load_reference_data()
 
         log.info("=" * 60)
         log.success("Все компоненты инициализированы")
@@ -153,7 +142,7 @@ class ApplicationBootstrap:
         log.success("EventBus создан")
 
     def _init_data(self) -> None:
-        """Инициализирует слой данных (EntityGraph, репозитории)."""
+        """Инициализирует слой данных (EntityGraph, репозитории, ReferenceStore)."""
         self._graph = EntityGraph(self._bus)
 
         self._complex_repo = ComplexRepository(self._graph)
@@ -168,14 +157,14 @@ class ApplicationBootstrap:
         self._api = ApiClient()
         log.success("ApiClient создан")
 
+        self._reference_store = ReferenceStore(self._api)
+        log.success("ReferenceStore создан")
+
         self._loader = DataLoader(self._bus, self._api, self._graph)
         log.success("DataLoader создан")
 
         self._connection_service = ConnectionService(self._bus, self._api)
         log.success("ConnectionService создан")
-
-        self._status_registry = StatusRegistry(self._api)
-        log.success("StatusRegistry создан")
 
     def _init_projections(self) -> None:
         """Инициализирует проекции (преобразование данных для UI)."""
@@ -187,7 +176,7 @@ class ApplicationBootstrap:
         )
         log.success("TreeProjection создан")
 
-        self._details_projection = DetailsProjection(self._status_registry)
+        self._details_projection = DetailsProjection(self._reference_store)
         log.success("DetailsProjection создан")
 
     def _init_controllers(self) -> None:
@@ -244,35 +233,14 @@ class ApplicationBootstrap:
 
         log.info("Все фоновые сервисы запущены")
 
-    def _warmup_dictionaries(self) -> None:
-        """
-        Однократная загрузка справочников в StatusRegistry.
-
-        Загружает статусы зданий и помещений из API и сохраняет их в реестр.
-        В дальнейшем доступ к статусам осуществляется через StatusRegistry.get_*().
-
-        TODO: Убрать после окончания проектирования DetailsPanel.
-        Загрузка справочников должна быть интегрирована в нормальный поток загрузки данных.
-        """
+    def _load_reference_data(self) -> None:
+        """Загружает справочные данные в ReferenceStore."""
         log.info("-" * 40)
-        log.info("Загрузка справочников (WARMUP)")
+        log.info("Загрузка справочных данных")
         log.info("-" * 40)
 
-        self._status_registry.warmup()
-
-        building_statuses = self._status_registry._building_statuses
-        room_statuses = self._status_registry._room_statuses
-
-        log.info(f"Статусы зданий: {len(building_statuses)} записей")
-        if building_statuses:
-            first = next(iter(building_statuses.values()))
-            log.debug(f"  Пример: id={first.id}, code={first.code}, name={first.name}")
-
-        log.info(f"Статусы помещений: {len(room_statuses)} записей")
-        if room_statuses:
-            first = next(iter(room_statuses.values()))
-            log.debug(f"  Пример: id={first.id}, code={first.code}, name={first.name}")
+        self._reference_store.warmup()
 
         log.info("-" * 40)
-        log.info("Загрузка справочников завершена")
+        log.info("Загрузка справочных данных завершена")
         log.info("-" * 40)

@@ -3,30 +3,28 @@
 Projection для сборки DetailsViewModel из DTO.
 
 Преобразует "сырые" DTO из API в готовые ViewModel для UI.
-Использует StatusRegistry для маппинга status_id → человекочитаемый статус.
+Использует ReferenceStore для маппинга ID → человекочитаемые значения.
 
 Примечание: Все сущности (комплекс, корпус, этаж, помещение) имеют статус.
 - Комплекс и корпус используют BuildingStatus
 - Этаж и помещение используют RoomStatus
 
 TECHNICAL DEBT:
-- _format_owner: маппить owner_id → название через репозиторий владельцев
-- _format_floor_type: заменить на справочник типов этажей из API
-- _format_room_type: заменить на справочник типов помещений из API
+    - _format_owner: маппить owner_id → название через репозиторий владельцев
+    - _format_floor_type: заменить на справочник типов этажей из ReferenceStore
+    - _format_room_type: заменить на справочник типов помещений из ReferenceStore
 """
 
 # ===== ИМПОРТЫ =====
-from typing import Callable, Optional, Union
+from typing import Optional
 
+from src.data import ReferenceStore
 from src.models import (
     BuildingDetailDTO,
-    BuildingStatusDTO,
     ComplexDetailDTO,
     FloorDetailDTO,
     RoomDetailDTO,
-    RoomStatusDTO,
 )
-from src.services.status_registry import StatusRegistry
 from src.shared.time import format_timestamp
 from src.view_models.details import DetailsViewModel, HeaderViewModel, InfoGridItem
 from utils.logger import get_logger
@@ -41,22 +39,16 @@ class DetailsProjection:
     """
     Сборщик ViewModel для панели деталей.
 
-    Пример:
-        projection = DetailsProjection(status_registry)
-        vm = projection.build_complex_details(complex_dto)
-        bus.emit(NodeDetailsLoaded(node=node, view_model=vm))
-
     TECHNICAL DEBT:
-        - owner_id → название: добавить репозиторий владельцев
-        - типы этажей: использовать справочник из API
-        - типы помещений: использовать справочник из API
+        - owner_id → название через репозиторий владельцев
+        - физические типы этажей и помещений — через ReferenceStore
     """
 
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
-    def __init__(self, status_registry: StatusRegistry) -> None:
-        """Инициализирует проекцию с реестром статусов."""
+    def __init__(self, reference_store: ReferenceStore) -> None:
+        """Инициализирует проекцию с хранилищем справочников."""
         log.system("DetailsProjection инициализация")
-        self._status_registry = status_registry
+        self._refs = reference_store
         log.system("DetailsProjection инициализирован")
 
     # ---- ПУБЛИЧНОЕ API ----
@@ -64,10 +56,8 @@ class DetailsProjection:
         """Собирает ViewModel для комплекса."""
         log.debug(f"Сборка ViewModel для комплекса {dto.id}")
 
-        status_name = self._get_status_name(
-            dto.status_id,
-            self._status_registry.get_building_status
-        )
+        status_dto = self._refs.building_statuses.get(dto.status_id)
+        status_name = status_dto.name if status_dto else None
 
         header = HeaderViewModel(
             title=dto.name,
@@ -93,10 +83,8 @@ class DetailsProjection:
         """Собирает ViewModel для корпуса."""
         log.debug(f"Сборка ViewModel для корпуса {dto.id}")
 
-        status_name = self._get_status_name(
-            dto.status_id,
-            self._status_registry.get_building_status
-        )
+        status_dto = self._refs.building_statuses.get(dto.status_id)
+        status_name = status_dto.name if status_dto else None
 
         header = HeaderViewModel(
             title=dto.name,
@@ -123,10 +111,8 @@ class DetailsProjection:
         """Собирает ViewModel для этажа."""
         log.debug(f"Сборка ViewModel для этажа {dto.id}")
 
-        status_name = self._get_status_name(
-            dto.status_id,
-            self._status_registry.get_room_status
-        )
+        status_dto = self._refs.room_statuses.get(dto.status_id)
+        status_name = status_dto.name if status_dto else None
 
         header = HeaderViewModel(
             title=f"Этаж {dto.number}",
@@ -155,10 +141,8 @@ class DetailsProjection:
         """Собирает ViewModel для помещения."""
         log.debug(f"Сборка ViewModel для помещения {dto.id}")
 
-        status_name = self._get_status_name(
-            dto.status_id,
-            self._status_registry.get_room_status
-        )
+        status_dto = self._refs.room_statuses.get(dto.status_id)
+        status_name = status_dto.name if status_dto else None
 
         header = HeaderViewModel(
             title=f"Помещение {dto.number}",
@@ -182,17 +166,6 @@ class DetailsProjection:
         return DetailsViewModel(header=header, grid=grid)
 
     # ---- ВНУТРЕННИЕ МЕТОДЫ ----
-    def _get_status_name(
-        self,
-        status_id: Optional[int],
-        getter: Callable[[Optional[int]], Optional[Union[BuildingStatusDTO, RoomStatusDTO]]]
-    ) -> Optional[str]:
-        """Возвращает человекочитаемое имя статуса по ID."""
-        if status_id is None:
-            return None
-        dto = getter(status_id)
-        return dto.name if dto else None
-
     def _format_owner(self, owner_id: Optional[int]) -> str:
         """
         Форматирует ID владельца.
@@ -213,23 +186,18 @@ class DetailsProjection:
         """
         Форматирует тип этажа.
 
-        TODO: заменить на справочник типов этажей из API
+        TODO: заменить на справочник типов этажей из ReferenceStore
         """
         if type_id is None:
             return "—"
-        types = {
-            1: "Наземный",
-            2: "Подвал",
-            3: "Технический",
-            4: "Чердак",
-        }
+        types = {1: "Наземный", 2: "Подвал", 3: "Технический", 4: "Чердак"}
         return types.get(type_id, f"Тип {type_id}")
 
     def _format_room_type(self, type_id: Optional[int]) -> str:
         """
         Форматирует тип помещения.
 
-        TODO: заменить на справочник типов помещений из API
+        TODO: заменить на справочник типов помещений из ReferenceStore
         """
         if type_id is None:
             return "—"

@@ -112,6 +112,7 @@ async def read_complex_detail(
             description=complex_obj.description,
             address=complex_obj.address,
             owner_id=complex_obj.owner_id,
+            status_id=complex_obj.status_id,
             created_at=complex_obj.created_at,
             updated_at=complex_obj.updated_at,
         )

@@ -4,6 +4,11 @@
 
 Только визуальная структура, без событий.
 События будут добавлены позже через подключение к EventBus.
+
+TECHNICAL DEBT:
+    - Подключить действие "Выход" (Ctrl+Q) к закрытию приложения
+    - Добавить действия для всех пунктов справочников (открытие окон)
+    - Реализовать действие "О программе" (показать диалог с информацией)
 """
 
 # ===== ИМПОРТЫ =====
@@ -23,12 +28,17 @@ class MenuBar(QMenuBar):
     Главное меню приложения.
 
     Только визуальная структура. События будут добавлены позже.
+
+    TECHNICAL DEBT:
+        - Подключить exit_action к закрытию приложения
+        - Добавить обработчики для пунктов справочников
+        - Реализовать about_action
     """
 
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
     def __init__(self) -> None:
         """Инициализирует главное меню."""
-        log.info("Инициализация MenuBar")
+        log.system("MenuBar инициализация")
         super().__init__()
 
         self._create_file_menu()
@@ -44,9 +54,9 @@ class MenuBar(QMenuBar):
 
         exit_action = QAction("&Выход", self)
         exit_action.setShortcut("Ctrl+Q")
-        # TODO: добавить действие при выходе
-        file_menu.addAction(exit_action)
+        # TODO: добавить действие при выходе (закрытие приложения)
 
+        file_menu.addAction(exit_action)
         log.info("Меню 'Файл' добавлено")
 
     def _create_reference_menu(self) -> None:
@@ -63,7 +73,7 @@ class MenuBar(QMenuBar):
 
         for ref_name in references:
             action = QAction(ref_name, self)
-            # TODO: добавить действия для справочников
+            # TODO: добавить действия для справочников (открытие окон)
             ref_menu.addAction(action)
 
         log.info(f"Меню 'Справочники' добавлено, пунктов: {len(references)}")
@@ -73,7 +83,7 @@ class MenuBar(QMenuBar):
         help_menu = self.addMenu("&Помощь")
 
         about_action = QAction("&О программе", self)
-        # TODO: добавить действие "О программе"
+        # TODO: добавить действие "О программе" (показать диалог)
         help_menu.addAction(about_action)
 
         log.info("Меню 'Помощь' добавлено")

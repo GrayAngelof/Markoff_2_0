@@ -5,7 +5,9 @@
 Содержит шапку, сетку информации и вкладки.
 По умолчанию показывает заглушку, при выборе узла переключается на содержимое.
 
-TODO: Реализовать обновление вкладок при получении ViewModel
+TECHNICAL DEBT:
+    - Реализовать обновление вкладок при получении ViewModel
+    - Сейчас tabs.update_content(vm) закомментирован
 """
 
 # ===== ИМПОРТЫ =====
@@ -36,6 +38,10 @@ class DetailsPanel(QWidget):
     - Заголовок (HeaderWidget)
     - Сетку информации (InfoGrid)
     - Вкладки (DetailsTabs) — пока заглушки
+
+    TECHNICAL DEBT:
+        - Реализовать обновление вкладок на основе данных из ViewModel
+        - Сейчас tabs.update_content(vm) закомментирован в update_content()
     """
 
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
@@ -79,6 +85,7 @@ class DetailsPanel(QWidget):
 
         self._header.update_content(vm)
         self._info_grid.update_content(vm)
+
         # TODO: Обновлять вкладки на основе данных из VM
         # self._tabs.update_content(vm)
 
@@ -157,7 +164,6 @@ class DetailsPanel(QWidget):
 
         При первом вызове полностью удаляет PlaceholderWidget из layout.
         """
-        # При первом показе — удаляем заглушку навсегда
         if self._placeholder is not None:
             layout = self._content_widget.layout()
             if layout is not None:

@@ -2,15 +2,22 @@
 """
 Шапка панели детальной информации.
 
-На данном этапе — пустой контейнер без логики.
+Отображает:
+- Тип узла + название (например, "КОМПЛЕКС: Фабрика Веретено")
+- Статус узла (например, "Активен", если есть)
+- Дополнительные динамические поля
+
+TODO: Добавить иконку в зависимости от типа узла
+TODO: Добавить цветовую индикацию статуса
 """
 
 # ===== ИМПОРТЫ =====
 from typing import Optional
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from src.view_models.details import DetailsViewModel
 from utils.logger import get_logger
 
 
@@ -23,69 +30,77 @@ class HeaderWidget(QWidget):
     """
     Шапка панели детальной информации.
 
-    На данном этапе — только структурный каркас с пустыми метками-заглушками.
+    Динамическая сетка: строки добавляются через _add_row(),
+    очищаются через _clear().
     """
 
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         """Инициализирует шапку."""
-        log.info("Инициализация HeaderWidget")
+        log.system("HeaderWidget инициализация")
         super().__init__(parent)
 
-        log.debug("HeaderWidget: создание структурного каркаса")
-
+        self._layout: Optional[QVBoxLayout] = None
         self._setup_ui()
 
-        log.debug("HeaderWidget: структурный каркас создан")
         log.system("HeaderWidget инициализирован")
 
     # ---- ПУБЛИЧНОЕ API ----
-    @property
-    def icon_label(self) -> QLabel:
-        """Возвращает виджет иконки."""
-        return self._icon_label
+    def update_content(self, vm: DetailsViewModel) -> None:
+        """Обновляет содержимое шапки на основе ViewModel."""
+        log.debug(f"Обновление: {vm.header_title}")
 
-    @property
-    def title_label(self) -> QLabel:
-        """Возвращает виджет заголовка."""
-        return self._title_label
+        self._clear()
 
-    @property
-    def status_label(self) -> QLabel:
-        """Возвращает виджет статуса."""
-        return self._status_label
+        title_text = f"{vm.header_subtitle}: {vm.header_title}"
+        self._add_row(title_text, is_title=True)
 
-    @property
-    def hierarchy_label(self) -> QLabel:
-        """Возвращает виджет иерархии."""
-        return self._hierarchy_label
+        if vm.header_status_name:
+            self._add_row(vm.header_status_name, is_status=True)
 
     # ---- ВНУТРЕННИЕ МЕТОДЫ ----
     def _setup_ui(self) -> None:
         """Создаёт структурный каркас шапки."""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 8, 10, 8)
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(10, 8, 10, 8)
+        self._layout.setSpacing(5)
 
-        # Верхняя строка: иконка и заголовок
-        self._top_row = QWidget()
-        top_layout = QVBoxLayout(self._top_row)
-        top_layout.setContentsMargins(0, 0, 0, 0)
+    def _add_row(self, text: str, is_title: bool = False, is_status: bool = False) -> None:
+        """Добавляет строку в шапку."""
+        if self._layout is None:
+            log.error("Layout не инициализирован")
+            return
 
-        self._icon_label = QLabel("")
-        top_layout.addWidget(self._icon_label)
+        label = QLabel(text)
+        label.setWordWrap(True)
+        label.setTextFormat(Qt.TextFormat.PlainText)
 
-        self._title_label = QLabel("")
-        self._title_label.setWordWrap(True)
-        top_layout.addWidget(self._title_label)
+        if is_title:
+            font = label.font()
+            font.setPointSize(14)
+            font.setBold(True)
+            label.setFont(font)
+        elif is_status:
+            font = label.font()
+            font.setPointSize(12)
+            label.setFont(font)
+            # TODO: Добавить цвет статуса в зависимости от типа
+            # label.setStyleSheet("color: green;")
+        else:
+            font = label.font()
+            font.setPointSize(11)
+            label.setFont(font)
 
-        self._status_label = QLabel("")
-        top_layout.addWidget(self._status_label)
+        self._layout.addWidget(label)
 
-        layout.addWidget(self._top_row)
+    def _clear(self) -> None:
+        """Очищает все строки из шапки."""
+        if self._layout is None:
+            return
 
-        # Нижняя строка: иерархия
-        self._hierarchy_label = QLabel("")
-        self._hierarchy_label.setWordWrap(True)
-        layout.addWidget(self._hierarchy_label)
-
-        log.debug("HeaderWidget: UI каркас создан")
+        while self._layout.count():
+            item = self._layout.takeAt(0)
+            if item is not None:
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()

@@ -6,40 +6,25 @@ View Models — контракты данных между бизнес-логи
 Никакой бизнес-логики, только данные.
 """
 
-from .statistics import (
-    ComplexStatisticsVM,
-    BuildingStatisticsVM,
-    FloorStatisticsVM,
-    RoomTypeStat,
-)
-from .sensors import (
-    SensorsVM,
-    SensorIssue,
-)
-from .events import (
-    EventsVM,
-    EventItem,
-)
-from .lists import (
-    BuildingListItem,
-    FloorListItem,
-    RoomListItem,
-)
+# ===== ИМПОРТЫ =====
+from .details import DetailsViewModel, HeaderViewModel, InfoGridItem
+from .lists import BuildingListItem, FloorListItem, RoomListItem
+from .statistics import BuildingStatisticsVM, ComplexStatisticsVM, FloorStatisticsVM, RoomTypeStat
 
+
+# ===== ПУБЛИЧНОЕ API =====
 __all__ = [
-    # Statistics
-    "ComplexStatisticsVM",
+    # Статистика
     "BuildingStatisticsVM",
+    "ComplexStatisticsVM",
     "FloorStatisticsVM",
     "RoomTypeStat",
-    # Sensors
-    "SensorsVM",
-    "SensorIssue",
-    # Events
-    "EventsVM",
-    "EventItem",
-    # Lists
+    # Списки
     "BuildingListItem",
     "FloorListItem",
     "RoomListItem",
+    # Детали
+    "DetailsViewModel",
+    "HeaderViewModel",
+    "InfoGridItem",
 ]

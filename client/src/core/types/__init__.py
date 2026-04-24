@@ -14,6 +14,7 @@
 from .event_structures import EventData
 from .exceptions import CoreError, NotFoundError, ValidationError
 from .nodes import NodeIdentifier, NodeType, ROOT_NODE
+from .protocols import HasNodeType, IDetailsViewModel
 
 
 # ===== ПУБЛИЧНОЕ API =====
@@ -28,4 +29,7 @@ __all__ = [
     "CoreError",
     "NotFoundError",
     "ValidationError",
+    # Протоколы
+    "HasNodeType",
+    "IDetailsViewModel",
 ]

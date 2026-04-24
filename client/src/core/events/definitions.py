@@ -16,6 +16,7 @@ from typing import Generic, List, Optional, Set, TypeVar
 
 from src.core.types.event_structures import EventData
 from src.core.types.nodes import NodeIdentifier, NodeType
+from src.core.types.protocols import IDetailsViewModel
 
 
 # ===== ТИПЫ =====
@@ -150,12 +151,16 @@ class ChildrenLoaded(EventData, Generic[T]):
 
 
 @dataclass(frozen=True, slots=True)
-class NodeDetailsLoaded(EventData, Generic[T]):
-    """Детальная информация об узле загружена."""
+class NodeDetailsLoaded(EventData):
+    """
+    Детальная информация об узле загружена и готова к отображению.
+
+    Содержит ViewModel, соответствующую протоколу IDetailsViewModel.
+    UI получает только то, что нужно для отображения.
+    """
 
     node: NodeIdentifier
-    payload: T
-    context: dict  # имена родителей для отображения иерархии
+    view_model: IDetailsViewModel
 
 
 # ---- Системные события (инфраструктура) ----

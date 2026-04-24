@@ -9,6 +9,7 @@
 from src.core import EventBus
 from src.core.events.definitions import NodeDetailsLoaded, ShowDetailsPanel
 from src.ui.details.panel import DetailsPanel
+from src.view_models.details import DetailsViewModel
 from utils.logger import get_logger
 
 
@@ -23,7 +24,7 @@ class DetailsUiHandler:
 
     Отвечает за:
     - Подписку на NodeDetailsLoaded
-    - Обновление DetailsPanel (шапка, вкладки)
+    - Обновление DetailsPanel (шапка, сетка)
     - Эмиссию ShowDetailsPanel для переключения с заглушки на панель
     """
 
@@ -53,15 +54,15 @@ class DetailsUiHandler:
 
     # ---- ОБРАБОТЧИКИ СОБЫТИЙ ----
     def _on_details_loaded(self, event: NodeDetailsLoaded) -> None:
-        """
-        Обновляет панель деталей при получении данных.
+        """Обновляет панель деталей при получении ViewModel."""
+        node = event.node
+        vm = event.view_model
 
-        Пока только логирует и показывает панель.
-        TODO: реализовать полноценное обновление панели:
-            - self._panel.update_header(event.node, event.context)
-            - self._panel.update_tabs(event.payload)
-        """
-        log.info(f"Детали загружены для {event.node.node_type.value}#{event.node.node_id}")
+        log.info(f"Детали загружены для {node.node_type.value}#{node.node_id}")
 
-        # Переключаем панель с заглушки на DetailsPanel
+        if not isinstance(vm, DetailsViewModel):
+            log.error(f"Ожидался DetailsViewModel, получен {type(vm).__name__}")
+            return
+
+        self._panel.update_content(vm, node)
         self._bus.emit(ShowDetailsPanel())

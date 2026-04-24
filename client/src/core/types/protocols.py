@@ -7,7 +7,7 @@
 """
 
 # ===== ИМПОРТЫ =====
-from typing import Protocol
+from typing import List, Protocol
 
 from .nodes import NodeType
 
@@ -22,3 +22,27 @@ class HasNodeType(Protocol):
     """
 
     NODE_TYPE: NodeType
+
+
+class IDetailsViewModel(Protocol):
+    """
+    Протокол для ViewModel панели деталей.
+
+    Определяет минимальный контракт, которому должна соответствовать
+    любая ViewModel, передаваемая в NodeDetailsLoaded.
+
+    UI-слой сам решает, какой конкретный тип использовать,
+    но ядро гарантирует наличие этих атрибутов.
+    """
+
+    @property
+    def header_title(self) -> str: ...
+
+    @property
+    def header_subtitle(self) -> str: ...
+
+    @property
+    def header_status_name(self) -> str | None: ...
+
+    @property
+    def grid_items(self) -> List[tuple[str, str]]: ...

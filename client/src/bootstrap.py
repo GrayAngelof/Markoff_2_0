@@ -142,7 +142,7 @@ class ApplicationBootstrap:
         log.success("EventBus создан")
 
     def _init_data(self) -> None:
-        """Инициализирует слой данных (EntityGraph, репозитории, ReferenceStore)."""
+        """Инициализирует слой данных (EntityGraph, репозитории)."""
         self._graph = EntityGraph(self._bus)
 
         self._complex_repo = ComplexRepository(self._graph)
@@ -157,7 +157,11 @@ class ApplicationBootstrap:
         self._api = ApiClient()
         log.success("ApiClient создан")
 
-        self._reference_store = ReferenceStore(self._api)
+        # Композиционный корень связывает слои: передаём loader'ы из ApiClient
+        self._reference_store = ReferenceStore(
+            building_loader=self._api.get_building_statuses,
+            room_loader=self._api.get_room_statuses,
+        )
         log.success("ReferenceStore создан")
 
         self._loader = DataLoader(self._bus, self._api, self._graph)

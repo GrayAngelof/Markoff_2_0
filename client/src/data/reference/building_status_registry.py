@@ -7,11 +7,10 @@
 """
 
 # ===== ИМПОРТЫ =====
-from typing import List
+from typing import Callable, List
 
 from src.data.reference.base import BaseRegistry
 from src.models import BuildingStatusDTO
-from src.services.api_client import ApiClient
 from utils.logger import get_logger
 
 
@@ -24,9 +23,13 @@ class BuildingStatusRegistry(BaseRegistry[BuildingStatusDTO]):
     """Реестр статусов зданий (read-only)."""
 
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
-    def __init__(self, api_client: ApiClient) -> None:
+    def __init__(self, loader: Callable[[], List[BuildingStatusDTO]]) -> None:
+        """
+        Args:
+            loader: Функция, загружающая список статусов зданий из API
+        """
         log.system("BuildingStatusRegistry инициализация")
-        super().__init__(api_client.get_building_statuses)
+        super().__init__(loader)
         log.system("BuildingStatusRegistry инициализирован")
 
     # ---- ЗАЩИЩЁННЫЕ МЕТОДЫ (ПЕРЕОПРЕДЕЛЕНИЕ) ----

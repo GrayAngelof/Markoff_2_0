@@ -9,7 +9,10 @@ ReferenceStore — фасад для доступа к справочным да
 Не содержит бизнес-логики, только данные.
 
 Пример:
-    store = ReferenceStore(api_client)
+    store = ReferenceStore(
+        building_loader=api_client.get_building_statuses,
+        room_loader=api_client.get_room_statuses,
+    )
     store.warmup()
     
     status = store.building_statuses.get(1)
@@ -17,9 +20,11 @@ ReferenceStore — фасад для доступа к справочным да
 """
 
 # ===== ИМПОРТЫ =====
+from typing import Callable, List
+
 from src.data.reference.building_status_registry import BuildingStatusRegistry
 from src.data.reference.room_status_registry import RoomStatusRegistry
-from src.services.api_client import ApiClient
+from src.models import BuildingStatusDTO, RoomStatusDTO
 from utils.logger import get_logger
 
 
@@ -32,12 +37,22 @@ class ReferenceStore:
     """Фасад для доступа к справочным данным."""
 
     # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
-    def __init__(self, api_client: ApiClient) -> None:
-        """Инициализирует фасад (без загрузки данных)."""
+    def __init__(
+        self,
+        building_loader: Callable[[], List[BuildingStatusDTO]],
+        room_loader: Callable[[], List[RoomStatusDTO]],
+    ) -> None:
+        """
+        Инициализирует фасад (без загрузки данных).
+
+        Args:
+            building_loader: Функция для загрузки статусов зданий
+            room_loader: Функция для загрузки статусов помещений
+        """
         log.system("ReferenceStore инициализация")
 
-        self._building_statuses = BuildingStatusRegistry(api_client)
-        self._room_statuses = RoomStatusRegistry(api_client)
+        self._building_statuses = BuildingStatusRegistry(building_loader)
+        self._room_statuses = RoomStatusRegistry(room_loader)
 
         log.system("ReferenceStore инициализирован (данные не загружены)")
 

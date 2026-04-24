@@ -96,6 +96,93 @@ core → models → data → services → projections → controllers → view m
 - Изменение данных только через владельца
 - Read-only доступ везде
 
+### **Статья 3.6. Import Policy (железобетонное правило)**
+> ИМПОРТЫ — ТОЛЬКО ВНИЗ, ЗАВИСИМОСТИ — ЧЕРЕЗ КОНСТРУКТОР
+
+#### **3.6.1. Иерархия импортов**
+```
+core
+  ↑
+models
+  ↑
+data
+  ↑
+services
+  ↑
+projections
+  ↑
+controllers
+  ↑
+ui
+```
+
+**Импорт только вниз по стрелке. Импорт вверх — архитектурное преступление.**
+
+```python
+# ✅ РАЗРЕШЕНО
+from src.data.reference_store import ReferenceStore
+from src.models import RoomDTO
+
+# ❌ ЗАПРЕЩЕНО
+from src.services.api_client import ApiClient  # внутри data
+from src.ui.tree.view import TreeView         # внутри controllers
+```
+
+#### **3.6.2. Запрет на «скрытые фасады» через `__init__.py`**
+```python
+# ❌ ПЛОХО (превращает пакет в глобальный комбайн зависимостей)
+# src/services/__init__.py
+from .api_client import ApiClient
+from .context_service import ContextService
+
+# ✅ ПРАВИЛЬНО
+# src/services/__init__.py — ПУСТОЙ или почти пустой
+```
+
+#### **3.6.3. Явный импорт из конкретного модуля**
+```python
+# ❌ НЕЛЬЗЯ
+from src.services import ApiClient
+from src.data import ReferenceStore
+
+# ✅ НУЖНО
+from src.services.api_client import ApiClient
+from src.data.reference_store import ReferenceStore
+```
+
+#### **3.6.4. Dependency Injection вместо импортов**
+```python
+# ✅ ПРАВИЛЬНО — передаём зависимости через конструктор
+store = ReferenceStore(
+    building_loader=api.get_building_statuses,
+    room_loader=api.get_room_statuses,
+)
+```
+
+#### **3.6.5. Границы слоёв**
+
+| Слой | Может импортировать | НЕ может импортировать |
+|------|---------------------|------------------------|
+| **data** | `from src.models import *` | `from src.services import *` |
+| **services** | `from src.data import *` | `from src.projections import *` |
+| **projections** | `from src.data import *`, `from src.models import *` | `from src.services import *` |
+
+#### **3.6.6. Проверка на нарушение**
+> «Если я удалю этот import — смогу ли я передать это через конструктор?»
+
+Если **да** → импорт лишний. Используй Dependency Injection.
+
+---
+
+## 🔥 **Golden Rules (мантра импортов)**
+
+1. **Никаких import из пакета** (`from x import *` или `from x import Y`)
+2. **Только точечные импорты** (`from x.y import Z`)
+3. **`__init__.py` не агрегирует зависимости**
+4. **Зависимости передаются через конструктор**
+5. **Слой не знает о слоях выше**
+6. **Если появился цикл — виноват не Python, а архитектура импортов**
+
 ---
 
 ## 🏛️ **РАЗДЕЛ 4: ПРАКТИКИ КОДИРОВАНИЯ**
@@ -237,7 +324,7 @@ _default_levels = {
 Любые поправки — через обсуждение и консенсус.
 Нарушать можно только с веской причиной и комментарием.
 
-**Да пребудет с нами чистая архитектура!** 🏛️
+**Да пребудет с нами чистая архитектура и чистые импорты!** 🏛️
 
 
 # ============================================

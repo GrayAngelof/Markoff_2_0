@@ -14,9 +14,9 @@ ContextService — сбор контекста для UI.
 """
 
 # ===== ИМПОРТЫ =====
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
-from src.core import NodeIdentifier, NodeType
+from src.core.types import NodeIdentifier, NodeType
 from src.data import (
     BuildingRepository,
     ComplexRepository,

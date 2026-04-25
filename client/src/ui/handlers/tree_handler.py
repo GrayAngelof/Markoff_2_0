@@ -7,7 +7,7 @@
 """
 
 # ===== ИМПОРТЫ =====
-from src.core import EventBus
+from src.core.event_bus import EventBus
 from src.core.events.definitions import ChildrenLoaded
 from src.core.types import ROOT_NODE
 from src.ui.tree.model import TreeModel

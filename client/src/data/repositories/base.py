@@ -21,7 +21,7 @@
 from abc import ABC
 from typing import Generic, List, TypeVar
 
-from src.core import NodeType, NotFoundError
+from src.core.types import NodeType, NotFoundError
 from src.core.ports.repository import Repository as CoreRepository
 from src.data.entity_graph import EntityGraph
 

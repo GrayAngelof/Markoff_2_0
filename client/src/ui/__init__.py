@@ -1,8 +1,17 @@
 # client/src/ui/__init__.py
 """
 UI слой приложения Markoff 2.0.
+
+Экспортирует только фасад AppWindow.
+Все внутренние компоненты доступны через соответствующие подмодули.
 """
 
-from src.ui.app_window import AppWindow
+# ===== ИМПОРТЫ =====
+from .app_window import AppWindow
 
-__all__ = ["AppWindow"]
+
+# ===== ПУБЛИЧНОЕ API =====
+__all__ = [
+    # Фасад UI слоя (создаёт и собирает все виджеты)
+    "AppWindow",
+]

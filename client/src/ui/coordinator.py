@@ -8,7 +8,7 @@
 """
 
 # ===== ИМПОРТЫ =====
-from src.core import EventBus
+from src.core.event_bus import EventBus
 from src.core.events.definitions import CollapseAllRequested, ShowDetailsPanel
 from src.ui.app_window import AppWindow
 from utils.logger import get_logger

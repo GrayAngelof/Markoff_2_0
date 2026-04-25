@@ -22,7 +22,7 @@ from collections import deque
 from threading import RLock
 from typing import Callable, Dict, Final, Iterable, List, Set, TypedDict
 
-from src.core import EventBus
+from src.core.event_bus import EventBus
 from src.core.events.definitions import DataInvalidated
 from src.core.rules.hierarchy import get_child_type
 from src.core.types import NodeType

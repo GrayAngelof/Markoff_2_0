@@ -18,9 +18,9 @@
 # ===== ИМПОРТЫ =====
 from typing import List, Optional, Union, cast
 
-from src.core import NodeType
+from src.core.types import NodeType
 from src.models import ComplexTreeDTO, ComplexDetailDTO
-from src.data.repositories.base import BaseRepository
+from .base import BaseRepository
 
 
 # ===== ТИПЫ =====

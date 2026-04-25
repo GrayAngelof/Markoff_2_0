@@ -9,7 +9,7 @@
 # ===== ИМПОРТЫ =====
 from typing import Callable, List
 
-from src.data.reference.base import BaseRegistry
+from .base import BaseRegistry
 from src.models import BuildingStatusDTO
 from utils.logger import get_logger
 

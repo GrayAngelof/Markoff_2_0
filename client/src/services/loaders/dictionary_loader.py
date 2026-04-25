@@ -9,7 +9,6 @@
 # ===== ИМПОРТЫ =====
 from typing import List, Optional
 
-from src.core.types.nodes import NodeID
 from src.data import EntityGraph
 from src.services.api_client import ApiClient
 from src.models import BuildingStatusDTO, RoomStatusDTO

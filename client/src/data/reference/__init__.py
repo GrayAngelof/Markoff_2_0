@@ -9,14 +9,12 @@
 ВНИМАНИЕ: Это ПРИВАТНЫЙ пакет.
 Не импортировать напрямую извне.
 Используйте ReferenceStore (src.data.reference_store) как фасад.
+
+ПРАВИЛО: Приватные пакеты не экспортируют публичное API.
 """
 
-from .base import BaseRegistry
-from .building_status_registry import BuildingStatusRegistry
-from .room_status_registry import RoomStatusRegistry
+# Пустой __init__ — только для обозначения пакета
+# Ничего не экспортируем!
 
-__all__ = [
-    "BaseRegistry",
-    "BuildingStatusRegistry",
-    "RoomStatusRegistry",
-]
+# Для внутреннего использования внутри data/reference/
+# импортируйте нужные классы напрямую из их модулей

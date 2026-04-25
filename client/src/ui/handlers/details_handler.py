@@ -6,7 +6,7 @@
 """
 
 # ===== ИМПОРТЫ =====
-from src.core import EventBus
+from src.core.event_bus import EventBus
 from src.core.events.definitions import NodeDetailsLoaded, ShowDetailsPanel
 from src.ui.details.panel import DetailsPanel
 from src.view_models.details import DetailsViewModel

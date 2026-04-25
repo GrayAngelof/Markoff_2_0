@@ -1,8 +1,14 @@
 # client/src/ui/common/__init__.py
 """
-Общие компоненты UI.
+Общие компоненты UI, используемые несколькими модулями.
 """
 
-from src.ui.common.central_widget import CentralWidget
+# ===== ИМПОРТЫ  =====
+from .central_widget import CentralWidget
 
-__all__ = ["CentralWidget"]
+
+# ===== ПУБЛИЧНОЕ API =====
+__all__ = [
+    # Центральный виджет с разделением на дерево и панель деталей
+    "CentralWidget", 
+]

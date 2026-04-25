@@ -9,9 +9,9 @@ TreeLoader — загрузка данных для дерева (ленивая
 # ===== ИМПОРТЫ =====
 from typing import List
 
-from src.core import EventBus, NodeType
+from src.core.event_bus import EventBus
 from src.core.events.definitions import DataLoadedKind
-from src.core.types.nodes import NodeID
+from src.core.types.nodes import NodeID, NodeType
 from src.data import EntityGraph
 from src.models import (
     ComplexTreeDTO,
@@ -20,8 +20,8 @@ from src.models import (
     RoomTreeDTO,
 )
 from src.services.api_client import ApiClient
-from src.services.loaders.base import BaseLoader
-from src.services.loaders.node_loader import NodeLoader
+from .base import BaseLoader
+from .node_loader import NodeLoader
 from utils.logger import get_logger
 
 

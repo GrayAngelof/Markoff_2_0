@@ -1,12 +1,19 @@
 # client/src/ui/tree/__init__.py
 """
 Модуль дерева объектов.
+
+Содержит модель и представление для иерархического дерева.
 """
 
-from src.ui.tree.view import TreeView
-from src.ui.tree.model import TreeModel
+# ===== ИМПОРТЫ =====
+from .model import TreeModel
+from .view import TreeView
 
+
+# ===== ПУБЛИЧНОЕ API =====
 __all__ = [
-    "TreeView",
+    # Модель данных для QTreeView
     "TreeModel",
+    # Виджет дерева с эмиссией событий через EventBus
+    "TreeView",
 ]

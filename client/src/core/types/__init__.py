@@ -2,33 +2,33 @@
 """
 Публичное API типов ядра.
 
-Экспортируем только самые базовые типы.
-Остальное импортируется из соответствующих подмодулей:
+ЕДИНСТВЕННЫЙ способ импорта типов:
+    from src.core.types import NodeType, NodeIdentifier, EventData, CoreError
 
-    from src.core.types.nodes import NodeType, NodeIdentifier
-    from src.core.types.event_structures import EventData
-    from src.core.types.exceptions import NotFoundError, SerializationError
+Также доступны:
+    from src.core.types import ROOT_NODE, HasNodeType, IDetailsViewModel
 """
 
 # ===== ИМПОРТЫ =====
 from .event_structures import EventData
-from .exceptions import CoreError, NotFoundError, ValidationError
+from .exceptions import CoreError, NotFoundError, ValidationError, SerializationError
 from .nodes import NodeIdentifier, NodeType, ROOT_NODE
 from .protocols import HasNodeType, IDetailsViewModel
 
 
 # ===== ПУБЛИЧНОЕ API =====
 __all__ = [
-    # Базовые типы (нужны везде)
-    "NodeType",
-    "NodeIdentifier",
-    "ROOT_NODE",
-    # Структуры событий
+    # Базовые структуры событий
     "EventData",
-    # Базовые исключения
+    # Исключения
     "CoreError",
     "NotFoundError",
     "ValidationError",
+    "SerializationError",
+    # Узлы и идентификаторы
+    "NodeIdentifier",
+    "NodeType",
+    "ROOT_NODE",
     # Протоколы
     "HasNodeType",
     "IDetailsViewModel",

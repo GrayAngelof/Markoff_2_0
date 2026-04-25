@@ -2,10 +2,18 @@
 """
 Проекции — слой преобразования данных для UI.
 
-Содержит:
-- TreeProjection — построение иерархического дерева TreeNode
-- TreeNode — узел дерева для отображения
-- DetailsProjection — сборка ViewModel для панели деталей
+Проекции преобразуют "сырые" DTO из data слоя в структуры,
+удобные для отображения в UI:
+- TreeProjection — строит иерархическое дерево TreeNode из репозиториев
+- TreeNode — узел дерева с методами навигации (родитель, дети, поиск)
+- DetailsProjection — собирает DetailsViewModel из DTO и справочников
+
+ЕДИНСТВЕННЫЙ способ импорта проекций:
+    from src.projections import TreeProjection, TreeNode, DetailsProjection
+
+ПРИМЕЧАНИЕ:
+    Проекции не содержат бизнес-логики, только преобразование данных.
+    Не предназначены для прямого вызова из UI — используйте контроллеры.
 """
 
 # ===== ИМПОРТЫ =====
@@ -16,7 +24,12 @@ from .tree_node import TreeNode
 
 # ===== ПУБЛИЧНОЕ API =====
 __all__ = [
-    "DetailsProjection",
+    # Преобразование дерева (репозитории → TreeNode)
     "TreeProjection",
+    
+    # Узел дерева (навигация, хранение данных)
     "TreeNode",
+    
+    # Преобразование деталей (DTO + справочники → DetailsViewModel)
+    "DetailsProjection",
 ]

@@ -8,21 +8,9 @@ View Models — контракты данных между бизнес-логи
 
 # ===== ИМПОРТЫ =====
 from .details import DetailsViewModel, HeaderViewModel, InfoGridItem
-from .lists import BuildingListItem, FloorListItem, RoomListItem
-from .statistics import BuildingStatisticsVM, ComplexStatisticsVM, FloorStatisticsVM, RoomTypeStat
-
 
 # ===== ПУБЛИЧНОЕ API =====
 __all__ = [
-    # Статистика
-    "BuildingStatisticsVM",
-    "ComplexStatisticsVM",
-    "FloorStatisticsVM",
-    "RoomTypeStat",
-    # Списки
-    "BuildingListItem",
-    "FloorListItem",
-    "RoomListItem",
     # Детали
     "DetailsViewModel",
     "HeaderViewModel",

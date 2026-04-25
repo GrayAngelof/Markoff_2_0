@@ -1,6 +1,14 @@
 # client/src/ui/main_window/__init__.py
-"""Публичное API модуля main_window."""
+"""
+Компоненты главного окна приложения.
+"""
 
-from src.ui.main_window.window import MainWindow
+# ===== ИМПОРТЫ =====
+from .window import MainWindow
 
-__all__ = ["MainWindow"]
+
+# ===== ПУБЛИЧНОЕ API =====
+__all__ = [
+    # Главное окно приложения (пустая оболочка)
+    "MainWindow",
+]

@@ -16,8 +16,8 @@ DataLoader — фасад загрузки данных.
 # ===== ИМПОРТЫ =====
 from typing import List, Optional, Dict
 
-from src.core import EventBus, NodeType
-from src.core.types.nodes import NodeID
+from src.core.event_bus import EventBus
+from src.core.types.nodes import NodeID, NodeType
 from src.data import EntityGraph
 from src.services.api_client import ApiClient
 from src.services.loaders.physical_loader import PhysicalLoader

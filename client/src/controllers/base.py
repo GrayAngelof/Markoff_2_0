@@ -12,7 +12,7 @@
 # ===== ИМПОРТЫ =====
 from typing import Callable, List, Optional, TypeVar, cast
 
-from src.core import EventBus
+from src.core.event_bus import EventBus
 from src.core.events.definitions import DataError
 from src.core.types import EventData, NodeIdentifier
 from utils.logger import get_logger

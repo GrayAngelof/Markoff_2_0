@@ -1,17 +1,13 @@
 # client/src/ui/details/tabs/__init__.py
 """
-Пакет вкладок панели детальной информации.
-Экспортирует все вкладки для использования в DetailsTabs.
+ПРИВАТНЫЙ ПАКЕТ: вкладки панели детальной информации.
+
+Вкладки являются внутренними компонентами DetailsPanel.
+Никогда не импортировать из этого пакета напрямую.
+DetailsPanel управляет вкладками и их отображением.
 """
 
-from src.ui.details.tabs.physics import PhysicsTab
-from src.ui.details.tabs.legal import LegalTab
-from src.ui.details.tabs.safety import SafetyTab
-from src.ui.details.tabs.documents import DocumentsTab
+# Пустой файл — только для обозначения пакета
+# Ничего не экспортируем!
 
-__all__ = [
-    "PhysicsTab",
-    "LegalTab",
-    "SafetyTab",
-    "DocumentsTab",
-]
+__all__: list[str] = []

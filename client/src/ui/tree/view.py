@@ -14,7 +14,7 @@ from typing import Optional
 from PySide6.QtCore import QModelIndex, Slot
 from PySide6.QtWidgets import QTreeView
 
-from src.core import EventBus
+from src.core.event_bus import EventBus
 from src.core.events import NodeCollapsed, NodeExpanded, NodeSelected
 from src.projections.tree_node import TreeNode
 from utils.logger import get_logger

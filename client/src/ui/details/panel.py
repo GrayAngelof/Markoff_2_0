@@ -15,7 +15,7 @@ from typing import Dict, Optional
 
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
-from src.core import EventBus
+from src.core.event_bus import EventBus
 from src.core.types.nodes import NodeIdentifier
 from src.ui.details.details_tabs import DetailsTabs
 from src.ui.details.header import HeaderWidget

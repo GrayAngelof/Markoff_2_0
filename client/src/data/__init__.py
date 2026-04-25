@@ -2,20 +2,24 @@
 """
 Публичное API Data слоя.
 
-Экспортирует:
-- EntityGraph (фасад графа) — для низкоуровневого доступа
-- Репозитории — для высокоуровневого доступа к данным
-- ReferenceStore — справочные данные (статусы, типы и т.д.)
-- Статистику
+Data слой отвечает за хранение, кэширование и доступ к данным:
+- EntityGraph — графовое хранилище сущностей с отслеживанием связей
+- Репозитории — высокоуровневый доступ к данным (CRUD + навигация по дереву)
+- ReferenceStore — read-only справочники (статусы, типы)
 
-Внутренности (graph/*) не доступны напрямую.
+ЕДИНСТВЕННЫЙ способ импорта из data слоя:
+    from src.data import EntityGraph, ComplexRepository, ReferenceStore
+
+ПРИМЕЧАНИЕ:
+    - BaseRepository — внутренняя деталь, не экспортируется
+    - graph/* — приватный пакет, не импортировать напрямую
+    - reference/ — приватный пакет, используйте ReferenceStore как фасад
 """
 
 # ===== ИМПОРТЫ =====
 from .entity_graph import EntityGraph, EntityGraphStats
 from .reference_store import ReferenceStore
 from .repositories import (
-    BaseRepository,
     BuildingRepository,
     ComplexRepository,
     FloorRepository,
@@ -25,15 +29,18 @@ from .repositories import (
 
 # ===== ПУБЛИЧНОЕ API =====
 __all__ = [
-    # Фасад графа
+    # Фасад графа (низкоуровневое хранилище сущностей)
     "EntityGraph",
+    
+    # Статистика состояния графа
     "EntityGraphStats",
-    # Репозитории
-    "BaseRepository",
-    "BuildingRepository",
-    "ComplexRepository",
-    "FloorRepository",
-    "RoomRepository",
-    # Справочные данные
+    
+    # Репозитории (высокоуровневый доступ к данным)
+    "BuildingRepository",   # Корпуса
+    "ComplexRepository",    # Комплексы (корень иерархии)
+    "FloorRepository",      # Этажи
+    "RoomRepository",       # Помещения
+    
+    # Справочные данные (read-only)
     "ReferenceStore",
 ]

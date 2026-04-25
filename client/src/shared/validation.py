@@ -9,7 +9,7 @@
 # ===== ИМПОРТЫ =====
 from typing import Any, Optional
 
-from src.core import NodeIdentifier, NodeType
+from src.core.types import NodeIdentifier, NodeType
 from src.core.types.exceptions import ValidationError
 from utils.logger import get_logger
 

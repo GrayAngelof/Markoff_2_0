@@ -9,12 +9,11 @@ ConnectionService — мониторинг соединения.
 
 # ===== ИМПОРТЫ =====
 import threading
-import time
 from typing import Optional
 
-from src.core import EventBus
+from src.core.event_bus import EventBus
 from src.core.events.definitions import ConnectionChanged
-from src.services.api_client import ApiClient
+from .api_client import ApiClient
 from utils.logger import get_logger
 
 

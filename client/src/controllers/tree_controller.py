@@ -13,7 +13,7 @@ TreeController — управление деревом объектов.
 # ===== ИМПОРТЫ =====
 from typing import List, Optional, Set
 
-from src.core import EventBus
+from src.core.event_bus import EventBus
 from src.core.events.definitions import (
     ChildrenLoaded,
     CollapseAllRequested,

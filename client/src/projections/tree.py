@@ -12,7 +12,7 @@
 """
 
 # ===== ИМПОРТЫ =====
-from typing import Any, List, Optional
+from typing import Any, List
 
 from src.core.types import NodeType
 from src.data.repositories import (

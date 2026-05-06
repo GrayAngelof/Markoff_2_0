@@ -9,28 +9,19 @@
 from src.core.event_bus import EventBus
 from src.core.events.definitions import NodeDetailsLoaded, ShowDetailsPanel
 from src.ui.details.panel import DetailsPanel
-from src.view_models.details import DetailsViewModel
+from src.view_models.details import DetailsViewModel, HeaderViewModel, InfoGridItem
 from utils.logger import get_logger
 
 
-# ===== КОНСТАНТЫ =====
 log = get_logger(__name__)
 
 
-# ===== КЛАСС =====
 class DetailsUiHandler:
     """
     Обработчик событий панели деталей.
-
-    Отвечает за:
-    - Подписку на NodeDetailsLoaded
-    - Обновление DetailsPanel (шапка, сетка)
-    - Эмиссию ShowDetailsPanel для переключения с заглушки на панель
     """
 
-    # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
     def __init__(self, bus: EventBus, panel: DetailsPanel) -> None:
-        """Инициализирует обработчик."""
         log.system("DetailsUiHandler инициализация")
         self._bus = bus
         self._panel = panel
@@ -38,31 +29,33 @@ class DetailsUiHandler:
         log.system("DetailsUiHandler инициализирован")
 
     def start(self) -> None:
-        """Подписывается на события."""
         log.info("Запуск DetailsUiHandler")
         sub = self._bus.subscribe(NodeDetailsLoaded, self._on_details_loaded)
         self._subscriptions.append(sub)
         log.success("DetailsUiHandler запущен")
 
     def cleanup(self) -> None:
-        """Отписывается от событий."""
         log.info("Очистка DetailsUiHandler")
         for sub in self._subscriptions:
             sub()
         self._subscriptions.clear()
         log.success("DetailsUiHandler очищен")
 
-    # ---- ОБРАБОТЧИКИ СОБЫТИЙ ----
     def _on_details_loaded(self, event: NodeDetailsLoaded) -> None:
-        """Обновляет панель деталей при получении ViewModel."""
+        """Обновляет панель деталей, преобразуя IDetailsViewModel в DetailsViewModel."""
         node = event.node
-        vm = event.view_model
+        proto = event.view_model  # IDetailsViewModel
 
         log.info(f"Детали загружены для {node.node_type.value}#{node.node_id}")
 
-        if not isinstance(vm, DetailsViewModel):
-            log.error(f"Ожидался DetailsViewModel, получен {type(vm).__name__}")
-            return
+        # Преобразуем протокол в DetailsViewModel
+        header = HeaderViewModel(
+            title=proto.header_title,
+            subtitle=proto.header_subtitle,
+            status_name=proto.header_status_name,
+        )
+        grid = [InfoGridItem(label, value) for label, value in proto.grid_items]
+        vm = DetailsViewModel(header=header, grid=grid)
 
         self._panel.update_content(vm, node)
         self._bus.emit(ShowDetailsPanel())

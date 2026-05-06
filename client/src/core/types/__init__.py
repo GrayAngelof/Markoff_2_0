@@ -12,8 +12,10 @@
 # ===== ИМПОРТЫ =====
 from .event_structures import EventData
 from .exceptions import CoreError, NotFoundError, ValidationError, SerializationError
-from .nodes import NodeIdentifier, NodeType, ROOT_NODE
+from .structure import NodeIdentifier, NodeType, ROOT_NODE
 from .protocols import HasNodeType, IDetailsViewModel
+from .reference_data import ReferenceDataType
+from .reference_entity import ReferenceEntityType
 
 
 # ===== ПУБЛИЧНОЕ API =====
@@ -32,4 +34,8 @@ __all__ = [
     # Протоколы
     "HasNodeType",
     "IDetailsViewModel",
+    # reference_data
+    "ReferenceDataType",
+    # reference_entity
+    "ReferenceEntityType", 
 ]

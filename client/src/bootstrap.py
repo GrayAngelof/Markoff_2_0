@@ -1,4 +1,3 @@
-# client/src/bootstrap.py
 """
 Инициализация всех компонентов приложения.
 
@@ -36,6 +35,7 @@ from src.data import (
 from src.projections.details_projection import DetailsProjection
 from src.projections.tree import TreeProjection
 from src.services import ApiClient, ConnectionService, DataLoader
+from src.services.loaders.dictionary_loader import DictionaryLoader
 from src.ui.app_window import AppWindow
 from src.ui.coordinator import UiCoordinator
 from src.ui.handlers.details_handler import DetailsUiHandler
@@ -43,11 +43,9 @@ from src.ui.handlers.tree_handler import TreeUiHandler
 from utils.logger import get_logger
 
 
-# ===== КОНСТАНТЫ =====
 log = get_logger(__name__)
 
 
-# ===== КЛАСС =====
 class ApplicationBootstrap:
     """
     Загрузчик всех компонентов приложения — композиционный корень.
@@ -55,12 +53,11 @@ class ApplicationBootstrap:
     Отвечает за:
     - Создание экземпляров всех слоёв в правильном порядке
     - Настройку зависимостей (Dependency Injection)
-    - Передачу зависимостей в UI
+    - Передачу зависимозей в UI
     - Запуск фоновых сервисов ПОСЛЕ того, как UI подписался на события
     - Очистку ресурсов при завершении
     """
 
-    # ---- ЖИЗНЕННЫЙ ЦИКЛ ----
     def __init__(self, app: QApplication) -> None:
         """Инициализирует все компоненты приложения."""
         log.info("=" * 60)
@@ -103,29 +100,24 @@ class ApplicationBootstrap:
             self._connection_service.stop()
             log.api("ConnectionService остановлен")
 
-            # Очистка UI обработчиков
             self._tree_ui_handler.cleanup()
             self._details_ui_handler.cleanup()
             self._ui_coordinator.cleanup()
 
-            # Очистка контроллеров
             self._tree_controller.cleanup()
             self._details_controller.cleanup()
             self._refresh_controller.cleanup()
             self._connection_controller.cleanup()
             log.data("Контроллеры очищены")
 
-            # Очистка ядра
             self._bus.clear()
             log.data("Шина очищена")
 
-            # Очистка данных
             self._graph.clear()
             log.data("EntityGraph очищен")
 
         log.shutdown("Ресурсы очищены")
 
-    # ---- ПУБЛИЧНОЕ API ----
     def get_window(self) -> QMainWindow:
         """Возвращает главное окно для отображения."""
         return self._app_window.get_window()
@@ -134,7 +126,6 @@ class ApplicationBootstrap:
         """Возвращает шину событий (для отладки)."""
         return self._bus
 
-    # ---- ВНУТРЕННИЕ МЕТОДЫ ----
     def _init_core(self) -> None:
         """Инициализирует ядро (EventBus)."""
         self._bus = EventBus()
@@ -157,12 +148,21 @@ class ApplicationBootstrap:
         self._api = ApiClient()
         log.success("ApiClient создан")
 
-        # Композиционный корень связывает слои: передаём loader'ы из ApiClient
+        # Создаём DictionaryLoader для загрузки справочников
+        self._dictionary_loader = DictionaryLoader(self._api, self._graph)
+        log.success("DictionaryLoader создан")
+
+        # ReferenceStore с ВСЕМИ 7 справочниками
         self._reference_store = ReferenceStore(
-            building_loader=self._api.get_building_statuses,
-            room_loader=self._api.get_room_statuses,
+            building_loader=self._dictionary_loader.load_building_statuses,
+            room_loader=self._dictionary_loader.load_room_statuses,
+            contract_loader=self._dictionary_loader.load_contract_statuses,
+            equipment_loader=self._dictionary_loader.load_equipment_statuses,
+            payment_loader=self._dictionary_loader.load_payment_statuses,
+            placement_loader=self._dictionary_loader.load_placement_statuses,
+            counterparty_type_loader=self._dictionary_loader.load_counterparty_types,
         )
-        log.success("ReferenceStore создан")
+        log.success("ReferenceStore создан (7 справочников)")
 
         self._loader = DataLoader(self._bus, self._api, self._graph)
         log.success("DataLoader создан")
@@ -211,16 +211,13 @@ class ApplicationBootstrap:
         self._app_window = AppWindow(self._bus)
         log.success("AppWindow создан")
 
-        # Получаем виджеты
         tree_view = self._app_window.get_tree_view()
         details_panel = self._app_window.get_details_panel()
 
-        # Создаём UI обработчики
         self._tree_ui_handler = TreeUiHandler(self._bus, tree_view)
         self._details_ui_handler = DetailsUiHandler(self._bus, details_panel)
         self._ui_coordinator = UiCoordinator(self._bus, self._app_window)
 
-        # Запускаем их (подписка на события)
         self._tree_ui_handler.start()
         self._details_ui_handler.start()
         self._ui_coordinator.start()

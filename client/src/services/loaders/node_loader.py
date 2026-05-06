@@ -10,7 +10,7 @@ NodeLoader — чистая загрузка физической иерархи
 # ===== ИМПОРТЫ =====
 from typing import List, Optional, TYPE_CHECKING
 
-from src.core.types.nodes import NodeID
+from src.core.types.structure import NodeID
 from src.services.api_client import ApiClient
 from utils.logger import get_logger
 

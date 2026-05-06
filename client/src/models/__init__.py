@@ -5,56 +5,66 @@
 DTO = иммутабельные структуры данных без логики.
 Используются как контракт между API → data → projections → UI.
 
+СТРУКТУРА (зеркалирует бэкенд):
+- structure/    → физическая иерархия (комплексы, корпуса, этажи, помещения)
+- reference/    → справочники (статусы, типы)
+- entity/       → бизнес-сущности (контрагенты, ответственные лица)
+
 ВАЖНО:
 - Только данные
 - Без бизнес-логики
 - Без UI-логики
 - Без маппинга сложных преобразований
-
-Текущее состояние:
-DTO пока сгруппированы в единый пакет.
-В будущем планируется разделение на:
-    - entities/   (бизнес-сущности)
-    - reference/  (справочники)
 """
 
-# ===== ENTITY DTO (основные бизнес-сущности) =====
-from .complex import ComplexTreeDTO, ComplexDetailDTO
-from .building import BuildingTreeDTO, BuildingDetailDTO
-from .floor import FloorTreeDTO, FloorDetailDTO
-from .room import RoomTreeDTO, RoomDetailDTO
+# ===== STRUCTURE DTO (физическая иерархия) =====
+from .structure import (
+    ComplexTreeDTO,
+    ComplexDetailDTO,
+    BuildingTreeDTO,
+    BuildingDetailDTO,
+    FloorTreeDTO,
+    FloorDetailDTO,
+    RoomTreeDTO,
+    RoomDetailDTO,
+)
 
 # ===== REFERENCE DTO (справочники) =====
-from .status import BuildingStatusDTO, RoomStatusDTO
+from .reference import (
+    BuildingStatusDTO,
+    RoomStatusDTO,
+    ContractStatusDTO,
+    EquipmentStatusDTO,
+    PaymentStatusDTO,
+    PlacementStatusDTO,
+    CounterpartyTypeDTO,
+)
 
-# ===== TODO: будущие справочники =====
-# TODO: SensorTypeDTO
-# TODO: RoomTypeDTO
-# TODO: FloorTypeDTO
-# TODO: PositionDTO (если появится)
-
-# TODO: РАЗДЕЛИТЬ ПАКЕТЫ НА:
-# models/entities/
-# models/reference/
+# ===== ENTITY DTO (бизнес-сущности) =====
+from .entity import (
+    CounterpartyDTO,
+    ResponsiblePersonDTO,
+)
 
 __all__ = [
-    # Complex
+    # Structure
     "ComplexTreeDTO",
     "ComplexDetailDTO",
-
-    # Building
     "BuildingTreeDTO",
     "BuildingDetailDTO",
-
-    # Floor
     "FloorTreeDTO",
     "FloorDetailDTO",
-
-    # Room
     "RoomTreeDTO",
     "RoomDetailDTO",
-
-    # Reference (status)
+    # Reference
     "BuildingStatusDTO",
     "RoomStatusDTO",
+    "ContractStatusDTO",
+    "EquipmentStatusDTO",
+    "PaymentStatusDTO",
+    "PlacementStatusDTO",
+    "CounterpartyTypeDTO",
+    # Entity
+    "CounterpartyDTO",
+    "ResponsiblePersonDTO",
 ]

@@ -31,6 +31,11 @@ from src.models import (
     RoomDetailDTO,
     BuildingStatusDTO,
     RoomStatusDTO,
+    ContractStatusDTO,
+    EquipmentStatusDTO,
+    PaymentStatusDTO,
+    PlacementStatusDTO,
+    CounterpartyTypeDTO,
 )
 
 
@@ -88,6 +93,22 @@ def to_building_status_list(data: List[dict]) -> List[BuildingStatusDTO]:
 def to_room_status_list(data: List[dict]) -> List[RoomStatusDTO]:
     """Преобразует список JSON объектов в список RoomStatusDTO."""
     return [RoomStatusDTO.from_dict(item) for item in data]
+
+def to_contract_status_list(data: list) -> List[ContractStatusDTO]:
+    """Преобразует список словарей в список ContractStatusDTO."""
+    return [ContractStatusDTO.from_dict(item) for item in data] if data else []
+
+def to_equipment_status_list(data: list) -> List[EquipmentStatusDTO]:
+    return [EquipmentStatusDTO.from_dict(item) for item in data] if data else []
+
+def to_payment_status_list(data: list) -> List[PaymentStatusDTO]:
+    return [PaymentStatusDTO.from_dict(item) for item in data] if data else []
+
+def to_placement_status_list(data: list) -> List[PlacementStatusDTO]:
+    return [PlacementStatusDTO.from_dict(item) for item in data] if data else []
+
+def to_counterparty_type_list(data: list) -> List[CounterpartyTypeDTO]:
+    return [CounterpartyTypeDTO.from_dict(item) for item in data] if data else []
 
 # ===== УНИВЕРСАЛЬНЫЙ КОНВЕРТЕР =====
 def convert_optional(data: Optional[dict], converter, default=None):

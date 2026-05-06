@@ -9,12 +9,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.core.config import settings
-from src.routers import dictionary_router, physical_router
+from src.infrastructure.config import settings
+
+# Новые роутеры
+from src.app.reference_data import router as reference_data_router
+from src.app.reference_entity.counterparty import router as counterparty_router
+from src.app.reference_entity.responsible_person import router as responsible_person_router
+from src.app.structure import router as structure_router
 
 
 # ===== КОНСТАНТЫ =====
-# Создаём экземпляр FastAPI приложения
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
@@ -26,7 +30,6 @@ app = FastAPI(
 
 
 # ===== MIDDLEWARE =====
-# Настройка CORS (Cross-Origin Resource Sharing)
 if settings.BACKEND_CORS_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
@@ -38,23 +41,25 @@ if settings.BACKEND_CORS_ORIGINS:
 
 
 # ===== РОУТЕРЫ =====
-app.include_router(dictionary_router)
-app.include_router(physical_router)
+# Reference Data (справочники)
+app.include_router(reference_data_router)
+
+# Reference Entity (сущности по ID)
+app.include_router(counterparty_router)
+app.include_router(responsible_person_router)
+
+# Structure (физическая иерархия)
+app.include_router(structure_router)
 
 
 # ===== ЭНДПОИНТЫ =====
 @app.get("/", tags=["root"])
 async def root() -> dict:
-    """
-    Корневой эндпоинт для проверки работы API.
-
-    Returns:
-        Приветственное сообщение согласно ТЗ: {"message": "Markoff API is running"}
-    """
+    """Корневой эндпоинт для проверки работы API."""
     return {"message": "Markoff API is running"}
 
 
 @app.get("/health", tags=["health"])
 async def health_check() -> dict:
-    """Эндпоинт для проверки здоровья сервиса (используется Docker для healthcheck)."""
+    """Эндпоинт для проверки здоровья сервиса."""
     return {"status": "healthy"}

@@ -9,7 +9,7 @@
 """
 
 # ===== ИМПОРТЫ =====
-from src.core.types.nodes import NodeID
+from src.core.types.structure import NodeID
 
 
 # ===== ЭНДПОИНТЫ =====
@@ -25,7 +25,7 @@ class Endpoints:
     @staticmethod
     def complexes() -> str:
         """Список всех комплексов."""
-        return "/physical"
+        return "/physical/complexes"
 
     @staticmethod
     def buildings(complex_id: NodeID) -> str:
@@ -65,13 +65,31 @@ class Endpoints:
     # ---- Справочники (dictionary) ----
     @staticmethod
     def building_statuses() -> str:
-        """Справочник статусов зданий."""
-        return "/dictionary/building-statuses"
+        return "/reference-data/building-statuses"
 
     @staticmethod
     def room_statuses() -> str:
-        """Справочник статусов помещений."""
-        return "/dictionary/room-statuses"
+        return "/reference-data/room-statuses"
+
+    @staticmethod
+    def contract_statuses() -> str:
+        return "/reference-data/contract-statuses"
+
+    @staticmethod
+    def equipment_statuses() -> str:
+        return "/reference-data/equipment-statuses"
+
+    @staticmethod
+    def payment_statuses() -> str:
+        return "/reference-data/payment-statuses"
+
+    @staticmethod
+    def placement_statuses() -> str:
+        return "/reference-data/placement-statuses"
+
+    @staticmethod
+    def counterparty_types() -> str:
+        return "/reference-data/counterparty-types"
 
     # ---- Мониторинг ----
     @staticmethod

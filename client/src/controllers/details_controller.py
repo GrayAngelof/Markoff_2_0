@@ -33,7 +33,7 @@ from src.core.events.definitions import (
     NodeDetailsLoaded,
     NodeSelected,
 )
-from src.core.types.nodes import NodeIdentifier, NodeType
+from src.core.types.structure import NodeIdentifier, NodeType
 from src.projections.details_projection import DetailsProjection
 from src.services.data_loader import DataLoader
 from src.view_models.details import DetailsViewModel

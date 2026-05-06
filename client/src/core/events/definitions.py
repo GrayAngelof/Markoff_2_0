@@ -15,7 +15,7 @@ from enum import Enum
 from typing import Generic, List, Optional, Set, TypeVar
 
 from src.core.types.event_structures import EventData
-from src.core.types.nodes import NodeIdentifier, NodeType
+from src.core.types.structure import NodeIdentifier, NodeType
 from src.core.types.protocols import IDetailsViewModel
 
 

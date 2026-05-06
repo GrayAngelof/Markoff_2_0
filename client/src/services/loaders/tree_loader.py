@@ -11,7 +11,7 @@ from typing import List
 
 from src.core.event_bus import EventBus
 from src.core.events.definitions import DataLoadedKind
-from src.core.types.nodes import NodeID, NodeType
+from src.core.types.structure import NodeID, NodeType
 from src.data import EntityGraph
 from src.models import (
     ComplexTreeDTO,

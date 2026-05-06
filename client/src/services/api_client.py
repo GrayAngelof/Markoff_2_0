@@ -22,7 +22,7 @@ ApiClient — фасад HTTP клиента.
 # ===== ИМПОРТЫ =====
 from typing import List, Optional
 
-from src.core.types.nodes import NodeID
+from src.core.types.structure import NodeID
 from src.models import (
     ComplexTreeDTO,
     ComplexDetailDTO,
@@ -34,6 +34,11 @@ from src.models import (
     RoomDetailDTO,
     BuildingStatusDTO,
     RoomStatusDTO,
+    ContractStatusDTO,
+    EquipmentStatusDTO,
+    PaymentStatusDTO,
+    PlacementStatusDTO,
+    CounterpartyTypeDTO,
 )
 from src.services.api.converters import (
     to_complex_tree_list,
@@ -228,13 +233,10 @@ class ApiClient:
             log.error(f"Ошибка загрузки помещения {room_id}: {e}")
             raise ApiError(f"Failed to load room detail {room_id}: {e}") from e
 
-    # ---- СПРАВОЧНИКИ (DICTIONARY) ----
+    # ---- СПРАВОЧНИКИ (REFERENCE DATA) ----
     def get_building_statuses(self) -> List[BuildingStatusDTO]:
         """
-        GET /dictionary/building-statuses → справочник статусов зданий.
-        
-        Returns:
-            List[BuildingStatusDTO]: список статусов зданий
+        GET /reference-data/building-statuses → справочник статусов зданий.
         """
         try:
             data = self._http.get(Endpoints.building_statuses())
@@ -248,13 +250,9 @@ class ApiClient:
             log.error(f"Ошибка загрузки статусов зданий: {e}")
             raise ApiError(f"Failed to load building statuses: {e}") from e
 
-
     def get_room_statuses(self) -> List[RoomStatusDTO]:
         """
-        GET /dictionary/room-statuses → справочник статусов помещений.
-        
-        Returns:
-            List[RoomStatusDTO]: список статусов помещений
+        GET /reference-data/room-statuses → справочник статусов помещений.
         """
         try:
             data = self._http.get(Endpoints.room_statuses())
@@ -268,6 +266,91 @@ class ApiClient:
             log.error(f"Ошибка загрузки статусов помещений: {e}")
             raise ApiError(f"Failed to load room statuses: {e}") from e
 
+    def get_contract_statuses(self) -> List[ContractStatusDTO]:
+        """
+        GET /reference-data/contract-statuses → справочник статусов договоров.
+        """
+        try:
+            data = self._http.get(Endpoints.contract_statuses())
+            from src.services.api.converters import to_contract_status_list
+            result = to_contract_status_list(data) if isinstance(data, list) else []
+            log.api(f"GET contract statuses: {len(result)} записей")
+            return result
+        except ConnectionError:
+            log.error("Сервер недоступен при загрузке статусов договоров")
+            raise
+        except Exception as e:
+            log.error(f"Ошибка загрузки статусов договоров: {e}")
+            raise ApiError(f"Failed to load contract statuses: {e}") from e
+
+    def get_equipment_statuses(self) -> List[EquipmentStatusDTO]:
+        """
+        GET /reference-data/equipment-statuses → справочник статусов оборудования.
+        """
+        try:
+            data = self._http.get(Endpoints.equipment_statuses())
+            from src.services.api.converters import to_equipment_status_list
+            result = to_equipment_status_list(data) if isinstance(data, list) else []
+            log.api(f"GET equipment statuses: {len(result)} записей")
+            return result
+        except ConnectionError:
+            log.error("Сервер недоступен при загрузке статусов оборудования")
+            raise
+        except Exception as e:
+            log.error(f"Ошибка загрузки статусов оборудования: {e}")
+            raise ApiError(f"Failed to load equipment statuses: {e}") from e
+
+    def get_payment_statuses(self) -> List[PaymentStatusDTO]:
+        """
+        GET /reference-data/payment-statuses → справочник статусов платежей.
+        """
+        try:
+            data = self._http.get(Endpoints.payment_statuses())
+            from src.services.api.converters import to_payment_status_list
+            result = to_payment_status_list(data) if isinstance(data, list) else []
+            log.api(f"GET payment statuses: {len(result)} записей")
+            return result
+        except ConnectionError:
+            log.error("Сервер недоступен при загрузке статусов платежей")
+            raise
+        except Exception as e:
+            log.error(f"Ошибка загрузки статусов платежей: {e}")
+            raise ApiError(f"Failed to load payment statuses: {e}") from e
+
+    def get_placement_statuses(self) -> List[PlacementStatusDTO]:
+        """
+        GET /reference-data/placement-statuses → справочник статусов размещения.
+        """
+        try:
+            data = self._http.get(Endpoints.placement_statuses())
+            from src.services.api.converters import to_placement_status_list
+            result = to_placement_status_list(data) if isinstance(data, list) else []
+            log.api(f"GET placement statuses: {len(result)} записей")
+            return result
+        except ConnectionError:
+            log.error("Сервер недоступен при загрузке статусов размещения")
+            raise
+        except Exception as e:
+            log.error(f"Ошибка загрузки статусов размещения: {e}")
+            raise ApiError(f"Failed to load placement statuses: {e}") from e
+
+    def get_counterparty_types(self) -> List[CounterpartyTypeDTO]:
+        """
+        GET /reference-data/counterparty-types → справочник типов контрагентов.
+        """
+        try:
+            data = self._http.get(Endpoints.counterparty_types())
+            from src.services.api.converters import to_counterparty_type_list
+            result = to_counterparty_type_list(data) if isinstance(data, list) else []
+            log.api(f"GET counterparty types: {len(result)} записей")
+            return result
+        except ConnectionError:
+            log.error("Сервер недоступен при загрузке типов контрагентов")
+            raise
+        except Exception as e:
+            log.error(f"Ошибка загрузки типов контрагентов: {e}")
+            raise ApiError(f"Failed to load counterparty types: {e}") from e
+        
     # ---- МОНИТОРИНГ ----
     def check_connection(self, timeout: int = 3) -> bool:
         """Проверяет доступность сервера."""

@@ -9,7 +9,7 @@
 # ===== ИМПОРТЫ =====
 from typing import List, Protocol
 
-from .nodes import NodeType
+from .structure import NodeType
 
 
 # ===== ПРОТОКОЛЫ =====

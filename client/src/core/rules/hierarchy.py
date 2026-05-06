@@ -13,7 +13,7 @@
 # ===== ИМПОРТЫ =====
 from typing import List, Optional
 
-from src.core.types.nodes import NodeType
+from src.core.types.structure import NodeType
 from utils.logger import get_logger
 
 

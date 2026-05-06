@@ -1,126 +1,128 @@
-## Анализ слоя: **projections** (слой проекций данных)
+## Анализ слоя «projections»
 
 ### Краткое описание слоя
 
-**Назначение** – преобразовывать внутренние DTO в структуры, удобные для отображения в UI. Слой `projections` создаёт "проекцию" данных – представление, оптимизированное для конкретного UI-компонента (дерево, таблица, форма). Он является мостом между бизнес-данными и интерфейсом.
+Слой **projections** отвечает за **преобразование «сырых» данных (DTO, справочники, репозитории) в структуры, удобные для отображения в UI**. Это чистое преобразование без бизнес-логики.
 
-**Что делает:**
-- Строит иерархическую структуру `TreeNode` для виджета дерева
-- Формирует отображаемые имена с учётом количества детей
-- Преобразует номера этажей в читаемый текст ("Этаж 3", "Подвал 1")
-- Сортирует узлы по имени для консистентного отображения
-- Предоставляет навигационные методы внутри дерева (поиск, получение индекса)
+Основные задачи:
+- **Дерево** (`TreeProjection`) — строит иерархические узлы `TreeNode` из репозиториев и загруженных DTO. Формирует отображаемые имена (например, «Этаж 3 (12)»). Не занимается загрузкой данных.
+- **Узел дерева** (`TreeNode`) — единая структура для всех уровней иерархии. Хранит ссылки на родителя и детей, предоставляет методы навигации (`find_child_by_id`, `row`, `child_at`) и идентификации (`get_identifier`).
+- **Детали** (`DetailsProjection`) — преобразует DetailDTO в объект, реализующий протокол `IDetailsViewModel` из `core`. Использует `ReferenceStore` для маппинга ID справочников в человекочитаемые названия. Формирует пары «название поля → значение» для грида.
 
-**Что не должен делать:**
-- Загружать данные из API или кэша (это `services`/`data`)
-- Содержать бизнес-логику предметной области
-- Выполнять сетевые запросы или обращаться к БД
-- Содержать UI-специфичный код (виджеты, стили, события Qt)
-- Мутировать исходные данные (работает только с копиями)
+**Что слой НЕ должен делать:**
+- Не выполняет загрузку данных (это `services`).
+- Не содержит бизнес-логику (фильтрацию, принятие решений).
+- Не обращается к `controllers`, `view models`, `ui`.
+- Не управляет состоянием UI (например, выделенными узлами).
 
 ---
 
 ### Файловая структура слоя
 
 ```
-client/src/projections/
-├── __init__.py                    # Публичное API проекций
-├── tree_node.py                   # TreeNode (узел дерева)
-└── tree.py                        # TreeProjection (построитель дерева)
+src/projections/
+├── __init__.py                # Публичное API (TreeProjection, TreeNode, DetailsProjection)
+├── tree.py                    # TreeProjection — построение дерева
+├── tree_node.py               # TreeNode — узел дерева
+└── details_projection.py      # DetailsProjection — преобразование деталей
 ```
 
 ---
 
-### Внутренние классы (кратко)
+### Описание внутренних классов
 
-| Класс | Модуль | Назначение |
-|-------|--------|------------|
-| `TreeNode` | `tree_node.py` | Узел дерева для отображения. Хранит данные, ссылки на родителя и детей. Предоставляет методы навигации (`child_at()`, `row()`, `find_child_by_id()`). |
-| `TreeProjection` | `tree.py` | Проекция дерева. Строит иерархическую структуру `TreeNode` из репозиториев. Формирует отображаемые имена с количеством детей. |
-
-**Структура `TreeNode`:**
-- **Публичные свойства (для UI):** `id`, `type`, `name`, `has_children`
-- **Внутренние свойства:** `data`, `node_type`, `parent`, `children`
-- **Методы управления:** `append_child()`, `add_children()`, `remove_child()`, `remove_all_children()`
-- **Навигация:** `child_at()`, `child_count()`, `row()`
-- **Поиск:** `find_child_by_id()` – рекурсивный поиск по всему поддереву
-- **Идентификация:** `get_identifier()` – возвращает `NodeIdentifier` для событий
+| Класс | Назначение |
+|-------|-------------|
+| `TreeNode` | Узел дерева. Содержит `data` (исходный DTO), `_node_type`, `_display_name`, `_has_children`, ссылки на `_parent` и `_children`. Предоставляет свойства `id`, `name`, `has_children`, методы `append_child`, `add_children`, `remove_child`, `find_child_by_id`, `row`, `get_identifier`. |
+| `TreeProjection` | Преобразует репозитории и загруженные DTO в иерархию `TreeNode`. Методы: `get_root_nodes()` — корневые узлы (комплексы); `build_children_from_payload(payload, child_type)` — создаёт узлы из списка DTO (корпуса, этажи, помещения). |
+| `_DetailsViewModelImpl` (внутренний, не экспортируется) | Реализация протокола `IDetailsViewModel`. Содержит приватные поля `_header_title`, `_header_subtitle`, `_header_status_name`, `_grid_items`. Используется только внутри `DetailsProjection`. |
+| `DetailsProjection` | Преобразует DetailDTO (`ComplexDetailDTO`, `BuildingDetailDTO`, `FloorDetailDTO`, `RoomDetailDTO`) в `IDetailsViewModel`. Использует `ReferenceStore` для получения имени статуса. Форматирует даты, площади, типы этажей/помещений. Методы: `build_*_details`. |
 
 ---
 
-### Внутренние импорты (только между модулями projections)
+### Список внутренних импортов
 
-**Из `tree.py`:**
-- `from src.data.repositories import (BuildingRepository, ComplexRepository, FloorRepository, RoomRepository)`
-- `from src.projections.tree_node import TreeNode`
-
-**Из `tree_node.py`:**
+**Из `core`**:
 - `from src.core.types import NodeIdentifier, NodeType`
+- `from src.core.types.protocols import IDetailsViewModel`
+
+**Из `models`**:
+- `from src.models import BuildingDetailDTO, ComplexDetailDTO, FloorDetailDTO, RoomDetailDTO`
+
+**Из `data`**:
+- `from src.data import ReferenceStore`
+- `from src.data.repositories import BuildingRepository, ComplexRepository, FloorRepository, RoomRepository`
+
+**Из `services`** (только через `data_loader`? нет, в проекциях нет прямого импорта `services`; импортируют только `repositories` из `data`, что разрешено)
+
+**Из `shared`**:
+- `from src.shared.time import format_timestamp`
+
+**Внутри `projections`**:
+- `from .tree_node import TreeNode` (в `tree.py`)
+- `from .details_projection import DetailsProjection` (в `__init__.py`)
+- `from .tree import TreeProjection` (в `__init__.py`)
+
+**Внешние утилиты**: `utils.logger`
 
 ---
 
 ### Экспортируемые методы / классы для вышестоящих слоёв
 
-Вся публичная поверхность слоя `projections` доступна через импорт из `src.projections`:
+Вышестоящие слои (`controllers`, `view models`, `ui`) **импортируют из `src.projections`**:
 
-**`TreeNode` – узел дерева:**
-- Конструктор: `__init__(data, node_type, display_name, has_children=False, parent=None)`
-- **Свойства (для UI):**
-  - `id -> int` – уникальный ID узла
-  - `type -> str` – тип узла ("complex", "building", "floor", "room")
-  - `name -> str` – отображаемое имя
-  - `has_children -> bool` – есть ли дети (для отображения стрелочки)
-- **Управление деревом:**
-  - `append_child(child: TreeNode) -> None`
-  - `add_children(children: List[TreeNode]) -> None`
-  - `remove_child(child: TreeNode) -> bool`
-  - `remove_all_children() -> None`
-- **Навигация:**
-  - `child_at(row: int) -> Optional[TreeNode]`
-  - `child_count() -> int`
-  - `row() -> int` – индекс узла в родителе
-- **Поиск и идентификация:**
-  - `find_child_by_id(node_type: NodeType, node_id: int) -> Optional[TreeNode]` – рекурсивный поиск
-  - `get_identifier() -> NodeIdentifier` – для событий
-  - `get_id() -> int` – алиас для `id`
-- **Отладка:** `__repr__()`, `__str__()`
+#### 1. `TreeNode` — узел дерева
 
-**`TreeProjection` – построитель дерева:**
-- Конструктор: `__init__(complex_repo, building_repo, floor_repo, room_repo)`
-- `get_root_nodes() -> List[TreeNode]` – возвращает корневые узлы (комплексы) для первоначального отображения. Берёт данные из репозиториев, формирует отображаемые имена с количеством зданий.
-- `build_children_from_payload(payload: List[Any], child_type: NodeType) -> List[TreeNode]` – создаёт узлы из загруженных данных детей. Возвращает отсортированные по имени узлы. Родитель не устанавливается (это делает `TreeModel`).
+| Свойство / Метод | Назначение |
+|------------------|-------------|
+| `id: int` | Числовой ID узла. |
+| `type: str` | Тип узла (complex/building/floor/room). |
+| `name: str` | Отображаемое имя (например, «Комплекс Солнечный (3)»). |
+| `has_children: bool` | Есть ли дети (для отображения стрелочки). |
+| `append_child(child)` / `add_children(children)` | Добавить детей. |
+| `remove_child(child)` / `remove_all_children()` | Удалить детей. |
+| `child_at(row) -> Optional[TreeNode]` | Доступ по индексу. |
+| `child_count() -> int` | Количество детей. |
+| `row() -> int` | Индекс в родителе. |
+| `find_child_by_id(node_type, node_id) -> Optional[TreeNode]` | Рекурсивный поиск. |
+| `get_identifier() -> NodeIdentifier` | Для событий. |
+
+#### 2. `TreeProjection` — построитель дерева
+
+| Метод | Назначение |
+|-------|-------------|
+| `get_root_nodes() -> List[TreeNode]` | Возвращает список корневых узлов (комплексы) для начального отображения. |
+| `build_children_from_payload(payload: List[Any], child_type: NodeType) -> List[TreeNode]` | Создаёт узлы для детей из загруженных DTO (корпуса, этажи, помещения). Не устанавливает родителя. |
+
+#### 3. `DetailsProjection` — преобразование деталей
+
+| Метод | Назначение |
+|-------|-------------|
+| `build_complex_details(dto: ComplexDetailDTO) -> IDetailsViewModel` | Собрать ViewModel для комплекса. |
+| `build_building_details(dto: BuildingDetailDTO) -> IDetailsViewModel` | Для корпуса. |
+| `build_floor_details(dto: FloorDetailDTO) -> IDetailsViewModel` | Для этажа. |
+| `build_room_details(dto: RoomDetailDTO) -> IDetailsViewModel` | Для помещения. |
+
+Возвращаемый объект гарантированно реализует протокол `IDetailsViewModel` из `core` (свойства `header_title`, `header_subtitle`, `header_status_name`, `grid_items`).
 
 ---
 
-### Итоговое заключение: принципы работы со слоём `projections`
+### Итоговое заключение
 
-1. **Импорт только сверху вниз** – вышестоящие слои (`controllers`, `ui`) могут импортировать из `projections` свободно. Слой `projections` может импортировать:
-   - `core` – для `NodeType`, `NodeIdentifier`
-   - `data` – для репозиториев (только для чтения!)
-   - `models` – для DTO (типы данных, которые преобразует)
+**Принципы работы со слоем `projections`:**
 
-2. **Запрещены обратные импорты** – код внутри `projections` не должен импортировать ничего из `services`, `controllers`, `ui`.
+1. **Импорт только из `src.projections`** — используйте `TreeProjection`, `TreeNode`, `DetailsProjection`. Не обращайтесь к внутренним модулям напрямую.
 
-3. **`TreeProjection` работает с репозиториями ТОЛЬКО для чтения** – он вызывает `get_all()`, `get()`, но никогда не мутирует данные. Все изменения данных происходят через `DataLoader` и `EntityGraph`.
+2. **Projections не загружают данные** — перед вызовом `TreeProjection.get_root_nodes()` данные уже должны быть в репозиториях (загружены через `DataLoader`). `build_children_from_payload` вызывается после успешной загрузки детей (обычно по событию `DataLoaded`).
 
-4. **`TreeNode` – иммутабельная структура (почти)** – данные узла (`data`, `node_type`, `display_name`, `has_children`) устанавливаются при создании и не меняются. Ссылки на родителя и детей могут меняться при построении дерева.
+3. **`TreeNode` — мутабельный** (может добавлять/удалять детей), но его поля `id`, `type`, `name` неизменны после создания. Изменение `has_children` косвенно через детей. В UI-слое можно хранить `TreeNode` как модель для виджета дерева.
 
-5. **Форматирование для UI – ответственность проекций** – всё, что связано с тем, *как* данные выглядят для пользователя (формат номеров этажей, отображение количества детей), находится здесь. Бизнес-данные остаются "чистыми" в `models`.
+4. **`DetailsProjection` использует `ReferenceStore`** — перед вызовом `build_*_details` убедитесь, что `ReferenceStore` прогрет (`warmup()` выполнен). В противном случае `status_name` будет `None`.
 
-6. **Разделение `TreeNode` и `TreeProjection`**:
-   - `TreeNode` – структурный элемент (контейнер данных и ссылок)
-   - `TreeProjection` – фабрика, создающая узлы из DTO
+5. **Никакой бизнес-логики в проекциях** — если нужно отфильтровать список корпусов по владельцу или отсортировать специальным образом, делайте это в `controllers` или `services`, а не здесь.
 
-7. **Сортировка узлов** – `build_children_from_payload()` возвращает узлы, отсортированные по имени (case-insensitive). Это обеспечивает консистентный порядок в UI без дополнительной логики в контроллерах.
+6. **Тестирование** — проекции легко тестировать, подавая на вход мок-репозитории и DTO. Особое внимание уделите форматированию номеров этажей (отрицательные, ноль) и обработке `None`.
 
-8. **Поиск в дереве** – `TreeNode.find_child_by_id()` рекурсивно обходит всё поддерево. Для больших деревьев (тысячи узлов)可以考虑 кэширование индекса в `TreeModel`, но в текущей реализации поиск прямой.
+7. **Связь с вышестоящими слоями** — `controllers` будут вызывать `TreeProjection` для построения дерева после загрузки данных, и `DetailsProjection` для подготовки данных панели деталей. `View models` могут использовать `TreeNode` напрямую для отображения, но лучше делегировать контроллеру.
 
-9. **Нет бизнес-логики** – проекции не принимают решений о том, какие данные загружать или когда их обновлять. Они только преобразуют уже существующие данные.
-
-10. **`TreeProjection.get_root_nodes()` использует `get_all()`** – это означает, что все комплексы должны быть предварительно загружены в граф (через `DataLoader.load_complexes_tree()`) до вызова этого метода.
-
-11. **Поддержка DetailDTO в корневых узлах** – `get_root_nodes()` работает и с `ComplexTreeDTO`, и с `ComplexDetailDTO`, так как использует `getattr()` для доступа к полям. Это позволяет отображать дерево даже если загружены полные данные.
-
-12. **Узлы не знают о загрузчиках** – `TreeNode` не содержит логики для ленивой загрузки детей. Это ответственность `TreeModel` (в слое `ui`) или контроллера.
-
-Слой `projections` является **преобразователем данных между внутренним представлением и UI**. Он делает данные "удобоваримыми" для интерфейса, но не содержит ни бизнес-логики, ни логики отображения. Это чистый слой трансформации, который можно легко тестировать независимо от виджетов и сетевых запросов.
+Слой `projections` завершает цепочку подготовки данных перед передачей в `controllers/view models`. Он превращает DTO и справочники в интерфейсы, понятные UI, но остаётся **независимым от конкретного UI-фреймворка**.

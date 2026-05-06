@@ -1,205 +1,223 @@
-## Анализ слоя: **data** (слой доступа к данным и кэширования)
+## Анализ слоя «data»
 
 ### Краткое описание слоя
 
-**Назначение** – управлять хранением, кэшированием, валидностью и связями между сущностями в памяти приложения. Слой `data` предоставляет единый фасад `EntityGraph` для работы с графом объектов и репозитории для типобезопасного доступа к данным. Этот слой **не знает**, откуда приходят данные (API, БД, файлы) – он только хранит и организует их.
+Слой **data** отвечает за **хранение, кэширование, навигацию и валидацию данных** в памяти клиентского приложения. Он предоставляет:
 
-**Что делает:**
-- Хранит DTO объекты в потокобезопасном индексе (`EntityStore`)
-- Поддерживает иерархические связи "родитель-потомок" (`RelationIndex`)
-- Отслеживает валидность данных для оптимизации запросов (`ValidityIndex`)
-- Управляет состоянием загрузки детей (`LoadStateIndex`) для предотвращения гонок
-- Предоставляет репозитории с CRUD-операциями для каждого типа сущностей
-- Обеспечивает полную потокобезопасность через RLock
+- **Графовое хранилище** (`EntityGraph`) — фасад над индексами хранения (`EntityStore`), связей (`RelationIndex`), валидности (`ValidityIndex`) и состояния загрузки (`LoadStateIndex`).  
+- **Репозитории** (`ComplexRepository`, `BuildingRepository`, `FloorRepository`, `RoomRepository`) — высокоуровневый CRUD + навигация по дереву (получение ID детей/родителей).  
+- **Справочники** (`ReferenceStore`) — фасад для read-only реестров статусов и типов.
 
-**Что не должен делать:**
-- Содержать бизнес-логику (фильтрацию, сортировку, вычисления)
-- Выполнять сетевые запросы или обращаться к API
-- Импортировать что-либо из `services`, `projections`, `controllers`, `ui`
-- Содержать UI-специфичный код
-- Знать о том, откуда пришли данные (кэш или свежая загрузка)
+Слой **не содержит бизнес-логики** (фильтрация, преобразования в ViewModel, принятие решений). Только работа с памятью: положить, получить, удалить, проверить валидность, найти детей/родителя.
+
+**Что слой НЕ должен делать:**
+- Обращаться к API (загрузка данных — дело `services` или выше).
+- Содержать UI-логику.
+- Импортировать слои `services`, `projections`, `controllers`, `view models`, `ui`.
+- Принимать решения о том, когда обновлять данные (только по команде сверху).
 
 ---
 
 ### Файловая структура слоя
 
 ```
-client/src/data/
-├── __init__.py                    # Публичное API (EntityGraph, репозитории)
-├── entity_graph.py                # Фасад графа (координатор всех компонентов)
-├── graph/                         # Внутренние компоненты графа (приватный пакет)
-│   ├── __init__.py                # Маркер приватности
-│   ├── consistency.py             # ConsistencyChecker (валидация целостности)
-│   ├── load_state.py              # LoadStateIndex (состояние загрузки детей)
-│   ├── locked.py                  # LockedComponent (базовый класс с RLock)
-│   ├── relations.py               # RelationIndex (индекс связей)
-│   ├── schema.py                  # Схема графа (маппинг типов и полей)
-│   ├── store.py                   # EntityStore (хранилище объектов)
-│   └── validity.py                # ValidityIndex (индекс валидности)
-├── repositories/                  # Репозитории для доступа к данным
-│   ├── __init__.py                # Публичный экспорт репозиториев
-│   ├── base.py                    # BaseRepository (базовая реализация)
-│   ├── complex.py                 # ComplexRepository
-│   ├── building.py                # BuildingRepository
-│   ├── floor.py                   # FloorRepository
-│   └── room.py                    # RoomRepository
-└── utils/                         # Утилиты data слоя
-    └── decorators.py              # validate_ids (декоратор валидации ID)
+src/data/
+├── __init__.py                    # публичный API (EntityGraph, ReferenceStore, репозитории)
+├── entity_graph.py                # фасад EntityGraph + EntityGraphStats
+├── reference_store.py             # фасад ReferenceStore (справочники)
+│
+├── graph/                         # ПРИВАТНО: внутренности EntityGraph
+│   ├── __init__.py
+│   ├── store.py                   # EntityStore — хранение объектов по типам
+│   ├── relations.py               # RelationIndex — связи родитель-потомок
+│   ├── validity.py                # ValidityIndex — валидность данных (с событиями DataInvalidated)
+│   ├── load_state.py              # LoadStateIndex — состояние загрузки детей (NOT_LOADED/LOADING/LOADED)
+│   ├── consistency.py             # ConsistencyChecker — проверка консистентности графа
+│   ├── schema.py                  # PARENT_ID_FIELD, get_node_type, get_parent_id, обёртки hierarchy
+│   ├── locked.py                  # LockedComponent (базовый с RLock)
+│   └── decorators.py              # validate_ids (декоратор для валидации ID)
+│
+├── reference/                     # ПРИВАТНО: реестры справочников
+│   ├── __init__.py
+│   ├── base.py                    # BaseRegistry[T] (абстрактный)
+│   ├── building_status_registry.py
+│   ├── room_status_registry.py
+│   ├── contract_status_registry.py
+│   ├── equipment_status_registry.py
+│   ├── payment_status_registry.py
+│   ├── placement_status_registry.py
+│   └── counterparty_type_registry.py
+│
+└── repositories/                  # ПУБЛИЧНЫЕ репозитории (высокоуровневый доступ)
+    ├── __init__.py                # экспорт ComplexRepository, BuildingRepository, FloorRepository, RoomRepository
+    ├── base.py                    # BaseRepository[T] (реализует core.Repository)
+    ├── complex.py                 # ComplexRepository
+    ├── building.py                # BuildingRepository
+    ├── floor.py                   # FloorRepository
+    └── room.py                    # RoomRepository
 ```
 
 ---
 
-### Внутренние классы (кратко)
+### Описание внутренних классов (приватные / не для внешнего использования)
 
-| Класс | Модуль | Назначение |
-|-------|--------|------------|
-| `EntityGraph` | `entity_graph.py` | **Фасад** – главный координатор. Объединяет store, relations, validity, load_state. Предоставляет единое API для всех операций с графом. |
-| `EntityStore` | `graph/store.py` | Потокобезопасное хранилище объектов. Только `put`, `get`, `remove`, `has`. Не знает о связях. |
-| `RelationIndex` | `graph/relations.py` | Индекс связей "родитель-потомок". Прямые и обратные индексы для O(1) навигации. Потокобезопасен. |
-| `ValidityIndex` | `graph/validity.py` | Индекс валидности данных. Отслеживает, какие сущности актуальны. Генерирует `DataInvalidated` события. Поддерживает веточную инвалидацию. |
-| `LoadStateIndex` | `graph/load_state.py` | Состояние загрузки детей (`NOT_LOADED`, `LOADING`, `LOADED`). Предотвращает гонки при параллельных запросах. |
-| `ConsistencyChecker` | `graph/consistency.py` | Проверка целостности графа (TODO: частично реализован). |
-| `LockedComponent` | `graph/locked.py` | Базовый класс с RLock для потокобезопасных компонентов. |
-| `BaseRepository` | `repositories/base.py` | Базовый репозиторий, реализующий `core.Repository`. Обеспечивает CRUD + навигацию. |
-| `ComplexRepository` | `repositories/complex.py` | Репозиторий для комплексов. Добавляет `get_building_ids()`, `get_tree()`, `get_detail()`. |
-| `BuildingRepository` | `repositories/building.py` | Репозиторий для корпусов. Добавляет `get_floor_ids()`, `get_by_complex()`. |
-| `FloorRepository` | `repositories/floor.py` | Репозиторий для этажей. Добавляет `get_room_ids()`, `get_by_building()`. |
-| `RoomRepository` | `repositories/room.py` | Репозиторий для помещений. Добавляет `get_by_floor()`. |
+| Класс / Модуль | Назначение |
+|----------------|-------------|
+| `EntityStore` (`graph/store.py`) | Потокобезопасное хранилище объектов по типу (`NodeType` → `dict[id, Any]`). Только put/get/remove/has, без логики связей. |
+| `RelationIndex` (`graph/relations.py`) | Индекс связей родитель-потомок (прямой и обратный). `link`, `unlink`, `get_children`, `get_parent`, `remove_node`. Проверяет допустимость связи по правилам `core.rules.hierarchy`. |
+| `ValidityIndex` (`graph/validity.py`) | Индекс валидности данных (актуальны / устарели). При инвалидации генерирует `DataInvalidated`. Поддерживает точечную, bulk и рекурсивную (BFS) инвалидацию ветки. |
+| `LoadStateIndex` (`graph/load_state.py`) | Отслеживает состояние загрузки детей: `NOT_LOADED`, `LOADING`, `LOADED`. Предотвращает гонки при параллельных запросах. |
+| `ConsistencyChecker` (`graph/consistency.py`) | Диагностический инструмент для проверки целостности графа (связи, валидность). (Часть методов отмечена как TODO). |
+| `LockedComponent` (`graph/locked.py`) | Базовый класс с `RLock` для потокобезопасных компонентов графа. |
+| `BaseRegistry[T]` (`reference/base.py`) | Абстрактный реестр для read-only справочников. Содержит `loader`, словарь `{id: DTO}`, метод `warmup()`, `get()`, `is_ready()`. |
+| `BuildingStatusRegistry`, `RoomStatusRegistry`, … (в `reference/`) | Конкретные реестры для каждого справочника. Переопределяют только `_log_result()`. |
+| `BaseRepository[T]` (`repositories/base.py`) | Базовый класс репозиториев. Реализует `core.Repository` (get, get_all, add, remove, …). Добавляет `exists`, `is_valid`, `invalidate`. Работает через `EntityGraph`. |
+| `_validate_ids` и `validate_ids` декоратор (`graph/decorators.py`) | Внутренний декоратор для валидации ID (положительные целые). |
 
 ---
 
-### Внутренние импорты (только между модулями data)
+### Список импортов (внутренние зависимости слоя data)
 
-**Из `entity_graph.py`:**
-- `from src.data.graph.consistency import ConsistencyChecker`
-- `from src.data.graph.load_state import LoadState, LoadStateIndex`
-- `from src.data.graph.relations import RelationIndex, RelationStats`
-- `from src.data.graph.schema import get_node_type, get_parent_id`
-- `from src.data.graph.store import EntityStore, StoreStats`
-- `from src.data.graph.validity import ValidityIndex, ValidityStats`
-- `from src.shared.comparison import has_changed`
-- `from src.shared.validation import validate_positive_int`
-
-**Из `graph/relations.py`:**
-- `from src.data.graph.schema import get_child_type, get_parent_type`
-- `from src.shared.validation import validate_positive_int`
-
-**Из `graph/validity.py`:**
-- `from src.core import EventBus`
+**Импорты из `core`**:
+- `from src.core.event_bus import EventBus`
 - `from src.core.events.definitions import DataInvalidated`
-- `from src.core.rules.hierarchy import get_child_type`
-- `from src.shared.validation import validate_positive_int`
-
-**Из `graph/schema.py`:**
 - `from src.core.rules.hierarchy import get_child_type, get_parent_type`
+- `from src.core.types import NodeType, NodeIdentifier, NotFoundError`
 - `from src.core.types.protocols import HasNodeType`
+- `from src.core.ports.repository import Repository`
 
-**Из `repositories/base.py`:**
-- `from src.core import NodeType, NotFoundError`
-- `from src.core.ports.repository import Repository as CoreRepository`
-- `from src.data.entity_graph import EntityGraph`
+**Импорты из `models`**:
+- `from src.models import BuildingStatusDTO, RoomStatusDTO, …` (все DTO)
+- В репозиториях: `from src.models import ComplexTreeDTO, ComplexDetailDTO, …`
 
-**Из `repositories/complex.py` (и аналогичных):**
-- `from src.core import NodeType`
-- `from src.models import ComplexTreeDTO, ComplexDetailDTO`
-- `from src.data.repositories.base import BaseRepository`
+**Импорты из `shared` и `utils`**:
+- `from src.shared.validation import validate_positive_int`
+- `from src.shared.comparison import has_changed`
+- `from utils.logger import get_logger`
+
+**Внутри data**:
+- `from .graph.store import EntityStore`
+- `from .graph.relations import RelationIndex`
+- `from .graph.validity import ValidityIndex`
+- `from .graph.load_state import LoadStateIndex`
+- `from .graph.consistency import ConsistencyChecker`
+- `from .graph.schema import get_node_type, get_parent_id`
+- `from .reference.building_status_registry import BuildingStatusRegistry` (и аналоги)
+- `from .repositories.base import BaseRepository`
+- `from .entity_graph import EntityGraph` (в репозиториях)
 
 ---
 
 ### Экспортируемые методы / классы для вышестоящих слоёв
 
-Вся публичная поверхность слоя `data` доступна через импорт из `src.data`:
+Вышестоящие слои (`services`, `projections`, `controllers`, `view models`, `ui`) **импортируют из `src.data`**:
 
-**Фасад графа:**
-- `EntityGraph(event_bus: EventBus)` – основной координатор
-  - **CRUD:** `add_or_update(entity) -> bool`, `add_or_update_bulk(entities) -> Dict`, `get(node_type, id)`, `get_all(node_type)`, `remove(node_type, id, cascade=False)`
-  - **Навигация:** `get_children(parent_type, parent_id) -> List[int]`, `get_parent(child_type, child_id) -> Optional[NodeIdentifier]`, `get_ancestors(node_type, node_id) -> List[NodeIdentifier]`
-  - **Валидность:** `is_valid()`, `validate()`, `invalidate()`, `invalidate_branch()`, `validate_bulk()`, `invalidate_bulk()`
-  - **Состояние загрузки:** `is_children_loaded()`, `mark_children_loading() -> bool`, `mark_children_loaded()`, `mark_children_load_failed()`
-  - **Статистика:** `get_stats() -> EntityGraphStats`, `print_stats()`, `check_consistency()`
-  - **Специальные:** `get_if_full()`, `get_cached_children()`, `clear()`
+#### 1. `EntityGraph` (фасад графа) — из `src.data`
 
-**Репозитории (все наследуют `BaseRepository`):**
-- `BaseRepository[T]` – абстрактный базовый репозиторий
-  - `get(id: int) -> T` (кидает `NotFoundError`)
-  - `get_all() -> List[T]`
-  - `get_ids() -> List[int]`
-  - `exists(id: int) -> bool`
-  - `add(entity: T) -> None`
-  - `remove(id: int) -> bool`
-  - `is_valid(id: int) -> bool`
-  - `invalidate(id: int) -> bool`
+| Метод | Назначение |
+|-------|-------------|
+| `__init__(event_bus: EventBus)` | Создать граф, связанный с шиной событий. |
+| `add_or_update(entity: Any) -> bool` | Добавить/обновить DTO, вернуть `True` если были изменения. |
+| `add_or_update_bulk(entities: List[Any]) -> Dict` | Массовое добавление/обновление со статистикой. |
+| `get(node_type, entity_id) -> Optional[Any]` | Получить DTO. |
+| `get_all(node_type) -> List[Any]` | Все DTO типа. |
+| `get_all_ids(node_type) -> List[int]` | Все ID типа. |
+| `has_entity(node_type, entity_id) -> bool` | Проверить существование. |
+| `remove(node_type, entity_id, cascade=False) -> bool` | Удалить; если `cascade=True` → удалить всех потомков. |
+| `get_children(parent_type, parent_id) -> List[int]` | Вернуть ID детей. |
+| `get_parent(child_type, child_id) -> Optional[NodeIdentifier]` | Вернуть родителя. |
+| `get_ancestors(node_type, node_id) -> List[NodeIdentifier]` | Все предки (от ближайшего к дальнему). |
+| `is_valid(node_type, entity_id) -> bool` | Данные актуальны? |
+| `validate(node_type, entity_id)` | Пометить как валидные. |
+| `validate_bulk(node_type, ids) -> int` | Пометить множество валидными. |
+| `invalidate(node_type, entity_id) -> bool` | Пометить невалидными. |
+| `invalidate_bulk(node_type, ids) -> int` | Массовая инвалидация. |
+| `invalidate_branch(node_type, entity_id) -> int` | Инвалидировать всю ветку (включая потомков). |
+| `is_children_loaded(node_type, node_id) -> bool` | Загружены ли дети? |
+| `mark_children_loading(...) -> bool` | Начать загрузку детей (вернёт `False` если уже загружается/загружено). |
+| `mark_children_loaded(...)` | Отметить, что дети загружены. |
+| `mark_children_load_failed(...)` | Сбросить состояние при ошибке. |
+| `reset_children_state(...)` | Принудительно сбросить. |
+| `get_timestamp(node_type, entity_id) -> Optional[datetime]` | Время последнего обновления. |
+| `get_stats() -> EntityGraphStats` | Статистика (store, relations, validity, load_state). |
+| `print_stats()` | Вывод статистики в лог. |
+| `check_consistency() -> Dict` | Проверить целостность графа. |
+| `clear()` | Полностью очистить граф. |
 
-- `ComplexRepository(graph: EntityGraph)`
-  - Все методы `BaseRepository[ComplexDTO]`
-  - `get_building_ids(complex_id: int) -> List[int]` – навигация
-  - `get_tree(complex_id: int) -> Optional[ComplexTreeDTO]`
-  - `get_detail(complex_id: int) -> Optional[ComplexDetailDTO]`
-  - `has_detail(complex_id: int) -> bool`
+#### 2. Репозитории (высокоуровневый доступ) — из `src.data`
 
-- `BuildingRepository(graph: EntityGraph)`
-  - `get_floor_ids(building_id: int) -> List[int]`
-  - `get_by_complex(complex_id: int) -> List[int]`
-  - `get_tree()`, `get_detail()`, `has_detail()`
+Все репозитории реализуют `core.Repository` и добавляют навигационные методы.
 
-- `FloorRepository(graph: EntityGraph)`
-  - `get_room_ids(floor_id: int) -> List[int]`
-  - `get_by_building(building_id: int) -> List[int]`
-  - `get_tree()`, `get_detail()`, `has_detail()`
+**`ComplexRepository`**  
+- `get_building_ids(complex_id) -> List[int]` — ID корпусов комплекса.  
+- `get_tree(complex_id) -> Optional[ComplexTreeDTO]`  
+- `get_detail(complex_id) -> Optional[ComplexDetailDTO]`  
+- `has_detail(complex_id) -> bool`
 
-- `RoomRepository(graph: EntityGraph)`
-  - `get_by_floor(floor_id: int) -> List[int]`
-  - `get_tree()`, `get_detail()`, `has_detail()`
+**`BuildingRepository`**  
+- `get_floor_ids(building_id) -> List[int]`  
+- `get_by_complex(complex_id) -> List[int]` (ID корпусов)  
+- аналоги `get_tree`, `get_detail`, `has_detail`
 
-**Типы:**
-- `EntityGraphStats` – TypedDict со статистикой (store, relations, validity, load_state)
+**`FloorRepository`**  
+- `get_room_ids(floor_id) -> List[int]`  
+- `get_by_building(building_id) -> List[int]`  
+- `get_tree`, `get_detail`, `has_detail`
+
+**`RoomRepository`**  
+- `get_by_floor(floor_id) -> List[int]`  
+- `get_tree`, `get_detail`, `has_detail`
+
+Общие методы `BaseRepository` (доступны во всех репозиториях):  
+`get(id) -> T` (или `NotFoundError`), `get_all() -> List[T]`, `get_ids() -> List[int]`, `exists(id) -> bool`, `add(entity)`, `remove(id) -> bool`, `is_valid(id) -> bool`, `invalidate(id) -> bool`.
+
+#### 3. `ReferenceStore` (справочники) — из `src.data`
+
+| Метод / свойство | Назначение |
+|------------------|-------------|
+| `warmup()` | Загрузить все справочники (вызывается один раз при старте). |
+| `is_ready() -> bool` | Все ли загружены? |
+| `.building_statuses` → `BuildingStatusRegistry` | Доступ к статусам зданий. |
+| `.room_statuses` → `RoomStatusRegistry` | Статусы помещений. |
+| `.contract_statuses` → `ContractStatusRegistry` | Статусы договоров. |
+| `.equipment_statuses` → `EquipmentStatusRegistry` | Статусы оборудования. |
+| `.payment_statuses` → `PaymentStatusRegistry` | Статусы платежей. |
+| `.placement_statuses` → `PlacementStatusRegistry` | Статусы размещения. |
+| `.counterparty_types` → `CounterpartyTypeRegistry` | Типы контрагентов. |
+
+Каждый реестр имеет методы:  
+- `get(id: Optional[int]) -> Optional[T]`  
+- `is_ready() -> bool`  
+
+**Примечание:** Реестры не предоставляют доступ к `name` напрямую — маппинг ID → человекочитаемое значение делается в слое `projections`.
+
+#### 4. Типы статистики
+
+`EntityGraphStats` (TypedDict) — для диагностики.
 
 ---
 
-### Итоговое заключение: принципы работы со слоем `data`
+### Итоговое заключение
 
-1. **Импорт только сверху вниз** – вышестоящие слои (`services`, `projections`, `controllers`, `ui`) могут импортировать из `data` свободно. Слой `data` может импортировать:
-   - `core` – для типов, событий, правил иерархии
-   - `models` – для DTO (сущности, которые хранит)
-   - `shared` – для утилит (`has_changed`, `validate_positive_int`)
+**Принципы работы со слоем `data`:**
 
-2. **Запрещены обратные импорты** – код внутри `data` не должен импортировать ничего из `services`, `projections`, `controllers`, `ui`.
+1. **Импорт только из `src.data`** — используйте `EntityGraph`, репозитории, `ReferenceStore`. Никогда не импортируйте из `data.graph`, `data.reference` напрямую.
 
-3. **Используйте репозитории для доступа к данным** – они предоставляют типобезопасное API и скрывают внутреннее устройство графа:
-   ```python
-   from src.data import EntityGraph, ComplexRepository
-   
-   graph = EntityGraph(event_bus)
-   repo = ComplexRepository(graph)
-   complex = repo.get(42)  # вернёт ComplexDTO или NotFoundError
-   ```
+2. **Все операции с данными идут через фасады**:
+   - `EntityGraph` — низкоуровневый контроль над хранилищем, связями, валидностью.
+   - Репозитории — удобный CRUD + навигация для физической иерархии.
+   - `ReferenceStore` — только для чтения справочников.
 
-4. **EntityGraph – низкоуровневый фасад** – используйте его только когда репозиторий не покрывает нужную операцию (например, пакетная валидация или статистика).
+3. **Потокобезопасность** — все публичные методы `EntityGraph` и реестров используют `RLock`. Не нужно дополнительной синхронизации из вызывающего кода.
 
-5. **Работа с валидностью** – это ключевая оптимизация:
-   - Данные считаются валидными, если они загружены из API и не устарели
-   - `invalidate_branch()` инвалидирует всю ветку (комплекс → корпуса → этажи → комнаты)
-   - При инвалидации генерируется `DataInvalidated` событие через `EventBus`
-   - Проверяйте `is_valid()` перед использованием данных, особенно в UI
+4. **Инвалидация данных** — при изменении данных на сервере следует вызывать `invalidate` или `invalidate_branch`, чтобы пометить устаревшие сущности. При следующем обращении вышестоящий слой (`services`) перезагрузит их.
 
-6. **Состояние загрузки детей** – защита от гонок:
-   - `mark_children_loading()` возвращает `False`, если загрузка уже идёт или завершена
-   - Используйте это в сервисах перед выполнением API-запроса
-   - Всегда вызывайте `mark_children_loaded()` или `mark_children_load_failed()` после завершения
+5. **Состояние загрузки детей** — используется для предотвращения повторных запросов к API. Перед загрузкой детей узла проверяйте `is_children_loaded` и вызывайте `mark_children_loading` (если вернула `True` — начинайте загрузку).
 
-7. **Навигация через ID, а не объекты** – методы типа `get_building_ids()` возвращают ID, а не DTO. Это позволяет:
-   - Лениво загружать детей только при необходимости
-   - Избегать циклических зависимостей
-   - Упрощать проверку наличия данных
+6. **Репозитории не содержат бизнес-фильтрации** (например, «только корпуса с владельцем X») — это задача слоя `services`.
 
-8. **Каскадное удаление** – `remove(cascade=True)` удаляет всех потомков рекурсивно. Используйте осторожно, только когда нужно полностью очистить ветку.
+7. **Справочники загружаются один раз** через `ReferenceStore.warmup()` на старте приложения. После этого `is_ready()` должно быть `True` перед использованием.
 
-9. **Потокобезопасность** – все операции в `EntityGraph` блокируются через `RLock`. Можно безопасно вызывать методы из разных потоков (например, при загрузке данных в фоне).
+8. **Тестирование** — можно создавать `EntityGraph` с мок-данными, не поднимая API. Все зависимости через `EventBus` (можно передать заглушку).
 
-10. **Bulk-операции** – для производительности используйте `add_or_update_bulk()` и `validate_bulk()`/`invalidate_bulk()` при работе с большими списками.
-
-11. **Статистика и диагностика** – `print_stats()` и `check_consistency()` помогают отлаживать состояние кэша и выявлять проблемы с целостностью.
-
-12. **Приватные пакеты** – никогда не импортируйте напрямую из `src.data.graph.*` или `src.data.utils.*`. Всё публичное API доступно через `src.data`.
-
-Слой `data` является **единственным местом хранения данных в памяти приложения**. Все вышестоящие слои получают данные только через репозитории или `EntityGraph`. Это обеспечивает консистентность, кэширование и потокобезопасность без дублирования логики хранения.
+Слой `data` является **единственным источником кэшированных данных** в приложении. Любые изменения состояния данных (добавление, удаление, инвалидация) должны проходить через этот слой.

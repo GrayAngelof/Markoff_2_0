@@ -1,169 +1,136 @@
-## Анализ слоя: **controllers** (слой контроллеров)
+## Анализ слоя «controllers»
 
 ### Краткое описание слоя
 
-**Назначение** – координировать поток данных между сервисами, проекциями и UI-слоем. Контроллеры являются "мозгом" приложения: они подписываются на события, принимают решения, вызывают сервисы и генерируют новые события. Они **не знают** о конкретных виджетах (Qt), но знают о событиях, которые эти виджеты порождают.
+Слой **controllers** — это **управляющий слой** приложения. Он находится между `projections` и `view models/ui`. Его задачи:
 
-**Что делает:**
-- Подписывается на события от UI (через `EventBus`) и реагирует на них
-- Хранит состояние приложения (раскрытые узлы, текущий выбор)
-- Вызывает сервисы (`DataLoader`, `ContextService`) для загрузки данных
-- Преобразует результаты в события для UI (`ChildrenLoaded`, `NodeDetailsLoaded`)
-- Обрабатывает ошибки и эмитит `DataError`
-- Управляет жизненным циклом подписок (автоматическая отписка через `cleanup()`)
+- **Подписка на события от UI** (например, `NodeSelected`, `NodeExpanded`, `RefreshRequested`) и координация ответных действий.
+- **Управление состоянием приложения** (текущий выбранный узел — в `DetailsController`, список раскрытых узлов — в `TreeController`).
+- **Оркестрация загрузки данных** через `DataLoader` (из слоя `services`).
+- **Преобразование данных для UI** — использование `TreeProjection` и `DetailsProjection` из слоя `projections`.
+- **Эмиссия событий для UI** (`ChildrenLoaded`, `NodeDetailsLoaded`, `ExpandedNodesChanged`, `CurrentSelectionChanged`, `CollapseAllRequested`).
 
-**Что не должен делать:**
-- Содержать UI-специфичный код (работа с виджетами, QTimer, QThread)
-- Выполнять HTTP-запросы напрямую (только через `services`)
-- Хранить DTO или бизнес-данные (только идентификаторы и состояния)
-- Форматировать данные для отображения (это `projections`)
-- Содержать бизнес-правила предметной области
+**Что слой НЕ должен делать:**
+- Не содержит код отображения (UI).
+- Не импортирует `view models` или `ui` напрямую.
+- Не выполняет HTTP-запросы самостоятельно (делегирует `DataLoader`).
+- Не хранит DTO или данные (только идентификаторы и состояние раскрытия/выбора).
 
 ---
 
 ### Файловая структура слоя
 
 ```
-client/src/controllers/
-├── __init__.py                    # Публичное API контроллеров
-├── base.py                        # BaseController (подписки, отписки, ошибки)
-├── tree_controller.py             # TreeController (дерево, раскрытие узлов)
-├── details_controller.py          # DetailsController (выбор узла, детали)
-├── refresh_controller.py          # RefreshController (обновление данных: F5)
-└── connection_controller.py       # ConnectionController (статус соединения)
+src/controllers/
+├── __init__.py                 # Публичное API (TreeController, DetailsController, RefreshController, ConnectionController)
+├── base.py                     # BaseController — общая подписка/отписка, обработка ошибок
+├── tree_controller.py          # TreeController — раскрытие/сворачивание, загрузка детей, состояние раскрытых узлов
+├── details_controller.py       # DetailsController — выбор узла, загрузка деталей, эмиссия NodeDetailsLoaded
+├── refresh_controller.py       # RefreshController — обновление данных (current/visible/full)
+└── connection_controller.py    # ConnectionController — отслеживание статуса соединения (без UI)
 ```
 
 ---
 
-### Внутренние классы (кратко)
+### Описание внутренних классов
 
-| Класс | Модуль | Назначение |
-|-------|--------|------------|
-| `BaseController` | `base.py` | Абстрактный базовый контроллер. Управляет подписками (автоматическая отписка в `cleanup()`). Предоставляет `_subscribe()` и `_emit_error()`. |
-| `TreeController` | `tree_controller.py` | Управление деревом. Хранит множество раскрытых узлов. При раскрытии узла вызывает `DataLoader` для загрузки детей. Эмитит `ChildrenLoaded` и `ExpandedNodesChanged`. |
-| `DetailsController` | `details_controller.py` | Управление панелью деталей. Хранит текущий выбранный узел (единственный источник правды). При выборе узла загружает детали через `DataLoader` и эмитит `NodeDetailsLoaded`. |
-| `RefreshController` | `refresh_controller.py` | Управление обновлением данных. Поддерживает три режима: `current` (текущий узел), `visible` (раскрытые узлы), `full` (полная перезагрузка). |
-| `ConnectionController` | `connection_controller.py` | Мониторинг соединения. Следит за событиями `ConnectionChanged`, хранит текущий статус. Эмитит события только при реальном изменении (debounce). |
+| Класс | Назначение |
+|-------|-------------|
+| `BaseController` | Абстрактный базовый класс для всех контроллеров. Предоставляет: <br> - метод `_subscribe(event_type, callback)` — подписка с автосохранением unsubscribe-функции; <br> - `cleanup()` — отписка от всех событий; <br> - `_emit_error()` — централизованная эмиссия `DataError`. |
+| `TreeController` | Управление деревом. Хранит `_expanded_nodes: Set[NodeIdentifier]`. <br> Подписан на `NodeExpanded`, `NodeCollapsed`, `DataLoaded`, `CollapseAllRequested`. <br> При раскрытии узла вызывает `DataLoader.load_*_tree()`. <br> При получении `DataLoaded` (kind=CHILDREN) строит `TreeNode` через `TreeProjection` и эмиттит `ChildrenLoaded`. <br> Эмиттит `ExpandedNodesChanged` при изменении списка раскрытых узлов. |
+| `DetailsController` | Управление панелью деталей. Хранит `_current_selection`. <br> Подписан на `NodeSelected`. Обновляет выбор, эмиттит `CurrentSelectionChanged`. <br> Загружает детали через `DataLoader`, преобразует через `DetailsProjection` и эмиттит `NodeDetailsLoaded`. |
+| `RefreshController` | Обработка запросов обновления (F5 и т.д.). Подписан на `RefreshRequested`, а также на `CurrentSelectionChanged` и `ExpandedNodesChanged` для отслеживания состояния. <br> Поддерживает режимы: <br> - `current` — перезагружает текущий выбранный узел (`reload_node`); <br> - `visible` — перезагружает все раскрытые узлы; <br> - `full` — очищает кэш, сворачивает все узлы (`CollapseAllRequested`), загружает комплексы заново. |
+| `ConnectionController` | Отслеживает статус соединения через событие `ConnectionChanged`. Хранит `_is_online` и `_initial_status_received`. Не эмитит события, только предоставляет методы `is_online()` и `is_initialized()` для других контроллеров/UI. |
+
+Все контроллеры наследуются от `BaseController` и используют его механизм подписки.
 
 ---
 
-### Внутренние импорты (только между модулями controllers)
+### Список внутренних импортов (только внутри controllers и вниз)
 
-**Из `base.py`:**
-- `from src.core import EventBus`
-- `from src.core.events.definitions import DataError`
-- `from src.core.types import EventData, NodeIdentifier`
+**Импорты из `core`**:
+- `from src.core.event_bus import EventBus`
+- `from src.core.events.definitions import` (все события, на которые подписываются или которые эмитят: `NodeSelected`, `NodeExpanded`, `NodeCollapsed`, `DataLoaded`, `ChildrenLoaded`, `NodeDetailsLoaded`, `RefreshRequested`, `CurrentSelectionChanged`, `ExpandedNodesChanged`, `CollapseAllRequested`, `ConnectionChanged`, `DataError`)
+- `from src.core.types import EventData, NodeIdentifier, NodeType, ROOT_NODE`
+- `from src.core.types.protocols import IDetailsViewModel`
 
-**Из `tree_controller.py`:**
-- `from .base import BaseController`
-- `from src.core.events.definitions import (ChildrenLoaded, CollapseAllRequested, DataLoaded, DataLoadedKind, ExpandedNodesChanged, NodeCollapsed, NodeExpanded)`
-- `from src.core.types import NodeIdentifier, NodeType, ROOT_NODE`
+**Импорты из `services`**:
+- `from src.services import DataLoader` (и в `refresh_controller.py` также `DataLoader`)
+
+**Импорты из `projections`**:
+- `from src.projections.details_projection import DetailsProjection`
 - `from src.projections.tree import TreeProjection`
-- `from src.services import DataLoader`
 
-**Из `details_controller.py`:**
-- `from .base import BaseController`
-- `from src.core.events.definitions import (CurrentSelectionChanged, NodeDetailsLoaded, NodeSelected)`
-- `from src.core.types.nodes import NodeIdentifier, NodeType`
-- `from src.services.data_loader import DataLoader`
+**Импорты из `utils`**: `get_logger`
 
-**Из `refresh_controller.py`:**
+**Импорты внутри `controllers`**:
 - `from .base import BaseController`
-- `from src.core.events.definitions import (CollapseAllRequested, CurrentSelectionChanged, ExpandedNodesChanged, RefreshRequested)`
-- `from src.core.types import NodeIdentifier`
-- `from src.services import DataLoader`
 
-**Из `connection_controller.py`:**
-- `from .base import BaseController`
-- `from src.core.events.definitions import ConnectionChanged`
+**⚠️ Примечание:** Контроллеры **не импортируют** `view models` и `ui`. Они общаются с вышестоящими слоями только через события `EventBus`.
 
 ---
 
 ### Экспортируемые методы / классы для вышестоящих слоёв
 
-Вся публичная поверхность слоя `controllers` доступна через импорт из `src.controllers`:
+Вышестоящие слои (`view models`, `ui`) **импортируют из `src.controllers`**:
 
-**`BaseController` (абстрактный, не создаётся напрямую):**
-- `__init__(bus: EventBus)`
-- `cleanup() -> None` – отписывается от всех событий (вызывается при завершении)
+#### 1. `TreeController`
 
-**`TreeController`:**
-- `__init__(bus: EventBus, loader: DataLoader, tree_projection: TreeProjection)`
-- `load_root_nodes() -> None` – загружает комплексы при старте приложения
+| Метод | Назначение |
+|-------|-------------|
+| `__init__(bus, loader, tree_projection)` | Создать контроллер дерева. |
+| `load_root_nodes()` | Загрузить корневые узлы (комплексы) при старте. Вызывается один раз после инициализации. |
+| `cleanup()` | Отписаться от событий и очистить состояние. |
 
-**`DetailsController`:**
-- `__init__(bus: EventBus, loader: DataLoader)`
-- (нет публичных методов – работает через события)
+Контроллер **не имеет публичных геттеров** для состояния раскрытых узлов — состояние передаётся через события `ExpandedNodesChanged`.
 
-**`RefreshController`:**
-- `__init__(bus: EventBus, loader: DataLoader)`
-- (нет публичных методов – работает через события)
+#### 2. `DetailsController`
 
-**`ConnectionController`:**
-- `__init__(bus: EventBus)`
-- `is_online() -> Optional[bool]` – текущий статус соединения
-- `is_initialized() -> bool` – получен ли первый статус
+| Метод | Назначение |
+|-------|-------------|
+| `__init__(bus, loader, projection)` | Создать контроллер деталей. |
+| `cleanup()` | Очистить состояние и отписаться. |
+
+Состояние выбора не доступно напрямую — только через `CurrentSelectionChanged`.
+
+#### 3. `RefreshController`
+
+| Метод | Назначение |
+|-------|-------------|
+| `__init__(bus, loader)` | Создать контроллер обновления. |
+| `cleanup()` | Отписаться. |
+
+Контроллер не имеет публичных методов — всё через события.
+
+#### 4. `ConnectionController`
+
+| Метод | Назначение |
+|-------|-------------|
+| `__init__(bus)` | Создать контроллер соединения. |
+| `is_online() -> Optional[bool]` | Вернуть текущий статус (`True`/`False`/`None` — неизвестно). |
+| `is_initialized() -> bool` | `True`, если первый статус уже получен. |
+| `cleanup()` | Отписаться. |
 
 ---
 
-### Итоговое заключение: принципы работы со слоём `controllers`
+### Итоговое заключение
 
-1. **Импорт только сверху вниз** – вышестоящий слой (`ui`) может импортировать из `controllers` свободно. Контроллеры могут импортировать:
-   - `core` – для `EventBus`, типов, событий
-   - `services` – для `DataLoader`
-   - `projections` – для `TreeProjection`
-   - `data` – для репозиториев (только если необходимо, но предпочтительнее через `services`)
+**Принципы работы со слоем `controllers`:**
 
-2. **Запрещены обратные импорты** – контроллеры не должны импортировать ничего из `ui`. Вся коммуникация с UI происходит через `EventBus`.
+1. **Импорт только из `src.controllers`** — используйте `TreeController`, `DetailsController`, `RefreshController`, `ConnectionController`. Никогда не импортируйте `base.py` напрямую.
 
-3. **Единый источник правды** – контроллеры хранят состояние приложения:
-   - `TreeController._expanded_nodes` – раскрытые узлы
-   - `DetailsController._current_selection` – текущий выбранный узел
-   - `RefreshController` копирует эти состояния через события
-   - `ConnectionController._is_online` – статус соединения
+2. **Контроллеры — единственный источник истины для состояния UI** (выбранный узел, раскрытые узлы). UI не должен хранить своё состояние, а должен получать его через события и передавать действия через события.
 
-4. **Автоматическое управление подписками** – используйте `self._subscribe(event_type, callback)` вместо прямого `bus.subscribe()`. Это сохраняет функцию отписки и автоматически очищает подписки при вызове `cleanup()`.
+3. **Все контроллеры должны быть очищены** при завершении работы приложения (вызов `cleanup()`), чтобы предотвратить утечки памяти (слабые ссылки в `EventBus` не удаляют подписки мгновенно).
 
-5. **Централизованная обработка ошибок** – используйте `self._emit_error(node, exception, extra_context)` для эмиссии `DataError`. Метод автоматически собирает контекст (имя контроллера, тип ошибки).
+4. **Использование `BaseController._subscribe`** — обязательно для всех подписок, чтобы `cleanup()` мог автоматически отписаться.
 
-6. **Контроллеры не знают о виджетах** – они работают с событиями и идентификаторами. Например, `TreeController` не знает о `QTreeView` или `TreeModel` – он только эмитит `ChildrenLoaded`, а UI-слой сам решает, как вставить узлы в модель.
+5. **Контроллеры не блокируют UI** — загрузка данных через `DataLoader` асинхронна (внутри используются callback и события). Не нужно создавать дополнительные потоки.
 
-7. **Поток данных (пример – выбор узла):**
-   ```
-   TreeView (UI) → эмитит NodeSelected
-   DetailsController._on_node_selected() → обрабатывает
-       → обновляет _current_selection
-       → эмитит CurrentSelectionChanged (для RefreshController)
-       → вызывает DataLoader.load_*_detail()
-   DataLoader → эмитит DataLoaded (kind=DETAILS)
-   DetailsController (не обрабатывает DETAILS в текущей версии)
-   DetailsUiHandler → подписан на NodeDetailsLoaded
-   ```
+6. **Ошибки обрабатываются централизованно** — метод `_emit_error()` генерирует `DataError`, который может быть перехвачен UI для показа уведомлений.
 
-8. **Поток данных (раскрытие узла):**
-   ```
-   TreeView (UI) → эмитит NodeExpanded
-   TreeController._on_node_expanded()
-       → добавляет узел в _expanded_nodes
-       → вызывает DataLoader.load_*_tree() (ленивая загрузка)
-   DataLoader → загружает детей, сохраняет в граф, эмитит DataLoaded (kind=CHILDREN)
-   TreeController._on_data_loaded() → получает DataLoaded
-       → создаёт TreeNode через TreeProjection.build_children_from_payload()
-       → эмитит ChildrenLoaded
-   TreeModel (UI) → подписан на ChildrenLoaded → обновляет модель
-   ```
+7. **Связь между контроллерами** — через события `EventBus`. Например, `RefreshController` подписывается на `CurrentSelectionChanged` и `ExpandedNodesChanged`, которые эмитят `TreeController` и `DetailsController`.
 
-9. **Режимы обновления (RefreshController):**
-   - `current` (F5) – обновить только выбранный узел (`reload_node`)
-   - `visible` (Ctrl+F5) – обновить все раскрытые узлы
-   - `full` (Ctrl+Shift+F5) – очистить кэш → свернуть дерево → загрузить комплексы
+8. **Тестирование** — контроллеры легко тестировать, передавая мок-объекты `EventBus`, `DataLoader` и `Projection`. Проверять эмитированные события и вызовы методов загрузчика.
 
-10. **ConnectionController – debounce** – хранит предыдущий статус и эмитит события только при реальном изменении. Первый полученный статус сохраняется, но не эмитится как изменение.
-
-11. **Жизненный цикл контроллеров** – создаются в `main.py` (или фабрике) и передаются в `MainWindow`. При завершении приложения вызывается `cleanup()` на всех контроллерах.
-
-12. **Cleanup обязателен** – всегда вызывайте `cleanup()` перед удалением контроллера. Игнорирование приводит к утечкам памяти (слабые ссылки могут не сработать вовремя) и "мёртвым" обработчикам.
-
-13. **Типизация событий** – `_subscribe()` использует wrapper для проверки типа полученного события. Это защита от багов, когда обработчик подписан на один тип, а получает другой.
-
-Слой `controllers` является **координатором между бизнес-логикой и UI**. Он не содержит ни бизнес-правил, ни кода отображения – только "клей", который связывает события, сервисы и проекции в осмысленный поток данных. Контроллеры легко тестируются в изоляции от виджетов, так как все зависимости передаются через конструктор, а коммуникация идёт через `EventBus`.
+Слой `controllers` является **мостом между UI-событиями и бизнес-логикой/данными**. Он не знает о виджетах, но управляет их состоянием через события. Это позволяет менять UI-фреймворк (Qt, Tkinter, веб) без изменения контроллеров.

@@ -1,150 +1,215 @@
-## Анализ слоя: **models** (DTO слой данных)
+## Анализ слоя «models»
 
 ### Краткое описание слоя
 
-**Назначение** – определить иммутабельные DTO (Data Transfer Objects) для всех сущностей системы. Слой `models` содержит **только данные**, никакой бизнес-логики или UI-специфичного кода. DTO служат строгим контрактом между API бекенда и клиентским приложением.
+Слой **models** — это набор **иммутабельных DTO** (Data Transfer Objects), которые описывают структуру данных, получаемых от API бэкенда. Основное назначение:
 
-**Что делает:**
-- Определяет древовидные DTO (`*TreeDTO`) – минимальные данные для отображения в дереве
-- Определяет детальные DTO (`*DetailDTO`) – полные данные для панели деталей
-- Предоставляет фабричные методы `from_dict()` для десериализации из API-ответов
-- Обеспечивает иммутабельность (`frozen=True`) для безопасного кэширования и передачи между компонентами
-- Реализует сравнение объектов по уникальному ключу (тип + id)
+- **Типизированное представление** ответов API (иерархия объектов, справочники, сущности).
+- **Разделение на подкатегории**: физическая структура (`structure`), справочники (`reference`), бизнес-сущности (`entity`).
+- **Единый контракт** для слоёв `data`, `services`, `projections`, `controllers`, `view models` и `ui` — везде используются одни и те же DTO.
+- **Парсинг примитивов** (даты из ISO, преобразование типов) в методах `from_dict`.
 
-**Что не должен делать:**
-- Содержать бизнес-логику (валидацию, вычисления, преобразования)
-- Импортировать что-либо из `data`, `services`, `projections`, `controllers`, `ui`
-- Содержать ссылки на UI-компоненты или логику отображения
-- Мутировать состояние после создания
-- Обращаться к API, БД или внешним сервисам
+**Что слой НЕ должен делать:**
+- Не содержит бизнес-логику (расчёты, валидацию, преобразования, зависящие от контекста).
+- Не имеет зависимостей от внешних API (кроме типов `core`).
+- Не управляет состоянием приложения (кэши, хранение и т.д.).
+- Не содержит логику UI (форматирование, локализация).
 
 ---
 
 ### Файловая структура слоя
 
 ```
-client/src/models/
-├── __init__.py                    # Публичное API моделей (экспорт всех DTO)
-├── base.py                        # BaseDTO – базовый класс для всех DTO
-├── mixins.py                      # DateTimeMixin – работа с датами
-├── complex.py                     # ComplexTreeDTO, ComplexDetailDTO
-├── building.py                    # BuildingTreeDTO, BuildingDetailDTO
-├── floor.py                       # FloorTreeDTO, FloorDetailDTO
-└── room.py                        # RoomTreeDTO, RoomDetailDTO
+src/models/
+├── __init__.py                 # экспорт всех DTO (structure, reference, entity)
+├── base.py                     # BaseDTO (базовый DTO с ключом и идентификатором)
+├── mixins.py                   # DateTimeMixin (парсинг дат)
+│
+├── structure/                  # физическая иерархия объектов
+│   ├── __init__.py             # экспорт DTO структуры
+│   ├── complex.py              # ComplexTreeDTO, ComplexDetailDTO
+│   ├── building.py             # BuildingTreeDTO, BuildingDetailDTO
+│   ├── floor.py                # FloorTreeDTO, FloorDetailDTO
+│   └── room.py                 # RoomTreeDTO, RoomDetailDTO
+│
+├── reference/                  # справочники (reference data)
+│   ├── __init__.py             # экспорт справочников
+│   ├── base.py                 # ReferenceBaseDTO (базовый для справочников)
+│   ├── building_status.py      # BuildingStatusDTO
+│   ├── room_status.py          # RoomStatusDTO
+│   ├── contract_status.py      # ContractStatusDTO
+│   ├── equipment_status.py     # EquipmentStatusDTO
+│   ├── payment_status.py       # PaymentStatusDTO
+│   ├── placement_status.py     # PlacementStatusDTO
+│   └── counterparty_type.py    # CounterpartyTypeDTO
+│
+└── entity/                     # бизнес-сущности (reference entity)
+    ├── __init__.py             # экспорт сущностей
+    ├── base.py                 # EntityBaseDTO (базовый для сущностей)
+    ├── counterparty.py         # CounterpartyDTO
+    └── responsible_person.py   # ResponsiblePersonDTO
 ```
 
 ---
 
-### Внутренние классы (кратко)
+### Описание всех внутренних классов
 
-| Класс | Модуль | Назначение |
-|-------|--------|------------|
-| `BaseDTO` | `base.py` | Абстрактный базовый DTO. Обеспечивает иммутабельность, сравнение по `(NODE_TYPE, id)`, хеширование и строковое представление. |
-| `DateTimeMixin` | `mixins.py` | Примесь для работы с датами. Добавляет поля `created_at`, `updated_at` и статический метод `parse_datetime()` для парсинга ISO дат из API. |
-| `ComplexTreeDTO` | `complex.py` | Минимальные данные комплекса для отображения в дереве (`id`, `name`, `buildings_count`). |
-| `ComplexDetailDTO` | `complex.py` | Полные данные комплекса для панели деталей (включая `description`, `address`, `owner_id`, `status_id`, даты). |
-| `BuildingTreeDTO` | `building.py` | Минимальные данные корпуса для дерева (`id`, `name`, `complex_id`, `floors_count`). |
-| `BuildingDetailDTO` | `building.py` | Полные данные корпуса для панели деталей (включая `description`, `address`, `owner_id`, `status_id`, даты). |
-| `FloorTreeDTO` | `floor.py` | Минимальные данные этажа для дерева (`id`, `number`, `building_id`, `rooms_count`). |
-| `FloorDetailDTO` | `floor.py` | Полные данные этажа для панели деталей (включая `description`, `physical_type_id`, `status_id`, `plan_image_url`, даты). |
-| `RoomTreeDTO` | `room.py` | Минимальные данные помещения для дерева (`id`, `number`, `floor_id`, `area`). |
-| `RoomDetailDTO` | `room.py` | Полные данные помещения для панели деталей (включая `description`, `physical_type_id`, `status_id`, `max_tenants`, даты). |
+> Все DTO являются `@dataclass(frozen=True, kw_only=True)`, иммутабельны.  
+> Для каждого DTO определены `NODE_TYPE` (для structure) или `REFERENCE_TYPE` (для reference) / `ENTITY_TYPE` (для entity).  
+> Метод `from_dict` преобразует словарь ответа API в DTO.
+
+#### Базовые классы (приватные, не экспортируются напрямую)
+
+| Класс | Назначение |
+|-------|-------------|
+| `BaseDTO` | Базовый для всех DTO. Содержит `id`, `NODE_TYPE`, `IS_DETAIL`. Предоставляет `key()` (тип, id) и `to_identifier()` (преобразование в `NodeIdentifier`). |
+| `DateTimeMixin` | Миксин с полями `created_at`, `updated_at` и методом `parse_datetime()` для парсинга ISO-строк (с поддержкой `Z`). |
+| `ReferenceBaseDTO` | Наследует `DateTimeMixin`. Добавляет поля `code`, `name`, `description`, `display_order` и `REFERENCE_TYPE`. Используется для всех справочников. |
+| `EntityBaseDTO` | Наследует `DateTimeMixin`. Добавляет поле `id` и `ENTITY_TYPE`. Используется для бизнес-сущностей (контрагенты, ответственные лица). |
+
+#### DTO физической структуры (`structure`)
+
+Все DTO структуры наследуют `BaseDTO`. Для каждого типа узла (`NodeType`) существует два DTO:
+- **TreeDTO** — минимальные данные для отображения в дереве (содержит счётчики дочерних элементов).
+- **DetailDTO** — полные данные для панели деталей (дополнительные поля, даты создания/обновления).
+
+| Класс | Соответствует узлу | Назначение |
+|-------|-------------------|-------------|
+| `ComplexTreeDTO` | `COMPLEX` | Имя, количество корпусов. |
+| `ComplexDetailDTO` | `COMPLEX` | Имя, описание, адрес, владелец, статус, даты. |
+| `BuildingTreeDTO` | `BUILDING` | Имя, `complex_id`, количество этажей. |
+| `BuildingDetailDTO` | `BUILDING` | Имя, описание, адрес, владелец, статус, даты. |
+| `FloorTreeDTO` | `FLOOR` | Номер этажа, `building_id`, количество помещений. |
+| `FloorDetailDTO` | `FLOOR` | Номер, описание, тип, статус, URL плана, даты. |
+| `RoomTreeDTO` | `ROOM` | Номер, `floor_id`, площадь. |
+| `RoomDetailDTO` | `ROOM` | Номер, площадь, описание, тип, статус, максимальное число арендаторов, даты. |
+
+#### DTO справочников (`reference`)
+
+Наследуют `ReferenceBaseDTO`. Каждый соответствует перечислению `ReferenceDataType`.
+
+| Класс | REFERENCE_TYPE | Дополнительные поля |
+|-------|----------------|----------------------|
+| `BuildingStatusDTO` | `BUILDING_STATUS` | `is_initial`, `allows_occupancy` |
+| `RoomStatusDTO` | `ROOM_STATUS` | `is_initial`, `allows_rent` |
+| `ContractStatusDTO` | `CONTRACT_STATUS` | `is_initial`, `is_terminal` |
+| `EquipmentStatusDTO` | `EQUIPMENT_STATUS` | `is_initial`, `is_operational` |
+| `PaymentStatusDTO` | `PAYMENT_STATUS` | `is_initial`, `is_success` |
+| `PlacementStatusDTO` | `PLACEMENT_STATUS` | `is_initial` |
+| `CounterpartyTypeDTO` | `COUNTERPARTY_TYPE` | `is_active` |
+
+#### DTO бизнес-сущностей (`entity`)
+
+Наследуют `EntityBaseDTO`. Соответствуют `ReferenceEntityType`.
+
+| Класс | ENTITY_TYPE | Назначение |
+|-------|-------------|-------------|
+| `CounterpartyDTO` | `COUNTERPARTY` | Контрагент: краткое/полное имя, ИНН, адреса, банковские реквизиты, статус, тип. |
+| `ResponsiblePersonDTO` | `RESPONSIBLE_PERSON` | Ответственное лицо: ФИО, должность, отдел, контакты, даты найма/увольнения, активность. |
 
 ---
 
-### Внутренние импорты (только между модулями models)
+### Список внутренних импортов
 
-**Из `complex.py`, `building.py`, `floor.py`, `room.py`:**
-- `from .base import BaseDTO`
-- `from .mixins import DateTimeMixin`
+Все DTO импортируют друг друга только в пределах слоя `models` и используют типы из `src.core` (разрешённая зависимость сверху вниз). Основные импорты:
 
-**Из `mixins.py`:**
-- (нет внутренних импортов models – только `utils.logger`)
+**Из `src.core.types`**:
+- `NodeType`, `NodeIdentifier` — используются в `BaseDTO` и `to_identifier()`.
+- `ReferenceDataType` — в базовом классе справочников.
+- `ReferenceEntityType` — в базовом классе сущностей.
 
-**Из `base.py`:**
-- (нет внутренних импортов models)
+**Внутри `models`**:
+- `from .base import BaseDTO` — в DTO структуры.
+- `from .mixins import DateTimeMixin` — в `base.py`, `ReferenceBaseDTO`, `EntityBaseDTO`.
+- `from ..base import BaseDTO` — для иерархических импортов (например, в `structure/complex.py`).
+- `from ..mixins import DateTimeMixin` — аналогично.
 
-**Из `__init__.py` (публичный фасад):**
-- `from .complex import ComplexTreeDTO, ComplexDetailDTO`
-- `from .building import BuildingTreeDTO, BuildingDetailDTO`
-- `from .floor import FloorTreeDTO, FloorDetailDTO`
-- `from .room import RoomTreeDTO, RoomDetailDTO`
+**Примеры**:
+```python
+# models/structure/complex.py
+from ..base import BaseDTO
+from ..mixins import DateTimeMixin
+from src.core.types.structure import NodeType
+```
+
+```python
+# models/reference/base.py
+from ..mixins import DateTimeMixin
+from src.core.types.reference_data import ReferenceDataType
+```
+
+```python
+# models/entity/base.py
+from ..mixins import DateTimeMixin
+from src.core.types.reference_entity import ReferenceEntityType
+```
 
 ---
 
 ### Экспортируемые методы / классы для вышестоящих слоёв
 
-Вся публичная поверхность слоя `models` доступна через импорт из `src.models` (согласно `models/__init__.py`):
+Вышестоящие слои (`data`, `services`, `projections`, `controllers`, `view models`, `ui`) **импортируют DTO исключительно из `src.models`** (через главный `__init__.py` или напрямую из подмодулей). Полный список экспортируемых DTO:
 
-**Базовые классы (доступны через полный путь, но редко нужны выше):**
-- `BaseDTO` – от него наследуются все DTO (обычно не используется напрямую)
-- `DateTimeMixin` – для работы с датами (обычно не используется напрямую)
+#### 1. Физическая структура (`src.models.structure` или `src.models`)
 
-**Tree DTO (для слоёв `data`, `services`, `projections`):**
-- `ComplexTreeDTO` – комплексы в дереве
-- `BuildingTreeDTO` – корпуса в дереве
-- `FloorTreeDTO` – этажи в дереве
-- `RoomTreeDTO` – помещения в дереве
+| Класс | Назначение |
+|-------|-------------|
+| `ComplexTreeDTO` | Дерево: комплекс (минимально) |
+| `ComplexDetailDTO` | Детали: комплекс (полная информация) |
+| `BuildingTreeDTO` | Дерево: корпус |
+| `BuildingDetailDTO` | Детали: корпус |
+| `FloorTreeDTO` | Дерево: этаж |
+| `FloorDetailDTO` | Детали: этаж |
+| `RoomTreeDTO` | Дерево: помещение |
+| `RoomDetailDTO` | Детали: помещение |
 
-**Detail DTO (для слоёв `data`, `services`, `projections`):**
-- `ComplexDetailDTO` – детальная информация о комплексе
-- `BuildingDetailDTO` – детальная информация о корпусе
-- `FloorDetailDTO` – детальная информация об этаже
-- `RoomDetailDTO` – детальная информация о помещении
+#### 2. Справочники (`src.models.reference` или `src.models`)
 
-**Каждый DTO предоставляет:**
-- Конструктор через `__init__(id=..., name=..., ...)` – все поля обязательны, кроме опциональных
-- Фабричный метод `from_dict(cls, data: dict) -> DTO` – строгая десериализация
-- Метод `key(self) -> Tuple[str, int]` – уникальный ключ `(NODE_TYPE, id)`
-- Иммутабельность (нельзя изменить после создания)
-- Автоматическое сравнение и хеширование по `key()`
-- Строковое представление для отладки: `ComplexTreeDTO[TREE](key=('complex', 42))`
+| Класс | Назначение |
+|-------|-------------|
+| `BuildingStatusDTO` | Статус здания |
+| `RoomStatusDTO` | Статус помещения |
+| `ContractStatusDTO` | Статус договора |
+| `EquipmentStatusDTO` | Статус оборудования |
+| `PaymentStatusDTO` | Статус платежа |
+| `PlacementStatusDTO` | Статус размещения |
+| `CounterpartyTypeDTO` | Тип контрагента |
+
+#### 3. Бизнес-сущности (`src.models.entity` или `src.models`)
+
+| Класс | Назначение |
+|-------|-------------|
+| `CounterpartyDTO` | Контрагент |
+| `ResponsiblePersonDTO` | Ответственное лицо |
+
+#### 4. Базовые классы (редко используются выше, но доступны)
+
+| Класс / Функция | Назначение |
+|-----------------|-------------|
+| `BaseDTO` | Базовый DTO (содержит `key()`, `to_identifier()`) — может быть полезен для обобщённых функций. |
+| `DateTimeMixin.parse_datetime()` | Статический метод парсинга ISO-дат. |
+
+**Примечание:** Вышестоящие слои **не должны** создавать DTO вручную (кроме как через `from_dict`). DTO иммутабельны, все изменения требуют создания нового экземпляра.
 
 ---
 
-### Итоговое заключение: принципы работы со слоем `models`
+### Итоговое заключение
 
-1. **Импорт только сверху вниз** – вышестоящие слои (`data`, `services`, `projections`, `controllers`, `ui`) могут импортировать из `models` свободно. Слой `models` может импортировать только:
-   - `core` – для типов (`NodeType`, `NodeIdentifier` – **но в текущей реализации не импортирует, т.к. NODE_TYPE задан строкой**)
-   - Внутренние модули (`base`, `mixins`)
-   - Внешние утилиты (`utils.logger` – только в `mixins.py`)
+**Принципы работы со слоем `models`:**
 
-   **Важное замечание:** В текущей реализации `NODE_TYPE` объявлен как `ClassVar[str] = "complex"`, а не `ClassVar[NodeType] = NodeType.COMPLEX`. Это допустимо (избегает циклической зависимости), но требует согласованности строковых значений с `core.types.nodes.NodeType`.
+1. **Импорт только из `src.models`** — используйте либо полный путь `from src.models import ComplexTreeDTO`, либо из подмодулей `from src.models.structure import ComplexTreeDTO`. Избегайте импорта внутренних `base.py`, `mixins.py` напрямую.
 
-2. **Запрещены импорты из `models` в обратную сторону** – код внутри `models` не должен импортировать ничего из `data`, `services`, `projections`, `controllers`, `ui`.
+2. **DTO — неизменяемые (frozen)** — после создания их нельзя изменить. Это гарантирует потокобезопасность и предсказуемость.
 
-3. **Используйте публичное API через `src.models`** – все DTO доступны оттуда:
-   ```python
-   from src.models import ComplexTreeDTO, BuildingDetailDTO
-   ```
+3. **Создание DTO** — через фабричный метод `from_dict(data: dict)`. Этот метод выполняет минимальное преобразование (парсинг дат). Не добавляйте в него бизнес-логику.
 
-4. **Создавайте DTO только через `from_dict()`** – фабричный метод обеспечивает строгую десериализацию и обработку опциональных полей:
-   ```python
-   complex_tree = ComplexTreeDTO.from_dict(api_response)
-   ```
+4. **Использование идентификаторов** — метод `to_identifier()` возвращает `NodeIdentifier` из `core`, что удобно для событий (например, `NodeSelected`).
 
-5. **Не создавайте DTO вручную через конструктор** – конструктор предназначен для внутреннего использования фабрикой. Исключение – тесты или фабрики данных.
+5. **Различение Tree/Detail** — поле `IS_DETAIL` позволяет слоям выше понять, какие данные доступны (полные или сокращённые). `NODE_TYPE` даёт возможность полиморфной работы.
 
-6. **Строгий контракт десериализации**:
-   - Обязательные поля (`id`, `name`, `number`, `complex_id` и т.д.) берутся через `data["field"]` – при отсутствии выбрасывается `KeyError`
-   - Опциональные поля через `data.get()` с защитой от неправильных типов
-   - Числовые поля с защитой от `None` и некорректных значений
+6. **Запрещено**:
+   - Менять поля DTO (они frozen).
+   - Добавлять методы, обращающиеся к API, репозиториям, сервисам.
+   - Использовать DTO для хранения состояния UI (для этого есть `view models`).
 
-7. **Иммутабельность гарантирует безопасность**:
-   - DTO можно безопасно кэшировать в `EntityGraph`
-   - DTO можно передавать между компонентами без риска случайной модификации
-   - DTO можно использовать как ключи в словарях и элементах множеств
-
-8. **Сравнение и хеширование** – два DTO считаются равными, если у них одинаковые `(NODE_TYPE, id)`. Это позволяет:
-   - `ComplexTreeDTO(id=1) == ComplexDetailDTO(id=1)` – `True` (разные типы DTO, но одна сущность)
-   - `ComplexTreeDTO(id=1) != BuildingTreeDTO(id=1)` – `True` (разные типы сущностей)
-
-9. **Разделение Tree и Detail DTO** – важный архитектурный паттерн:
-   - `TreeDTO` – минимальные поля для производительности (дерево может содержать тысячи узлов)
-   - `DetailDTO` – полные данные для детального просмотра (загружаются по требованию)
-
-10. **Обработка дат** – используйте `DateTimeMixin.parse_datetime()` для парсинга ISO дат из API. Метод нормализует `'Z'` в `'+00:00'` для совместимости с `datetime.fromisoformat()`.
-
-11. **Логирование** – допустимо использовать `utils.logger` только в `mixins.py` для логирования ошибок парсинга дат. В остальных DTO логирование не требуется.
-
-Слой `models` является **единственным источником истины** для структуры данных в приложении. Любое изменение API бекенда должно отражаться только в этом слое. Вышестоящие слои работают только с DTO из этого слоя, не зная о внутреннем формате API-ответов.
+Слой `models` является **единственным источником правды** о структуре данных, получаемых с бэкенда. Любое изменение API должно начинаться с корректировки DTO в этом слое.

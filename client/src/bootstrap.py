@@ -201,7 +201,7 @@ class ApplicationBootstrap:
             bus=self._bus,
             loader=self._loader,
         )
-
+        # ConnectionController — заглушка на будущее (статус соединения)
         self._connection_controller = ConnectionController(self._bus)
 
         log.info("Контроллеры созданы: Tree, Details, Refresh, Connection")

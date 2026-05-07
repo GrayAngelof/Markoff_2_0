@@ -1,9 +1,16 @@
 # client/src/controllers/connection_controller.py
 """
-ConnectionController — управление статусом соединения.
+ConnectionController — управление статусом соединения (ЗАГЛУШКА).
 
-Отслеживает статус соединения с сервером.
-Эмитит события только при реальном изменении статуса (debounce).
+На данный момент контроллер только хранит статус соединения, но не используется.
+Оставлен для будущей реализации (блокировка сетевых действий, отмена запросов).
+Публичные методы is_online() и is_initialized() пока не вызываются.
+
+Планируемое использование:
+- Другие контроллеры смогут запрашивать статус перед сетевыми операциями.
+- UI сможет подписываться на ConnectionStatusChanged (планируется).
+
+Если через несколько релизов не понадобится — удалить.
 """
 
 # ===== ИМПОРТЫ =====
@@ -43,13 +50,13 @@ class ConnectionController(BaseController):
         log.system("ConnectionController инициализирован")
 
     # ---- ОБРАБОТЧИКИ СОБЫТИЙ ----
-    def _on_connection_changed(self, data: ConnectionChanged) -> None:  # Изменено: data вместо event
+    def _on_connection_changed(self, data: ConnectionChanged) -> None:
         """
         Обрабатывает изменение статуса соединения.
 
         Сохраняет статус и логирует только при реальном изменении.
         """
-        new_status = data.is_online  # Изменено: data.is_online вместо event.data.is_online
+        new_status = data.is_online
         error = getattr(data, 'error', None)
 
         log.debug(f"Получено ConnectionChanged: online={new_status}, error={error}")

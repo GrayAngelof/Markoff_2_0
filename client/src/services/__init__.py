@@ -19,7 +19,6 @@
 # ===== ИМПОРТЫ) =====
 from .api_client import ApiClient
 from .connection import ConnectionService
-from .context_service import ContextService
 from .data_loader import DataLoader
 
 
@@ -30,9 +29,6 @@ __all__ = [
     
     # Мониторинг состояния соединения
     "ConnectionService",
-    
-    # Построение контекста (имена родителей)
-    "ContextService",
     
     # Оркестратор загрузки данных
     "DataLoader",

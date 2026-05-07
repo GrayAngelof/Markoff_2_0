@@ -64,10 +64,6 @@ class BaseRepository(Generic[T], CoreRepository[T, int], ABC):
         """Возвращает все сущности данного типа."""
         return self._graph.get_all(self._node_type)
 
-    def get_ids(self) -> List[int]:
-        """Возвращает все ID сущностей данного типа."""
-        return self._graph.get_all_ids(self._node_type)
-
     def add(self, entity: T) -> None:
         """Добавляет или обновляет сущность."""
         self._graph.add_or_update(entity)

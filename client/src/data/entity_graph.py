@@ -9,23 +9,21 @@
 # ===== ИМПОРТЫ =====
 from datetime import datetime
 from threading import RLock
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, TypedDict
+from typing import Any, Dict, Iterable, List, Optional, TypedDict
 
 from src.core.event_bus import EventBus
 from src.core.rules.hierarchy import get_child_type, get_parent_type
 from src.core.types import NodeIdentifier, NodeType
 from src.core.types.structure import NodeID
 from src.shared.comparison import has_changed
-from src.shared.validation import validate_positive_int
 from utils.logger import get_logger
 
-from src.data.graph.consistency import ConsistencyChecker
-from src.data.graph.decorators import validate_ids
-from src.data.graph.load_state import LoadState, LoadStateIndex
-from src.data.graph.relations import RelationIndex, RelationStats
-from src.data.graph.schema import get_node_type, get_parent_id
-from src.data.graph.store import EntityStore, StoreStats
-from src.data.graph.validity import ValidityIndex, ValidityStats
+from .graph.consistency import ConsistencyChecker
+from .graph.load_state import  LoadStateIndex
+from .graph.relations import RelationIndex, RelationStats
+from .graph.schema import get_node_type, get_parent_id
+from .graph.store import EntityStore, StoreStats
+from .graph.validity import ValidityIndex, ValidityStats
 
 
 # ===== КОНСТАНТЫ =====
@@ -488,30 +486,6 @@ class EntityGraph:
         with self._lock:
             return func()
 
-    def _has_full_details(self, entity: Any, node_type: NodeType) -> bool:
-        """
-        Определяет, является ли DTO DetailDTO (полные данные).
-        
-        Приоритеты:
-        1. Флаг IS_DETAIL (ClassVar из BaseDTO) — самый надёжный
-        2. Наличие характерных полей (fallback для обратной совместимости)
-        """
-        # Первый приоритет: флаг IS_DETAIL
-        if hasattr(entity, 'IS_DETAIL'):
-            return bool(entity.IS_DETAIL)
-        
-        # Fallback для старых DTO (если остались)
-        if node_type == NodeType.COMPLEX:
-            return hasattr(entity, 'description') and hasattr(entity, 'address')
-        if node_type == NodeType.BUILDING:
-            return hasattr(entity, 'description') and hasattr(entity, 'address')
-        if node_type == NodeType.FLOOR:
-            return hasattr(entity, 'description') or hasattr(entity, 'plan_image_url')
-        if node_type == NodeType.ROOM:
-            return hasattr(entity, 'description') or hasattr(entity, 'max_tenants')
-        
-        return False
-    
     def _is_detail_dto(self, entity: Any, node_type: NodeType) -> bool:
         """
         Проверяет, является ли DTO DetailDTO.
